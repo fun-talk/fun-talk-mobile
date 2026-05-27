@@ -19,6 +19,7 @@
     "expo-symbols": "~56.0.5",
     "expo-system-ui": "~56.0.5",
     "expo-web-browser": "~56.0.5",
+    "expo-wechat-no-pay": "^0.2.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
@@ -43,7 +44,7 @@
     "ios": "expo start --ios --port 19002",
     "web": "expo start --web --port 19002",
     "lint": "expo lint",
-    "test": "node --import tsx --test src/shared/*.test.ts src/lib/auth/storage.test.ts",
+    "test": "node --import tsx --test src/shared/*.test.ts src/lib/auth/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "private": true

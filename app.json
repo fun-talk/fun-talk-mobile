@@ -5,10 +5,16 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "funtalkmobile",
+    "scheme": [
+      "funtalkmobile",
+      "wx4f3da33035cc1d14"
+    ],
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "associatedDomains": [
+        "applinks:ai-fun-talk.com"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -34,7 +40,8 @@
             "imageWidth": 76
           }
         }
-      ]
+      ],
+      "expo-wechat-no-pay"
     ],
     "experiments": {
       "typedRoutes": true,

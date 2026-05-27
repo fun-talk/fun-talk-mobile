@@ -10,6 +10,7 @@ export type ApiClient = {
 export type CreateApiClientOptions = {
   baseUrl: string;
   getDeviceId?: () => Promise<string>;
+  getAccessToken?: () => string | null | Promise<string | null>;
   onUnauthorized?: () => void;
 };
 
@@ -26,13 +27,20 @@ export function createApiClient(options: CreateApiClientOptions): ApiClient {
     const url = new URL(path, options.baseUrl);
     appendDeviceId(url, await getDeviceId());
 
+    const headers = new Headers(init?.headers ?? {});
+    if (!headers.has('Accept')) {
+      headers.set('Accept', 'application/json');
+    }
+
+    const accessToken = options.getAccessToken ? await options.getAccessToken() : null;
+    if (accessToken && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
+    }
+
     const response = await fetch(url.toString(), {
       ...init,
       credentials: 'include',
-      headers: {
-        Accept: 'application/json',
-        ...(init?.headers ?? {}),
-      },
+      headers,
     });
 
     if (response.status === 401 && options.onUnauthorized) {
@@ -46,15 +54,25 @@ export function createApiClient(options: CreateApiClientOptions): ApiClient {
     baseUrl: options.baseUrl,
     request,
     get: (path, init) => request(path, { ...init, method: 'GET' }),
-    post: (path, body, init) =>
-      request(path, {
+    post: (path, body, init) => {
+      const headers = new Headers(init?.headers ?? {});
+      if (body !== undefined && !headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+      }
+
+      return request(path, {
         ...init,
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(init?.headers ?? {}),
-        },
+        headers,
         body: body === undefined ? undefined : JSON.stringify(body),
-      }),
+      });
+    },
   };
+}
+
+export function withAccessToken(apiClient: ApiClient, token: string): ApiClient {
+  return createApiClient({
+    baseUrl: apiClient.baseUrl,
+    getAccessToken: () => token,
+  });
 }
