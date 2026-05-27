@@ -37,11 +37,11 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --port 19002",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
+    "android": "expo start --android --port 19002",
+    "ios": "expo start --ios --port 19002",
+    "web": "expo start --web --port 19002",
     "lint": "expo lint",
     "test": "node --import tsx --test src/shared/*.test.ts src/lib/auth/storage.test.ts",
     "typecheck": "tsc --noEmit"

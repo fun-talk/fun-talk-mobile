@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 
 const DEFAULT_API_HOST = 'http://localhost:9000';
-const DEFAULT_WEB_BASE_URL = 'http://localhost:5173';
+const DEFAULT_WEB_BASE_URL = 'http://localhost:19001';
 
 function readPublicEnv(key: string): string | undefined {
   const fromProcess = process.env[key];
