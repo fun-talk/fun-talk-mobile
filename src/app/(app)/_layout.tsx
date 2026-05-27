@@ -1,12 +1,11 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { Redirect, type Href } from 'expo-router';
+import { Redirect, Stack, type Href } from 'expo-router';
 
 import { useAuth } from '@/features/auth';
 
-const COURSES_ROUTE = '/(app)/courses' as Href;
 const LOGIN_ROUTE = '/(auth)/login' as Href;
 
-export default function IndexScreen() {
+export default function AppLayout() {
   const { isLoading, isAuthenticated } = useAuth();
 
   if (isLoading) {
@@ -17,11 +16,11 @@ export default function IndexScreen() {
     );
   }
 
-  if (isAuthenticated) {
-    return <Redirect href={COURSES_ROUTE} />;
+  if (!isAuthenticated) {
+    return <Redirect href={LOGIN_ROUTE} />;
   }
 
-  return <Redirect href={LOGIN_ROUTE} />;
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
 const styles = StyleSheet.create({
