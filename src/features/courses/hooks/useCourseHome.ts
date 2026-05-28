@@ -54,46 +54,30 @@ export function useCourseHome(options: {
 
   const scrollRef = useRef<import('react-native').ScrollView | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const refreshCourseHome = useCallback(async () => {
     setIsLoadingLessons(true);
-
-    void fetchPublishedLessons(apiClient)
-      .then((items) => {
-        if (cancelled) return;
-        setLessons(items);
-        setLessonLoadFailed(false);
-        const total = items.length;
-        return readCourseProgress(total).then((localProgress) => {
-          if (cancelled) return;
-          setProgress(localProgress);
-          if (total === 0) return;
-          return fetchCourseHomeProgress(total, apiClient)
-            .then((serverProgress) => {
-              if (!cancelled) {
-                setProgress(serverProgress);
-              }
-            })
-            .catch((error) => {
-              console.warn('load course home progress failed:', error);
-            });
-        });
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        console.warn('load course home lessons failed:', error);
-        setLessonLoadFailed(true);
-        setLessons([]);
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoadingLessons(false);
+    try {
+      const items = await fetchPublishedLessons(apiClient);
+      setLessons(items);
+      setLessonLoadFailed(false);
+      const total = items.length;
+      const localProgress = await readCourseProgress(total);
+      setProgress(localProgress);
+      if (total > 0) {
+        try {
+          const serverProgress = await fetchCourseHomeProgress(total, apiClient);
+          setProgress(serverProgress);
+        } catch (error) {
+          console.warn('load course home progress failed:', error);
         }
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      }
+    } catch (error) {
+      console.warn('load course home lessons failed:', error);
+      setLessonLoadFailed(true);
+      setLessons([]);
+    } finally {
+      setIsLoadingLessons(false);
+    }
   }, [apiClient]);
 
   const totalCourses = lessons.length;
@@ -235,5 +219,6 @@ export function useCourseHome(options: {
     handleCourseClick,
     handleContinue,
     handleLogout,
+    refreshCourseHome,
   };
 }
