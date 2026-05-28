@@ -1,4 +1,8 @@
 import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+import { Platform } from 'react-native';
+
+import { rewriteHostForRuntime } from '@/lib/devHost';
 
 const DEFAULT_API_HOST = 'http://localhost:9000';
 const DEFAULT_WEB_BASE_URL = 'http://localhost:19001';
@@ -45,12 +49,17 @@ function readPublicEnv(key: PublicEnvKey): string | undefined {
   return undefined;
 }
 
+function resolveRuntimeHost(configured: string | undefined, fallback: string): string {
+  const host = configured ?? fallback;
+  return rewriteHostForRuntime(host, Platform.OS, Device.isDevice);
+}
+
 export function getApiHost(): string {
-  return readPublicEnv('EXPO_PUBLIC_API_HOST') ?? DEFAULT_API_HOST;
+  return resolveRuntimeHost(readPublicEnv('EXPO_PUBLIC_API_HOST'), DEFAULT_API_HOST);
 }
 
 export function getWebBaseUrl(): string {
-  return readPublicEnv('EXPO_PUBLIC_WEB_BASE_URL') ?? DEFAULT_WEB_BASE_URL;
+  return resolveRuntimeHost(readPublicEnv('EXPO_PUBLIC_WEB_BASE_URL'), DEFAULT_WEB_BASE_URL);
 }
 
 export function getAssetBaseUrl(): string {

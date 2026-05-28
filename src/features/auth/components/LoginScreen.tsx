@@ -13,7 +13,9 @@ import {
 } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
+import { ApiRequestError } from '@/lib/api/client';
 import { readRememberMePreference, writeRememberMePreference } from '@/lib/auth/preferences';
+import { getApiHost } from '@/lib/env';
 
 import { useAuth } from '../AuthProvider';
 import {
@@ -61,11 +63,17 @@ export function LoginScreen() {
         router.replace(COURSES_ROUTE);
       } catch (error) {
         const message =
-          error instanceof LoginError || error instanceof Error
+          error instanceof LoginError ||
+          error instanceof ApiRequestError ||
+          error instanceof Error
             ? error.message
             : '登录失败，请稍后重试';
+        if (error instanceof ApiRequestError) {
+          setStatusMessage(`当前 API：${getApiHost()}`);
+        } else {
+          setStatusMessage('');
+        }
         setErrorMessage(message);
-        setStatusMessage('');
       } finally {
         setIsSubmitting(false);
       }
