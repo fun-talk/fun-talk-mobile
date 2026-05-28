@@ -4,7 +4,7 @@
 
 Expo HAS CHANGED. Before writing Expo, React Native, or Expo Router code, read the exact versioned docs for this app at:
 
-https://docs.expo.dev/versions/v56.0.0/
+https://docs.expo.dev/versions/v54.0.0/
 
 Do not rely on older Expo assumptions when changing APIs, config, router behavior, native modules, or build tooling.
 
@@ -46,7 +46,7 @@ The backend development default is `EXPO_PUBLIC_API_HOST=http://localhost:9000`.
 - Use `camelCase` for functions, variables, hooks, and helpers.
 - Keep route files focused on route composition; move reusable logic into `features`, `lib`, or `shared`.
 - Keep storage, auth, and API boundaries explicit. Do not hide persistence side effects inside presentational components.
-- Prefer Expo and React Native APIs that are documented for SDK 56.
+- Prefer Expo and React Native APIs that are documented for SDK 54.
 
 ## Testing Guidelines
 
@@ -66,7 +66,7 @@ npm test
 - Use `.env.example` as the source of safe public placeholders.
 - Expo public values must use the `EXPO_PUBLIC_` prefix.
 - Do not commit secrets, local credentials, private certificates, generated logs, or machine-specific files.
-- Keep app scheme, universal links, and native plugin config in `app.json` aligned with Expo SDK 56 docs.
+- Keep app scheme, universal links, and native plugin config in `app.json` aligned with Expo SDK 54 docs.
 
 ## Commit & Pull Request Guidelines
 

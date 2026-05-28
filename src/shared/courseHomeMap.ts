@@ -18,7 +18,7 @@ export type CourseMapNode = {
   y: number;
 };
 
-const BASE_COURSE_POSITIONS: Array<{ x: number; y: number }> = [
+const BASE_COURSE_POSITIONS: { x: number; y: number }[] = [
   { x: 925, y: 700 },
   { x: 1210, y: 760 },
   { x: 1510, y: 790 },

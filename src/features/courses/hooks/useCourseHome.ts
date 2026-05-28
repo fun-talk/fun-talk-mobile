@@ -8,7 +8,6 @@ import {
   buildCourseMapNodes,
   getCourseMapHeight,
   getCourseMapSegmentCount,
-  MAP_WIDTH,
   type CourseHomeLesson,
   type CourseMapNode,
 } from '@/shared/courseHomeMap';
