@@ -16,7 +16,8 @@ type PublicEnvKey =
   | 'EXPO_PUBLIC_ASSET_BASE_URL'
   | 'EXPO_PUBLIC_OSS_BASE_URL'
   | 'EXPO_PUBLIC_WECHAT_APP_ID'
-  | 'EXPO_PUBLIC_WECHAT_UNIVERSAL_LINK';
+  | 'EXPO_PUBLIC_WECHAT_UNIVERSAL_LINK'
+  | 'EXPO_PUBLIC_LESSON_RENDERER';
 
 function readProcessEnv(key: PublicEnvKey): string | undefined {
   switch (key) {
@@ -32,6 +33,8 @@ function readProcessEnv(key: PublicEnvKey): string | undefined {
       return process.env.EXPO_PUBLIC_WECHAT_APP_ID;
     case 'EXPO_PUBLIC_WECHAT_UNIVERSAL_LINK':
       return process.env.EXPO_PUBLIC_WECHAT_UNIVERSAL_LINK;
+    case 'EXPO_PUBLIC_LESSON_RENDERER':
+      return process.env.EXPO_PUBLIC_LESSON_RENDERER;
   }
 }
 
@@ -76,4 +79,14 @@ export function getWechatAppId(): string {
 
 export function getWechatUniversalLink(): string {
   return readPublicEnv('EXPO_PUBLIC_WECHAT_UNIVERSAL_LINK') ?? DEFAULT_WECHAT_UNIVERSAL_LINK;
+}
+
+export type LessonRenderer = 'webview' | 'native';
+
+export function getLessonRenderer(): LessonRenderer {
+  const value = readPublicEnv('EXPO_PUBLIC_LESSON_RENDERER');
+  if (value === 'native') {
+    return 'native';
+  }
+  return 'webview';
 }
