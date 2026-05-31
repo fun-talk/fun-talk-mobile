@@ -38,6 +38,23 @@ describe("normalizeRealtimeControlEvent", () => {
     assert.equal(result!.resumed, false);
   });
 
+  it("normalizes a session_ready event with lesson runtime", () => {
+    const result = normalizeRealtimeControlEvent({
+      event: "session_ready",
+      session_id: "abc-123",
+      resumed: false,
+      use_lesson_runtime: true,
+      lesson: { lesson_key: "414", version: 1 },
+    });
+    assert.notEqual(result, null);
+    assert.equal(result!.event, "session_ready");
+    assert.equal(result!.use_lesson_runtime, true);
+    assert.equal(
+      (result!.lesson as { lesson_key?: string }).lesson_key,
+      "414",
+    );
+  });
+
   it("normalizes an assistant_text event", () => {
     const result = normalizeRealtimeControlEvent({
       event: "assistant_text",

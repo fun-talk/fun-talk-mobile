@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -46,6 +46,7 @@ export function NativeLessonScreen() {
   // Resolve lesson params from route
   const lessonId = normalizeRouteParam(params.lesson_id)?.trim() || "";
   const from = normalizeRouteParam(params.from)?.trim();
+  const autoStartOnMount = normalizeRouteParam(params.autostart)?.trim() === "1";
 
   // Load lesson definition via 6a hook
   const { lessonDefinition, error, isLoading } = useRealtimeLessonDefinition(
@@ -87,6 +88,7 @@ export function NativeLessonScreen() {
 
   const apiHost = getApiHost();
   const wsBaseUrl = apiHost.replace(/^http/, "ws");
+  const mediaFinishedCueRef = useRef<string | null>(null);
 
   const {
     connectionStatus,
@@ -102,12 +104,16 @@ export function NativeLessonScreen() {
     stopFlow,
     toggleTranscript,
     clearMessages,
+    currentMedia,
+    notifyLessonMediaFinished,
   } = useLessonFlow({
     apiClient,
     lessonDefinition,
     audioPlayback,
     audioRecording,
     wsBaseUrl,
+    accessToken: auth?.token,
+    autoStartOnMount,
   });
 
   // ------------------------------------------------------------------
@@ -295,11 +301,32 @@ export function NativeLessonScreen() {
 
         {/* Media display area */}
         <View style={styles.mediaArea}>
-          {screenText ? (
+          {currentMedia?.kind === "video" && currentMedia.url ? (
+            <Video
+              key={currentMedia.cueId || currentMedia.url}
+              source={{ uri: currentMedia.url }}
+              style={styles.stepMediaVideo}
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay
+              isLooping={false}
+              onPlaybackStatusUpdate={(status) => {
+                if (!status.isLoaded || !status.didJustFinish) {
+                  return;
+                }
+                const cueKey =
+                  currentMedia.cueId || currentMedia.url || "video";
+                if (mediaFinishedCueRef.current === cueKey) {
+                  return;
+                }
+                mediaFinishedCueRef.current = cueKey;
+                notifyLessonMediaFinished(
+                  currentMedia.description || "video_finished",
+                );
+              }}
+            />
+          ) : screenText ? (
             <View style={styles.mediaPlaceholder}>
-              <Text style={styles.screenTextDisplay}>
-                {screenText}
-              </Text>
+              <Text style={styles.screenTextDisplay}>{screenText}</Text>
             </View>
           ) : (
             <View style={styles.mediaPlaceholder}>
@@ -515,6 +542,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.15)",
+  },
+  stepMediaVideo: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
   },
   mediaPlaceholder: {
     flex: 1,

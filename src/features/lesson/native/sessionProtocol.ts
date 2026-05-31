@@ -32,6 +32,9 @@ export interface RealtimeControlEventData {
   current_step_id?: number;
   current_media?: Record<string, unknown> | null;
   feedback_text?: string;
+  screen_text?: string;
+  phase?: string;
+  lifecycle?: string;
   [key: string]: unknown;
 }
 
@@ -246,6 +249,9 @@ export function normalizeRealtimeControlEvent(
   }
   if (typeof raw.feedback_text === "string")
     data.feedback_text = raw.feedback_text;
+  if (typeof raw.screen_text === "string") data.screen_text = raw.screen_text;
+  if (typeof raw.phase === "string") data.phase = raw.phase;
+  if (typeof raw.lifecycle === "string") data.lifecycle = raw.lifecycle;
   if (typeof raw.kind === "string") data.kind = raw.kind;
   if (
     raw.payload &&

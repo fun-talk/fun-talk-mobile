@@ -20,8 +20,17 @@ import {
 } from "./lessonDefinition";
 import { useRealtimeSession } from "./useRealtimeSession";
 import type { DemoPhase } from "./useRealtimeSession";
+import { buildRealtimeLessonWsUrl } from "./realtimeWsUrl";
 import {
+  applyLessonRuntimeControlState,
+  type LessonMediaCue,
+} from "./lessonRuntimeControl";
+import { playAssistantSpeech } from "./playAssistantSpeech";
+import {
+  buildAssistantPromptSpokenCommand,
   buildInitSessionCommand,
+  buildMediaFinishedCommand,
+  buildStartLessonCommand,
   type RealtimeControlEventData,
 } from "./sessionProtocol";
 import type { AudioPlaybackCallbacks } from "./useAudioPlayback";
@@ -32,7 +41,7 @@ import type { AudioRecordingCallbacks } from "./useAudioRecording";
 // ---------------------------------------------------------------------------
 
 const FOX_SPEAKER = "zh_male_taocheng_uranus_bigtts";
-const FOX_TTS_SPEED = 1.0;
+const FOX_TTS_SPEED = 0;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,6 +81,8 @@ export interface LessonFlowState {
   currentChallengeKey: string | null;
   /** Session ID from server (for resume) */
   sessionId: string | null;
+  /** Active lesson media cue from LessonRuntime */
+  currentMedia: LessonMediaCue | null;
 }
 
 export interface LessonFlowActions {
@@ -87,6 +98,8 @@ export interface LessonFlowActions {
   sendCommand: (payload: object) => void;
   /** Restart recording (for manual speech control) */
   restartRecording: () => void;
+  /** Notify server that the current step media finished playing */
+  notifyLessonMediaFinished: (summary?: string) => void;
 }
 
 export interface LessonFlowRefs {
@@ -119,6 +132,10 @@ export interface UseLessonFlowOptions {
   };
   /** WebSocket server base URL */
   wsBaseUrl: string;
+  /** Optional Bearer token for `/ws/realtime` when cookies are unavailable. */
+  accessToken?: string;
+  /** Start lesson flow automatically once the definition is loaded. */
+  autoStartOnMount?: boolean;
   /** Called when an error occurs */
   onError?: (error: string) => void;
 }
@@ -128,11 +145,13 @@ export interface UseLessonFlowOptions {
 // ---------------------------------------------------------------------------
 
 export function useLessonFlow({
-  apiClient: _apiClient,
+  apiClient,
   lessonDefinition,
   audioPlayback,
   audioRecording,
   wsBaseUrl,
+  accessToken,
+  autoStartOnMount = false,
   onError,
 }: UseLessonFlowOptions): LessonFlowState & LessonFlowActions & LessonFlowRefs {
   // ------------------------------------------------------------------
@@ -152,6 +171,7 @@ export function useLessonFlow({
     string | null
   >(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [currentMedia, setCurrentMedia] = useState<LessonMediaCue | null>(null);
 
   // ------------------------------------------------------------------
   // Refs (kept across renders for event handlers)
@@ -161,6 +181,12 @@ export function useLessonFlow({
   const sessionIdRef = useRef<string | null>(null);
   const flowRunningRef = useRef(false);
   const lessonRef = useRef<RealtimeLessonDefinition | null>(null);
+  const sendJsonRef = useRef<(payload: object) => void>(() => {});
+  const lessonRuntimeActiveRef = useRef(false);
+  const currentLessonStepIdRef = useRef<number | null>(null);
+  const currentMediaCueIdRef = useRef<string | null>(null);
+  const assistantTextDraftRef = useRef("");
+  const assistantSpeechBusyRef = useRef(false);
 
   // Keep refs in sync
   demoPhaseRef.current = demoPhase;
@@ -172,22 +198,155 @@ export function useLessonFlow({
   // WebSocket session (6c)
   // ------------------------------------------------------------------
 
+  const lessonRuntimeCtx = useMemo(
+    () => ({
+      currentStepIdRef: currentLessonStepIdRef,
+      currentMediaCueIdRef,
+      setScreenText,
+      setMessageHint: setScreenText,
+      setCurrentMedia,
+    }),
+    [],
+  );
+
+  const notifyAssistantPromptSpoken = useCallback((stepId: number) => {
+    sendJsonRef.current(buildAssistantPromptSpokenCommand(stepId));
+  }, []);
+
+  const handleLessonChatEnded = useCallback(
+    (finalText: string) => {
+      const stepId = currentLessonStepIdRef.current;
+      assistantTextDraftRef.current = "";
+      if (!finalText) {
+        setIsBotSpeaking(false);
+        if (stepId != null) {
+          notifyAssistantPromptSpoken(stepId);
+        }
+        return;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: finalText },
+      ]);
+      setScreenText(finalText);
+
+      if (assistantSpeechBusyRef.current) {
+        return;
+      }
+      assistantSpeechBusyRef.current = true;
+      void (async () => {
+        try {
+          setIsBotSpeaking(true);
+          await playAssistantSpeech({
+            apiClient,
+            text: finalText,
+            speaker: FOX_SPEAKER,
+            speed: 1,
+            audioPlayback,
+          });
+        } catch (speechError) {
+          console.warn("assistant speech failed:", speechError);
+        } finally {
+          setIsBotSpeaking(false);
+          assistantSpeechBusyRef.current = false;
+          if (stepId != null) {
+            notifyAssistantPromptSpoken(stepId);
+          }
+        }
+      })();
+    },
+    [apiClient, audioPlayback, notifyAssistantPromptSpoken],
+  );
+
+  const applySessionReady = useCallback((event: RealtimeControlEventData) => {
+    if (event.session_id) {
+      setSessionId(event.session_id);
+      sessionIdRef.current = event.session_id;
+    }
+    setConnectionStatus("connected");
+    setError(null);
+
+    lessonRuntimeActiveRef.current = event.use_lesson_runtime === true;
+    if (event.use_lesson_runtime) {
+      sendJsonRef.current(buildStartLessonCommand());
+      setScreenText("正在加载课程内容...");
+      setDemoPhase("challenge");
+    }
+  }, []);
+
   const handleControlEvent = useCallback(
     (event: RealtimeControlEventData) => {
       console.log("realtime control event:", event.event, event);
 
       switch (event.event) {
+        case "session_ready":
         case "session_created":
-          if (event.session_id) {
-            setSessionId(event.session_id);
-            sessionIdRef.current = event.session_id;
+          applySessionReady(event);
+          break;
+
+        case "phase_changed":
+          if (event.phase === "challenge") {
+            setDemoPhase("challenge");
           }
-          setConnectionStatus("connected");
+          break;
+
+        case "lesson_state_snapshot":
+        case "step_started":
+        case "answer_evaluated":
+        case "media_event":
+        case "lesson_completed":
+          applyLessonRuntimeControlState(event, lessonRuntimeCtx);
+          if (event.event === "lesson_state_snapshot" || event.event === "step_started") {
+            setDemoPhase("challenge");
+          }
           break;
 
         case "lesson_started":
           setDemoPhase("teaching_intro");
-          // TODO: Transition to first teaching segment
+          break;
+
+        case "assistant_message":
+          if (lessonRuntimeActiveRef.current && event.text) {
+            setScreenText(event.text);
+            setMessages((prev) => [
+              ...prev,
+              { role: "assistant", text: event.text! },
+            ]);
+          }
+          break;
+
+        case "chat":
+          if (lessonRuntimeActiveRef.current && event.text) {
+            assistantTextDraftRef.current += event.text;
+            setScreenText(assistantTextDraftRef.current);
+            setIsBotSpeaking(true);
+          } else if (event.text) {
+            setIsBotSpeaking(true);
+            setMessages((prev) => [
+              ...prev,
+              { role: "assistant", text: event.text! },
+            ]);
+          }
+          break;
+
+        case "chat_ended":
+          if (lessonRuntimeActiveRef.current) {
+            const finalLessonText = String(
+              event.text || assistantTextDraftRef.current || "",
+            ).trim();
+            handleLessonChatEnded(finalLessonText);
+            break;
+          }
+          setIsBotSpeaking(false);
+          break;
+
+        case "tts_start":
+          setIsBotSpeaking(true);
+          break;
+
+        case "tts_end":
+          setIsBotSpeaking(false);
           break;
 
         case "assistant_text":
@@ -247,7 +406,7 @@ export function useLessonFlow({
           console.log("realtime: unhandled event type", event.event);
       }
     },
-    [onError],
+    [applySessionReady, handleLessonChatEnded, lessonRuntimeCtx, onError],
   );
 
   const handleWsError = useCallback(
@@ -276,6 +435,8 @@ export function useLessonFlow({
     onClose: handleWsClose,
   });
 
+  sendJsonRef.current = sendJson;
+
   // ------------------------------------------------------------------
   // Actions
   // ------------------------------------------------------------------
@@ -296,16 +457,27 @@ export function useLessonFlow({
       botName: lessonDefinition.metadata.botName || "欧波",
       speaker: FOX_SPEAKER,
       ttsSpeed: FOX_TTS_SPEED,
-      useFrontendTts: false,
+      useFrontendTts: true,
       useLessonRuntime: true,
       lessonId: lessonDefinition.metadata.id,
     });
 
-    // Build WebSocket URL from lesson definition or default
-    const wsUrl = wsBaseUrl.replace(/\/$/, "");
-
-    wsConnect({ wsUrl, initCommand });
-  }, [lessonDefinition, wsBaseUrl, wsConnect]);
+    void (async () => {
+      try {
+        const wsUrl = await buildRealtimeLessonWsUrl(wsBaseUrl, {
+          speaker: FOX_SPEAKER,
+          accessToken,
+        });
+        await wsConnect({ wsUrl, initCommand });
+      } catch (connectError) {
+        console.warn("realtime websocket connect failed:", connectError);
+        setConnectionStatus("error");
+        setError("WebSocket 连接失败");
+        setIsFlowRunning(false);
+        onError?.("WebSocket 连接失败");
+      }
+    })();
+  }, [accessToken, lessonDefinition, onError, wsBaseUrl, wsConnect]);
 
   const stopFlow = useCallback(() => {
     wsDisconnect(true);
@@ -331,6 +503,21 @@ export function useLessonFlow({
     [sendJson],
   );
 
+  const notifyLessonMediaFinished = useCallback(
+    (summary = "") => {
+      if (!lessonRuntimeActiveRef.current) {
+        return;
+      }
+      sendJson(
+        buildMediaFinishedCommand({
+          cueId: currentMediaCueIdRef.current ?? undefined,
+          summary,
+        }),
+      );
+    },
+    [sendJson],
+  );
+
   const restartRecording = useCallback(() => {
     audioRecording
       .startRecording({
@@ -346,17 +533,13 @@ export function useLessonFlow({
   const hasAutoStarted = useRef(false);
 
   useEffect(() => {
-    if (
-      lessonDefinition &&
-      !hasAutoStarted.current &&
-      !isFlowRunning
-    ) {
-      // Don't auto-start; wait for user to tap "开始课程"
-      hasAutoStarted.current = true;
+    if (!autoStartOnMount || !lessonDefinition || hasAutoStarted.current) {
+      return;
     }
-  }, [lessonDefinition, isFlowRunning]);
+    hasAutoStarted.current = true;
+    startFlow();
+  }, [autoStartOnMount, lessonDefinition, startFlow]);
 
-  // Reset auto-start when lesson changes
   useEffect(() => {
     hasAutoStarted.current = false;
   }, [lessonDefinition?.metadata.id]);
@@ -379,6 +562,7 @@ export function useLessonFlow({
       isFlowRunning,
       currentChallengeKey,
       sessionId,
+      currentMedia,
       // Actions
       startFlow,
       stopFlow,
@@ -386,6 +570,7 @@ export function useLessonFlow({
       clearMessages,
       sendCommand,
       restartRecording,
+      notifyLessonMediaFinished,
       // Refs
       wsRef,
       sessionIdRef,
@@ -402,12 +587,14 @@ export function useLessonFlow({
       isFlowRunning,
       currentChallengeKey,
       sessionId,
+      currentMedia,
       startFlow,
       stopFlow,
       toggleTranscript,
       clearMessages,
       sendCommand,
       restartRecording,
+      notifyLessonMediaFinished,
       wsRef,
     ],
   );

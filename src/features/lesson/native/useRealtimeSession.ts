@@ -9,7 +9,6 @@
  */
 
 import { useCallback, useRef } from "react";
-import { getDeviceID } from "@/lib/device/deviceId";
 import { parseFrame, MSG_TYPE_JSON } from "./parseFrame";
 import {
   normalizeRealtimeControlEvent,
@@ -89,11 +88,7 @@ export function useRealtimeSession({
       const connectionSerial = connectionSerialRef.current + 1;
       connectionSerialRef.current = connectionSerial;
 
-      // Append device ID to WebSocket URL (mirrors web wsclient behavior)
-      const deviceId = await getDeviceID();
-      const url = `${wsUrl}?deviceID=${encodeURIComponent(deviceId)}`;
-
-      const ws = new WebSocket(url);
+      const ws = new WebSocket(wsUrl);
       // RN WebSocket supports "arraybuffer" binaryType
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
