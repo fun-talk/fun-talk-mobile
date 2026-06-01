@@ -26,6 +26,9 @@ export type NativeLessonStep = {
   mediaCueId?: string;
   responseMode?: string;
   correctOptionId?: string;
+  expectedPhrases?: string[];
+  successReply?: string;
+  retryText?: string;
   options: NativeLessonChoiceOption[];
   autoAdvance: boolean;
   raw: Record<string, unknown>;

@@ -28,6 +28,14 @@ export function useNativeLessonController(lesson: NativeLessonDefinition) {
     state,
     view,
     next: useCallback(() => dispatch({ type: 'next' }), []),
+    submitChoice: useCallback(
+      (optionId: string) => dispatch({ type: 'submit_choice', optionId }),
+      [],
+    ),
+    submitText: useCallback(
+      (text: string) => dispatch({ type: 'submit_text', text }),
+      [],
+    ),
     pause: useCallback(() => dispatch({ type: 'pause' }), []),
     resume: useCallback(() => dispatch({ type: 'resume' }), []),
     reset: useCallback(() => dispatch({ type: 'reset' }), []),

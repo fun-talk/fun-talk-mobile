@@ -85,6 +85,18 @@ function normalizeChoiceOptions(step: Record<string, unknown>): NativeLessonChoi
     .filter((option) => option.id);
 }
 
+function normalizeExpectedPhrases(step: Record<string, unknown>): string[] {
+  if (typeof step.expectedText === 'string' && step.expectedText.trim()) {
+    return [step.expectedText.trim()];
+  }
+  if (!Array.isArray(step.expectedPhrases)) {
+    return [];
+  }
+  return step.expectedPhrases
+    .map((phrase) => asString(phrase).trim())
+    .filter(Boolean);
+}
+
 function normalizeSteps(rawSteps: unknown): Record<number, NativeLessonStep> {
   const source = Array.isArray(rawSteps)
     ? Object.fromEntries(rawSteps.map((step, index) => [String(index + 1), step]))
@@ -105,6 +117,9 @@ function normalizeSteps(rawSteps: unknown): Record<number, NativeLessonStep> {
       mediaCueId: asString(step.mediaCueId).trim() || undefined,
       responseMode: asString(step.responseMode).trim() || undefined,
       correctOptionId: asString(step.correctOptionId).trim() || undefined,
+      expectedPhrases: normalizeExpectedPhrases(step),
+      successReply: asString(step.successReply).trim() || undefined,
+      retryText: asString(step.retryText).trim() || undefined,
       options: normalizeChoiceOptions(step),
       autoAdvance: asBoolean(step.autoAdvance, false),
       raw: step,

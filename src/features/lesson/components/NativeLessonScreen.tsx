@@ -168,6 +168,8 @@ function NativeLessonLoadedScreen({
       totalCourses={totalCourses}
       controllerView={controller.view}
       onNext={controller.next}
+      onSubmitChoice={controller.submitChoice}
+      onSubmitText={controller.submitText}
       onPauseToggle={controller.view.isPaused ? controller.resume : controller.pause}
       onExit={onExit}
       onFallback={onFallback}

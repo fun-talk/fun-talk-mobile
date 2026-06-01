@@ -89,6 +89,52 @@ describe('nativeLessonLoader', () => {
     assert.equal(lesson.challenges[0]?.steps[2]?.correctOptionId, 'A');
   });
 
+  it('normalizes stage 5 answer fields from challenge steps', () => {
+    const lesson = normalizeNativeLessonDefinition({
+      ...rawLesson,
+      challenges: [
+        {
+          key: 'stage_5',
+          title: '答题关卡',
+          steps: {
+            '1': {
+              step: 1,
+              promptText: 'Pick the globe seal.',
+              responseMode: 'choice',
+              correctOptionId: 'globe',
+              retryText: '再看看封蜡。',
+              question: {
+                options: [
+                  {
+                    optionId: 'globe',
+                    label: 'A',
+                    text: '地球握手封蜡',
+                    image_url: 'https://example.com/globe.png',
+                  },
+                ],
+              },
+            },
+            '2': {
+              step: 2,
+              promptText: 'Say ready.',
+              responseMode: 'speech',
+              expectedText: 'ready',
+              successReply: '说对啦！',
+            },
+          },
+        },
+      ],
+    });
+
+    const choiceStep = lesson.challenges[0]?.steps[1];
+    const speechStep = lesson.challenges[0]?.steps[2];
+    assert.equal(choiceStep?.options[0]?.id, 'globe');
+    assert.equal(choiceStep?.options[0]?.imageUrl, 'https://example.com/globe.png');
+    assert.equal(choiceStep?.retryText, '再看看封蜡。');
+    assert.deepEqual(speechStep?.expectedPhrases, ['ready']);
+    assert.equal(speechStep?.successReply, '说对啦！');
+  });
+
   it('fetches and normalizes realtime lesson responses through the api client', async () => {
     const seenPaths: string[] = [];
     const apiClient = createApiClient(async (path) => {

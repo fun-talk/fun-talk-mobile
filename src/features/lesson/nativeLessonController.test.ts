@@ -48,8 +48,21 @@ const lesson = {
           promptText: '到了！看那台子——就是入队宣誓台！',
           screenText: '找到宣誓台',
           mediaCueId: 'challenge_video',
-          options: [],
+          correctOptionId: 'A',
+          options: [
+            { id: 'A', label: 'A', text: '宣誓台', imageUrl: 'https://example.com/a.png' },
+            { id: 'B', label: 'B', text: '餐桌' },
+          ],
           autoAdvance: true,
+          raw: {},
+        },
+        2: {
+          step: 2,
+          promptText: '补充完整：I am ____.',
+          screenText: 'I am ___.',
+          expectedPhrases: ['ready'],
+          options: [],
+          autoAdvance: false,
           raw: {},
         },
       },
@@ -65,7 +78,11 @@ const lesson = {
       promptText: '到了！看那台子——就是入队宣誓台！',
       screenText: '找到宣誓台',
       mediaCueId: 'challenge_video',
-      options: [],
+      correctOptionId: 'A',
+      options: [
+        { id: 'A', label: 'A', text: '宣誓台', imageUrl: 'https://example.com/a.png' },
+        { id: 'B', label: 'B', text: '餐桌' },
+      ],
       autoAdvance: true,
       raw: {},
     },
@@ -92,6 +109,10 @@ describe('nativeLessonController', () => {
     const challengeView = getNativeLessonControllerView(lesson, state);
     assert.equal(challengeView.phase, 'challenge');
     assert.equal(challengeView.text, '到了！看那台子——就是入队宣誓台！');
+    assert.equal(challengeView.lifecycle, 'waiting_user');
+
+    state = reduceNativeLessonController(lesson, state, { type: 'next' });
+    assert.equal(getNativeLessonControllerView(lesson, state).phase, 'challenge');
 
     state = reduceNativeLessonController(lesson, state, { type: 'next' });
     assert.equal(getNativeLessonControllerView(lesson, state).phase, 'free_chat');
@@ -114,5 +135,52 @@ describe('nativeLessonController', () => {
     state = reduceNativeLessonController(lesson, state, { type: 'resume' });
     state = reduceNativeLessonController(lesson, state, { type: 'next' });
     assert.equal(state.snapshot.currentIndex, 1);
+  });
+
+  it('keeps the current challenge on wrong choice and advances on correct choice', () => {
+    let state = createNativeLessonControllerState(lesson);
+    state = reduceNativeLessonController(lesson, state, { type: 'next' });
+    state = reduceNativeLessonController(lesson, state, { type: 'next' });
+
+    state = reduceNativeLessonController(lesson, state, {
+      type: 'submit_choice',
+      optionId: 'B',
+    });
+
+    let view = getNativeLessonControllerView(lesson, state);
+    assert.equal(view.phase, 'challenge');
+    assert.equal(view.answer?.correct, false);
+    assert.equal(view.answer?.selectedOptionId, 'B');
+
+    state = reduceNativeLessonController(lesson, state, {
+      type: 'submit_choice',
+      optionId: 'A',
+    });
+
+    view = getNativeLessonControllerView(lesson, state);
+    assert.equal(view.phase, 'challenge');
+    assert.equal(view.text, '补充完整：I am ____.');
+  });
+
+  it('keeps fill blank speech step on wrong text and advances on expected phrase', () => {
+    let state = createNativeLessonControllerState(lesson);
+    state = reduceNativeLessonController(lesson, state, { type: 'next' });
+    state = reduceNativeLessonController(lesson, state, { type: 'next' });
+    state = reduceNativeLessonController(lesson, state, {
+      type: 'submit_choice',
+      optionId: 'A',
+    });
+
+    state = reduceNativeLessonController(lesson, state, {
+      type: 'submit_text',
+      text: 'sleepy',
+    });
+    assert.equal(getNativeLessonControllerView(lesson, state).answer?.correct, false);
+
+    state = reduceNativeLessonController(lesson, state, {
+      type: 'submit_text',
+      text: 'I am ready',
+    });
+    assert.equal(getNativeLessonControllerView(lesson, state).phase, 'free_chat');
   });
 });

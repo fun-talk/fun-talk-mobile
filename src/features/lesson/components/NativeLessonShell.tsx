@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { courseHomeImages } from '@/features/courses/assets/courseHomeAssets';
 
@@ -13,6 +14,8 @@ type NativeLessonShellProps = {
   totalCourses?: string;
   controllerView: NativeLessonControllerView;
   onNext: () => void;
+  onSubmitChoice: (optionId: string) => void;
+  onSubmitText: (text: string) => void;
   onPauseToggle: () => void;
   onFallback: () => void;
   onExit: () => void;
@@ -32,10 +35,13 @@ export function NativeLessonShell({
   totalCourses,
   controllerView,
   onNext,
+  onSubmitChoice,
+  onSubmitText,
   onPauseToggle,
   onFallback,
   onExit,
 }: NativeLessonShellProps) {
+  const [draftAnswer, setDraftAnswer] = useState('');
   const layout = useNativeLessonScale();
   const canvasWidth = layout.isLandscapeTablet
     ? layout.canvasWidth
@@ -52,6 +58,12 @@ export function NativeLessonShell({
     controllerView.text ||
     controllerView.screenText ||
     (controllerView.phase === 'end' ? '课程完成' : controllerView.title);
+  const choiceOptions = controllerView.step?.options ?? [];
+  const expectsTextAnswer =
+    !choiceOptions.length &&
+    (Boolean(controllerView.step?.expectedPhrases?.length) ||
+      controllerView.step?.responseMode === 'speech');
+  const canSubmitText = draftAnswer.trim().length > 0;
 
   return (
     <View style={styles.root}>
@@ -185,6 +197,161 @@ export function NativeLessonShell({
                   {displayText}
                 </Text>
               </View>
+
+              {choiceOptions.length ? (
+                <View
+                  style={[
+                    styles.optionGrid,
+                    {
+                      top: scaled(168, scale),
+                      left: scaled(118, scale),
+                      right: scaled(118, scale),
+                      gap: scaled(18, scale),
+                    },
+                  ]}
+                >
+                  {choiceOptions.map((option) => {
+                    const isSelected =
+                      controllerView.answer?.selectedOptionId === option.id;
+                    const isWrong = isSelected && controllerView.answer?.correct === false;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        accessibilityRole="button"
+                        onPress={() => onSubmitChoice(option.id)}
+                        style={[
+                          styles.optionButton,
+                          {
+                            minHeight: scaled(112, scale),
+                            borderRadius: scaled(18, scale),
+                            padding: scaled(12, scale),
+                          },
+                          isWrong && styles.optionButtonWrong,
+                        ]}
+                      >
+                        {option.imageUrl ? (
+                          <Image
+                            source={{ uri: option.imageUrl }}
+                            style={[
+                              styles.optionImage,
+                              {
+                                width: scaled(84, scale),
+                                height: scaled(84, scale),
+                                borderRadius: scaled(12, scale),
+                              },
+                            ]}
+                            contentFit="cover"
+                          />
+                        ) : null}
+                        <View style={styles.optionTextWrap}>
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              styles.optionLabel,
+                              { fontSize: scaled(22, scale) },
+                            ]}
+                          >
+                            {option.label}
+                          </Text>
+                          <Text
+                            numberOfLines={2}
+                            style={[
+                              styles.optionText,
+                              { fontSize: scaled(26, scale), lineHeight: scaled(34, scale) },
+                            ]}
+                          >
+                            {option.text}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              {expectsTextAnswer ? (
+                <View
+                  style={[
+                    styles.textAnswerRow,
+                    {
+                      top: scaled(184, scale),
+                      left: scaled(160, scale),
+                      right: scaled(160, scale),
+                      gap: scaled(16, scale),
+                    },
+                  ]}
+                >
+                  <TextInput
+                    value={draftAnswer}
+                    onChangeText={setDraftAnswer}
+                    placeholder="输入跟读/填空内容"
+                    placeholderTextColor="#9ca3af"
+                    style={[
+                      styles.textAnswerInput,
+                      {
+                        minHeight: scaled(82, scale),
+                        borderRadius: scaled(14, scale),
+                        fontSize: scaled(26, scale),
+                        paddingHorizontal: scaled(24, scale),
+                      },
+                    ]}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={!canSubmitText}
+                    onPress={() => {
+                      onSubmitText(draftAnswer);
+                      setDraftAnswer('');
+                    }}
+                    style={[
+                      styles.textAnswerButton,
+                      {
+                        minHeight: scaled(82, scale),
+                        borderRadius: scaled(14, scale),
+                        paddingHorizontal: scaled(30, scale),
+                      },
+                      !canSubmitText && styles.disabledButton,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.textAnswerButtonText,
+                        { fontSize: scaled(24, scale) },
+                      ]}
+                    >
+                      提交
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {controllerView.answer ? (
+                <View
+                  style={[
+                    styles.feedbackBubble,
+                    {
+                      left: scaled(210, scale),
+                      right: scaled(210, scale),
+                      bottom: scaled(42, scale),
+                      borderRadius: scaled(16, scale),
+                      paddingHorizontal: scaled(24, scale),
+                      paddingVertical: scaled(12, scale),
+                    },
+                    controllerView.answer.correct
+                      ? styles.feedbackBubbleCorrect
+                      : styles.feedbackBubbleWrong,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.feedbackText,
+                      { fontSize: scaled(22, scale), lineHeight: scaled(30, scale) },
+                    ]}
+                  >
+                    {controllerView.answer.feedbackText}
+                  </Text>
+                </View>
+              ) : null}
 
               <Image
                 source={courseHomeImages.fox}
@@ -380,6 +547,81 @@ const styles = StyleSheet.create({
   hintText: {
     color: '#92400e',
     fontWeight: '700',
+    textAlign: 'center',
+  },
+  optionGrid: {
+    position: 'absolute',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  optionButton: {
+    flex: 1,
+    maxWidth: 360,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#f4d2a2',
+    backgroundColor: '#fffaf2',
+  },
+  optionButtonWrong: {
+    borderColor: '#fca5a5',
+    backgroundColor: '#fef2f2',
+  },
+  optionImage: {
+    backgroundColor: '#f1f5f9',
+  },
+  optionTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 12,
+  },
+  optionLabel: {
+    color: '#b45309',
+    fontWeight: '900',
+  },
+  optionText: {
+    marginTop: 2,
+    color: '#7c2d12',
+    fontWeight: '800',
+  },
+  textAnswerRow: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  textAnswerInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#f4d2a2',
+    backgroundColor: '#fffaf2',
+    color: '#7c2d12',
+    fontWeight: '800',
+  },
+  textAnswerButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0ea5e9',
+  },
+  textAnswerButtonText: {
+    color: '#ffffff',
+    fontWeight: '900',
+  },
+  feedbackBubble: {
+    position: 'absolute',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  feedbackBubbleCorrect: {
+    borderColor: '#86efac',
+    backgroundColor: '#dcfce7',
+  },
+  feedbackBubbleWrong: {
+    borderColor: '#fca5a5',
+    backgroundColor: '#fee2e2',
+  },
+  feedbackText: {
+    color: '#7f1d1d',
+    fontWeight: '800',
     textAlign: 'center',
   },
   avatar: {

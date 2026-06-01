@@ -26,6 +26,15 @@ export type NativeLessonControllerSnapshot = {
   phase: NativeLessonPhase;
   lifecycle: NativeLessonLifecycle;
   completedItemIds: string[];
+  answer?: NativeLessonAnswerState;
+};
+
+export type NativeLessonAnswerState = {
+  itemId: string;
+  selectedOptionId?: string;
+  submittedText?: string;
+  correct: boolean;
+  feedbackText: string;
 };
 
 export type NativeLessonControllerState = {
@@ -37,7 +46,9 @@ export type NativeLessonControllerAction =
   | { type: 'next' }
   | { type: 'pause' }
   | { type: 'resume' }
-  | { type: 'reset' };
+  | { type: 'reset' }
+  | { type: 'submit_choice'; optionId: string }
+  | { type: 'submit_text'; text: string };
 
 export type NativeLessonControllerView = NativeLessonControllerItem & {
   lifecycle: NativeLessonLifecycle;
@@ -45,6 +56,7 @@ export type NativeLessonControllerView = NativeLessonControllerItem & {
   index: number;
   total: number;
   canGoNext: boolean;
+  answer?: NativeLessonAnswerState;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -211,7 +223,11 @@ function lifecycleForItem(item: NativeLessonControllerItem): NativeLessonLifecyc
   if (item.phase === 'end') {
     return 'completed';
   }
-  if (item.step?.options.length) {
+  if (
+    item.step?.options.length ||
+    item.step?.expectedPhrases?.length ||
+    item.step?.responseMode === 'speech'
+  ) {
     return 'waiting_user';
   }
   if (item.media?.type === 'video') {
@@ -233,8 +249,54 @@ export function createNativeLessonControllerState(
       phase: first?.phase ?? 'end',
       lifecycle: first ? lifecycleForItem(first) : 'completed',
       completedItemIds: [],
+      answer: undefined,
     },
   };
+}
+
+function advanceNativeLessonController(
+  lesson: NativeLessonDefinition,
+  state: NativeLessonControllerState,
+): NativeLessonControllerState {
+  const items = buildNativeLessonControllerItems(lesson);
+  const current = items[state.snapshot.currentIndex];
+  const nextIndex = Math.min(state.snapshot.currentIndex + 1, Math.max(items.length - 1, 0));
+  const next = items[nextIndex];
+  const completedItemIds =
+    current && !state.snapshot.completedItemIds.includes(current.id)
+      ? [...state.snapshot.completedItemIds, current.id]
+      : state.snapshot.completedItemIds;
+
+  return {
+    ...state,
+    snapshot: {
+      currentIndex: nextIndex,
+      totalItems: items.length,
+      phase: next?.phase ?? 'end',
+      lifecycle: next ? lifecycleForItem(next) : 'completed',
+      completedItemIds,
+      answer: undefined,
+    },
+  };
+}
+
+function normalizeAnswerText(text: string): string {
+  return text.trim().toLowerCase();
+}
+
+function textMatchesExpected(text: string, expectedPhrases: string[] | undefined): boolean {
+  const normalized = normalizeAnswerText(text);
+  return Boolean(
+    normalized &&
+      expectedPhrases?.some((phrase) => normalized.includes(normalizeAnswerText(phrase))),
+  );
+}
+
+function feedbackForStep(step: NativeLessonStep, correct: boolean): string {
+  if (correct) {
+    return step.successReply || '答对了！';
+  }
+  return step.retryText || '再试一次。';
 }
 
 export function reduceNativeLessonController(
@@ -257,23 +319,57 @@ export function reduceNativeLessonController(
 
   const items = buildNativeLessonControllerItems(lesson);
   const current = items[state.snapshot.currentIndex];
-  const nextIndex = Math.min(state.snapshot.currentIndex + 1, Math.max(items.length - 1, 0));
-  const next = items[nextIndex];
-  const completedItemIds =
-    current && !state.snapshot.completedItemIds.includes(current.id)
-      ? [...state.snapshot.completedItemIds, current.id]
-      : state.snapshot.completedItemIds;
+  const step = current?.step;
 
-  return {
-    ...state,
-    snapshot: {
-      currentIndex: nextIndex,
-      totalItems: items.length,
-      phase: next?.phase ?? 'end',
-      lifecycle: next ? lifecycleForItem(next) : 'completed',
-      completedItemIds,
-    },
-  };
+  if (action.type === 'submit_choice') {
+    if (!current || !step?.options.length) {
+      return state;
+    }
+    const selectedOptionId = action.optionId.trim();
+    const correct = Boolean(
+      step.correctOptionId &&
+        selectedOptionId.toLowerCase() === step.correctOptionId.trim().toLowerCase(),
+    );
+    if (correct) {
+      return advanceNativeLessonController(lesson, state);
+    }
+    return {
+      ...state,
+      snapshot: {
+        ...state.snapshot,
+        answer: {
+          itemId: current.id,
+          selectedOptionId,
+          correct,
+          feedbackText: feedbackForStep(step, correct),
+        },
+      },
+    };
+  }
+
+  if (action.type === 'submit_text') {
+    if (!current || !step) {
+      return state;
+    }
+    const correct = textMatchesExpected(action.text, step.expectedPhrases);
+    if (correct) {
+      return advanceNativeLessonController(lesson, state);
+    }
+    return {
+      ...state,
+      snapshot: {
+        ...state.snapshot,
+        answer: {
+          itemId: current.id,
+          submittedText: action.text,
+          correct,
+          feedbackText: feedbackForStep(step, correct),
+        },
+      },
+    };
+  }
+
+  return advanceNativeLessonController(lesson, state);
 }
 
 export function getNativeLessonControllerView(
@@ -289,5 +385,6 @@ export function getNativeLessonControllerView(
     index: state.snapshot.currentIndex,
     total: items.length,
     canGoNext: !state.isPaused && state.snapshot.currentIndex < items.length - 1,
+    answer: state.snapshot.answer?.itemId === item.id ? state.snapshot.answer : undefined,
   };
 }
