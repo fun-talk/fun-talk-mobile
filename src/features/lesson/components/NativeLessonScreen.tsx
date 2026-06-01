@@ -16,6 +16,7 @@ import {
 import type { NativeLessonDefinition } from '../nativeLessonTypes';
 import { NativeLessonShell } from './NativeLessonShell';
 import { useNativeLessonController } from '../hooks/useNativeLessonController';
+import { useNativeLessonMediaPreload } from '../hooks/useNativeLessonMediaPreload';
 
 const LOGIN_ROUTE = '/(auth)/login' as Href;
 
@@ -160,6 +161,7 @@ function NativeLessonLoadedScreen({
   onFallback: () => void;
 }) {
   const controller = useNativeLessonController(lesson);
+  useNativeLessonMediaPreload(controller.preloadUris);
 
   return (
     <NativeLessonShell
@@ -170,6 +172,7 @@ function NativeLessonLoadedScreen({
       onNext={controller.next}
       onSubmitChoice={controller.submitChoice}
       onSubmitText={controller.submitText}
+      onMediaComplete={controller.next}
       onPauseToggle={controller.view.isPaused ? controller.resume : controller.pause}
       onExit={onExit}
       onFallback={onFallback}

@@ -22,7 +22,9 @@ export {
   reduceNativeLessonController,
 } from './nativeLessonController';
 export { NativeLessonShell } from './components/NativeLessonShell';
+export { CourseMediaArea } from './components/CourseMediaArea';
 export { useNativeLessonController } from './hooks/useNativeLessonController';
+export { useNativeLessonMediaPreload } from './hooks/useNativeLessonMediaPreload';
 export { useNativeLessonScale } from './hooks/useNativeLessonScale';
 export type {
   NativeLessonChallenge,

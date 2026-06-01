@@ -7,6 +7,7 @@ import { courseHomeImages } from '@/features/courses/assets/courseHomeAssets';
 import type { NativeLessonDefinition } from '../nativeLessonTypes';
 import type { NativeLessonControllerView } from '../nativeLessonController';
 import { useNativeLessonScale } from '../hooks/useNativeLessonScale';
+import { CourseMediaArea } from './CourseMediaArea';
 
 type NativeLessonShellProps = {
   lesson: NativeLessonDefinition;
@@ -16,6 +17,7 @@ type NativeLessonShellProps = {
   onNext: () => void;
   onSubmitChoice: (optionId: string) => void;
   onSubmitText: (text: string) => void;
+  onMediaComplete: () => void;
   onPauseToggle: () => void;
   onFallback: () => void;
   onExit: () => void;
@@ -37,6 +39,7 @@ export function NativeLessonShell({
   onNext,
   onSubmitChoice,
   onSubmitText,
+  onMediaComplete,
   onPauseToggle,
   onFallback,
   onExit,
@@ -52,7 +55,6 @@ export function NativeLessonShell({
     courseNumber && totalCourses
       ? `课程 ${courseNumber} / ${totalCourses} · ${controllerView.title}`
       : controllerView.title;
-  const mediaIsImage = controllerView.media?.type === 'image';
   const phaseLabel = `${controllerView.phase} · ${controllerView.lifecycle}`;
   const displayText =
     controllerView.text ||
@@ -146,24 +148,12 @@ export function NativeLessonShell({
               ]}
             >
               <View style={styles.mediaInner}>
-                {controllerView.media?.url && mediaIsImage ? (
-                  <Image
-                    source={{ uri: controllerView.media.url }}
-                    style={styles.mediaImage}
-                    contentFit="contain"
-                  />
-                ) : (
-                  <View style={styles.videoPlaceholder}>
-                    <Text style={[styles.videoPlaceholderTitle, { fontSize: scaled(44, scale) }]}>
-                      课程媒体
-                    </Text>
-                    <Text style={[styles.videoPlaceholderText, { fontSize: scaled(24, scale) }]}>
-                      {controllerView.media?.type === 'video'
-                        ? '视频将在媒体阶段播放'
-                        : '等待当前媒体内容'}
-                    </Text>
-                  </View>
-                )}
+                <CourseMediaArea
+                  controllerView={controllerView}
+                  titleFontSize={scaled(44, scale)}
+                  captionFontSize={scaled(24, scale)}
+                  onComplete={onMediaComplete}
+                />
               </View>
             </View>
 
@@ -510,25 +500,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#05070a',
-  },
-  mediaImage: {
-    width: '100%',
-    height: '100%',
-  },
-  videoPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  videoPlaceholderTitle: {
-    color: '#f8fafc',
-    fontWeight: '900',
-  },
-  videoPlaceholderText: {
-    marginTop: 8,
-    color: '#cbd5e1',
-    textAlign: 'center',
   },
   speechCard: {
     position: 'absolute',
