@@ -4,13 +4,16 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { courseHomeImages } from '@/features/courses/assets/courseHomeAssets';
 
 import type { NativeLessonDefinition } from '../nativeLessonTypes';
-import { resolveNativeLessonOpeningPreview } from '../nativeLessonPreview';
+import type { NativeLessonControllerView } from '../nativeLessonController';
 import { useNativeLessonScale } from '../hooks/useNativeLessonScale';
 
 type NativeLessonShellProps = {
   lesson: NativeLessonDefinition;
   courseNumber?: string;
   totalCourses?: string;
+  controllerView: NativeLessonControllerView;
+  onNext: () => void;
+  onPauseToggle: () => void;
   onFallback: () => void;
   onExit: () => void;
 };
@@ -27,19 +30,28 @@ export function NativeLessonShell({
   lesson,
   courseNumber,
   totalCourses,
+  controllerView,
+  onNext,
+  onPauseToggle,
   onFallback,
   onExit,
 }: NativeLessonShellProps) {
   const layout = useNativeLessonScale();
-  const preview = resolveNativeLessonOpeningPreview(lesson);
   const canvasWidth = layout.isLandscapeTablet
     ? layout.canvasWidth
     : Math.max(layout.width, COMPACT_CANVAS_WIDTH);
   const scale = canvasWidth / WEB_CANVAS_WIDTH;
   const canvasHeight = WEB_CANVAS_HEIGHT * scale;
   const progressLabel =
-    courseNumber && totalCourses ? `课程 ${courseNumber} / ${totalCourses}` : preview.stageLabel;
-  const mediaIsImage = preview.media?.type === 'image';
+    courseNumber && totalCourses
+      ? `课程 ${courseNumber} / ${totalCourses} · ${controllerView.title}`
+      : controllerView.title;
+  const mediaIsImage = controllerView.media?.type === 'image';
+  const phaseLabel = `${controllerView.phase} · ${controllerView.lifecycle}`;
+  const displayText =
+    controllerView.text ||
+    controllerView.screenText ||
+    (controllerView.phase === 'end' ? '课程完成' : controllerView.title);
 
   return (
     <View style={styles.root}>
@@ -73,9 +85,9 @@ export function NativeLessonShell({
           contentContainerStyle={styles.horizontalContent}
         >
           <View style={[styles.canvas, { width: canvasWidth, height: canvasHeight }]}>
-            {preview.backgroundImageUrl ? (
+            {controllerView.backgroundImageUrl ? (
               <Image
-                source={{ uri: preview.backgroundImageUrl }}
+                source={{ uri: controllerView.backgroundImageUrl }}
                 style={StyleSheet.absoluteFillObject}
                 contentFit="cover"
               />
@@ -122,9 +134,9 @@ export function NativeLessonShell({
               ]}
             >
               <View style={styles.mediaInner}>
-                {preview.media?.url && mediaIsImage ? (
+                {controllerView.media?.url && mediaIsImage ? (
                   <Image
-                    source={{ uri: preview.media.url }}
+                    source={{ uri: controllerView.media.url }}
                     style={styles.mediaImage}
                     contentFit="contain"
                   />
@@ -134,7 +146,7 @@ export function NativeLessonShell({
                       课程媒体
                     </Text>
                     <Text style={[styles.videoPlaceholderText, { fontSize: scaled(24, scale) }]}>
-                      {preview.media?.type === 'video'
+                      {controllerView.media?.type === 'video'
                         ? '视频将在媒体阶段播放'
                         : '等待当前媒体内容'}
                     </Text>
@@ -170,7 +182,7 @@ export function NativeLessonShell({
                 ]}
               >
                 <Text style={[styles.hintText, { fontSize: scaled(30, scale), lineHeight: scaled(42, scale) }]}>
-                  {preview.speechText}
+                  {displayText}
                 </Text>
               </View>
 
@@ -204,24 +216,40 @@ export function NativeLessonShell({
               </View>
             </View>
           </View>
+          {controllerView.isPaused ? (
+            <View style={styles.pauseOverlay}>
+              <View style={styles.pausePanel}>
+                <Text style={styles.pauseTitle}>课程暂停</Text>
+                <Text style={styles.pauseText}>点击底部“恢复课程”继续</Text>
+              </View>
+            </View>
+          ) : null}
         </ScrollView>
       </ScrollView>
 
       <View style={styles.bottomControls}>
-        <Pressable style={styles.startButton}>
-          <Text style={styles.startButtonText}>开始新授课和闯关</Text>
+        <Pressable style={styles.startButton} onPress={onPauseToggle}>
+          <Text style={styles.startButtonText}>
+            {controllerView.isPaused ? '恢复课程' : '暂停课程'}
+          </Text>
         </Pressable>
         <Pressable style={styles.controlButton}>
-          <Text style={styles.controlButtonText}>停止流程</Text>
+          <Text style={styles.controlButtonText}>{phaseLabel}</Text>
         </Pressable>
-        <Pressable style={styles.controlButtonPurple}>
+        <Pressable
+          style={[
+            styles.controlButtonPurple,
+            !controllerView.canGoNext && styles.disabledButton,
+          ]}
+          disabled={!controllerView.canGoNext}
+          onPress={onNext}
+        >
           <Text style={styles.controlButtonText}>跳到下一步</Text>
         </Pressable>
-        <Pressable style={styles.controlButtonPurple}>
-          <Text style={styles.controlButtonText}>跳到下一个环节</Text>
-        </Pressable>
         <Pressable style={styles.transcriptButton}>
-          <Text style={styles.controlButtonText}>隐藏转写</Text>
+          <Text style={styles.controlButtonText}>
+            {controllerView.index + 1} / {controllerView.total}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -372,6 +400,30 @@ const styles = StyleSheet.create({
     color: '#9a3412',
     fontWeight: '900',
   },
+  pauseOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.48)',
+  },
+  pausePanel: {
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: 'rgba(15,23,42,0.92)',
+    paddingHorizontal: 34,
+    paddingVertical: 24,
+  },
+  pauseTitle: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  pauseText: {
+    marginTop: 8,
+    color: '#cbd5e1',
+    fontSize: 14,
+  },
   bottomControls: {
     minHeight: 58,
     flexDirection: 'row',
@@ -420,6 +472,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(103,232,249,0.55)',
     backgroundColor: '#12333e',
     paddingHorizontal: 16,
+  },
+  disabledButton: {
+    opacity: 0.45,
   },
   controlButtonText: {
     color: '#ffffff',

@@ -15,7 +15,14 @@ export {
 } from './nativeLessonLoader';
 export { computeNativeLessonLayout } from './nativeLessonLayout';
 export { resolveNativeLessonOpeningPreview } from './nativeLessonPreview';
+export {
+  buildNativeLessonControllerItems,
+  createNativeLessonControllerState,
+  getNativeLessonControllerView,
+  reduceNativeLessonController,
+} from './nativeLessonController';
 export { NativeLessonShell } from './components/NativeLessonShell';
+export { useNativeLessonController } from './hooks/useNativeLessonController';
 export { useNativeLessonScale } from './hooks/useNativeLessonScale';
 export type {
   NativeLessonChallenge,

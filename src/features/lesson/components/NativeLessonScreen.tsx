@@ -15,6 +15,7 @@ import {
 } from '../nativeLessonLoader';
 import type { NativeLessonDefinition } from '../nativeLessonTypes';
 import { NativeLessonShell } from './NativeLessonShell';
+import { useNativeLessonController } from '../hooks/useNativeLessonController';
 
 const LOGIN_ROUTE = '/(auth)/login' as Href;
 
@@ -135,12 +136,41 @@ export function NativeLessonScreen() {
   }
 
   return (
-    <NativeLessonShell
+    <NativeLessonLoadedScreen
       lesson={lessonDefinition}
       courseNumber={courseNumber}
       totalCourses={totalCourses}
       onExit={() => router.replace('/(app)/courses' as Href)}
       onFallback={() => router.replace(fallbackPath as Href)}
+    />
+  );
+}
+
+function NativeLessonLoadedScreen({
+  lesson,
+  courseNumber,
+  totalCourses,
+  onExit,
+  onFallback,
+}: {
+  lesson: NativeLessonDefinition;
+  courseNumber?: string;
+  totalCourses?: string;
+  onExit: () => void;
+  onFallback: () => void;
+}) {
+  const controller = useNativeLessonController(lesson);
+
+  return (
+    <NativeLessonShell
+      lesson={lesson}
+      courseNumber={courseNumber}
+      totalCourses={totalCourses}
+      controllerView={controller.view}
+      onNext={controller.next}
+      onPauseToggle={controller.view.isPaused ? controller.resume : controller.pause}
+      onExit={onExit}
+      onFallback={onFallback}
     />
   );
 }

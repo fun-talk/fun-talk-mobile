@@ -1,0 +1,293 @@
+import type { NativeLessonDefinition, NativeLessonStep } from './nativeLessonTypes';
+
+export type NativeLessonPhase = 'story' | 'teaching' | 'challenge' | 'free_chat' | 'end';
+export type NativeLessonLifecycle =
+  | 'pending'
+  | 'assistant_turn'
+  | 'waiting_user'
+  | 'waiting_media'
+  | 'transitioning'
+  | 'completed';
+
+export type NativeLessonControllerItem = {
+  id: string;
+  phase: NativeLessonPhase;
+  title: string;
+  text: string;
+  screenText: string;
+  backgroundImageUrl: string;
+  media: { type: string; url: string } | null;
+  step?: NativeLessonStep;
+};
+
+export type NativeLessonControllerSnapshot = {
+  currentIndex: number;
+  totalItems: number;
+  phase: NativeLessonPhase;
+  lifecycle: NativeLessonLifecycle;
+  completedItemIds: string[];
+};
+
+export type NativeLessonControllerState = {
+  isPaused: boolean;
+  snapshot: NativeLessonControllerSnapshot;
+};
+
+export type NativeLessonControllerAction =
+  | { type: 'next' }
+  | { type: 'pause' }
+  | { type: 'resume' }
+  | { type: 'reset' };
+
+export type NativeLessonControllerView = NativeLessonControllerItem & {
+  lifecycle: NativeLessonLifecycle;
+  isPaused: boolean;
+  index: number;
+  total: number;
+  canGoNext: boolean;
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function isEnabled(value: unknown, fallback = true): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function mediaFromRawSegment(raw: Record<string, unknown>): { type: string; url: string } | null {
+  const url = asString(raw.mediaUrl || raw.videoUrl || raw.imageUrl);
+  if (!url) {
+    return null;
+  }
+  return {
+    type: asString(raw.mediaType) || (asString(raw.imageUrl) ? 'image' : 'video'),
+    url,
+  };
+}
+
+function getStepMedia(
+  lesson: NativeLessonDefinition,
+  step: NativeLessonStep | null,
+): { type: string; url: string } | null {
+  if (!step?.mediaCueId) {
+    return null;
+  }
+  return lesson.assets.transitionMedia[step.mediaCueId] ?? null;
+}
+
+function storyItems(lesson: NativeLessonDefinition): NativeLessonControllerItem[] {
+  const story = asRecord(lesson.story);
+  if (!isEnabled(story.enabled, false)) {
+    return [];
+  }
+  const segments = Array.isArray(story.segments) ? story.segments : [];
+  return segments.map((segment, index) => {
+    const raw = asRecord(segment);
+    return {
+      id: `story:${asString(raw.id) || index + 1}`,
+      phase: 'story',
+      title: asString(story.title) || '故事开场',
+      text: asString(raw.spokenText || raw.text || raw.promptText),
+      screenText: asString(raw.screenText),
+      backgroundImageUrl:
+        asString(raw.backgroundImageUrl) ||
+        asString(story.backgroundImageUrl) ||
+        lesson.assets.backgrounds.story ||
+        '',
+      media: mediaFromRawSegment(raw),
+    };
+  });
+}
+
+function teachingItems(lesson: NativeLessonDefinition): NativeLessonControllerItem[] {
+  const teaching = asRecord(lesson.teaching);
+  if (!isEnabled(teaching.enabled, true)) {
+    return [];
+  }
+  const segments = Array.isArray(teaching.segments) ? teaching.segments : [];
+  return segments.map((segment, index) => {
+    const raw = asRecord(segment);
+    return {
+      id: `teaching:${asString(raw.id) || index + 1}`,
+      phase: 'teaching',
+      title: asString(teaching.title) || '教学讲解',
+      text: asString(raw.spokenText || raw.text || raw.promptText),
+      screenText: asString(raw.screenText || raw.targetText),
+      backgroundImageUrl:
+        asString(raw.backgroundImageUrl) ||
+        asString(teaching.backgroundImageUrl) ||
+        lesson.assets.backgrounds.teaching ||
+        '',
+      media: mediaFromRawSegment(raw),
+    };
+  });
+}
+
+function challengeItems(lesson: NativeLessonDefinition): NativeLessonControllerItem[] {
+  return lesson.challenges.flatMap((challenge) =>
+    Object.keys(challenge.steps)
+      .map((step) => Number(step))
+      .sort((a, b) => a - b)
+      .map((stepNumber) => {
+        const step = challenge.steps[stepNumber];
+        return {
+          id: `challenge:${challenge.key}:${stepNumber}`,
+          phase: 'challenge' as const,
+          title: challenge.title || challenge.key,
+          text: step.promptText,
+          screenText: step.screenText,
+          backgroundImageUrl:
+            challenge.backgroundImageUrl ||
+            lesson.assets.backgrounds[challenge.key] ||
+            lesson.assets.backgrounds.challengeLevel1 ||
+            '',
+          media: getStepMedia(lesson, step),
+          step,
+        };
+      }),
+  );
+}
+
+function freeChatItems(lesson: NativeLessonDefinition): NativeLessonControllerItem[] {
+  const bridges = Object.entries(lesson.freeChatBridges);
+  if (!bridges.length) {
+    return [];
+  }
+  return bridges.map(([key, rawBridge], index) => {
+    const bridge = asRecord(rawBridge);
+    return {
+      id: `free_chat:${key || index + 1}`,
+      phase: 'free_chat',
+      title: '自由对话',
+      text:
+        asString(bridge.openingQuestion || bridge.prompt || bridge.message) ||
+        '现在可以和欧波自由聊一聊。',
+      screenText: '',
+      backgroundImageUrl:
+        lesson.assets.backgrounds.duolingo ||
+        lesson.assets.backgrounds.teaching ||
+        lesson.assets.backgrounds.story ||
+        '',
+      media: null,
+    };
+  });
+}
+
+export function buildNativeLessonControllerItems(
+  lesson: NativeLessonDefinition,
+): NativeLessonControllerItem[] {
+  const items = [
+    ...storyItems(lesson),
+    ...teachingItems(lesson),
+    ...challengeItems(lesson),
+    ...freeChatItems(lesson),
+  ].filter((item) => item.text || item.screenText || item.media);
+
+  return [
+    ...items,
+    {
+      id: 'end',
+      phase: 'end',
+      title: '课程完成',
+      text: '太棒了，今天的课程已经完成。',
+      screenText: '课程完成',
+      backgroundImageUrl:
+        lesson.assets.backgrounds.teaching ||
+        lesson.assets.backgrounds.story ||
+        '',
+      media: null,
+    },
+  ];
+}
+
+function lifecycleForItem(item: NativeLessonControllerItem): NativeLessonLifecycle {
+  if (item.phase === 'end') {
+    return 'completed';
+  }
+  if (item.step?.options.length) {
+    return 'waiting_user';
+  }
+  if (item.media?.type === 'video') {
+    return 'waiting_media';
+  }
+  return 'assistant_turn';
+}
+
+export function createNativeLessonControllerState(
+  lesson: NativeLessonDefinition,
+): NativeLessonControllerState {
+  const items = buildNativeLessonControllerItems(lesson);
+  const first = items[0];
+  return {
+    isPaused: false,
+    snapshot: {
+      currentIndex: 0,
+      totalItems: items.length,
+      phase: first?.phase ?? 'end',
+      lifecycle: first ? lifecycleForItem(first) : 'completed',
+      completedItemIds: [],
+    },
+  };
+}
+
+export function reduceNativeLessonController(
+  lesson: NativeLessonDefinition,
+  state: NativeLessonControllerState,
+  action: NativeLessonControllerAction,
+): NativeLessonControllerState {
+  if (action.type === 'reset') {
+    return createNativeLessonControllerState(lesson);
+  }
+  if (action.type === 'pause') {
+    return { ...state, isPaused: true };
+  }
+  if (action.type === 'resume') {
+    return { ...state, isPaused: false };
+  }
+  if (state.isPaused) {
+    return state;
+  }
+
+  const items = buildNativeLessonControllerItems(lesson);
+  const current = items[state.snapshot.currentIndex];
+  const nextIndex = Math.min(state.snapshot.currentIndex + 1, Math.max(items.length - 1, 0));
+  const next = items[nextIndex];
+  const completedItemIds =
+    current && !state.snapshot.completedItemIds.includes(current.id)
+      ? [...state.snapshot.completedItemIds, current.id]
+      : state.snapshot.completedItemIds;
+
+  return {
+    ...state,
+    snapshot: {
+      currentIndex: nextIndex,
+      totalItems: items.length,
+      phase: next?.phase ?? 'end',
+      lifecycle: next ? lifecycleForItem(next) : 'completed',
+      completedItemIds,
+    },
+  };
+}
+
+export function getNativeLessonControllerView(
+  lesson: NativeLessonDefinition,
+  state: NativeLessonControllerState,
+): NativeLessonControllerView {
+  const items = buildNativeLessonControllerItems(lesson);
+  const item = items[state.snapshot.currentIndex] ?? items[items.length - 1];
+  return {
+    ...item,
+    lifecycle: state.snapshot.lifecycle,
+    isPaused: state.isPaused,
+    index: state.snapshot.currentIndex,
+    total: items.length,
+    canGoNext: !state.isPaused && state.snapshot.currentIndex < items.length - 1,
+  };
+}
