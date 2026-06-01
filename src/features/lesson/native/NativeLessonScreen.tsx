@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -11,7 +11,7 @@ import {
 import { useLocalSearchParams, useRouter, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ResizeMode, Video } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 
 import { useAuth } from "@/features/auth";
 import { getApiHost } from "@/lib/env";
@@ -32,6 +32,71 @@ const COURSES_ROUTE = "/(app)/courses" as Href;
 
 const DEMO_BACKGROUND_IMAGE_URL =
   "https://fun-talk-file.oss-cn-beijing.aliyuncs.com/demo/revise_bg.JPEG";
+
+interface FoxAvatarVideoProps {
+  sourceUri: string;
+  isSpeaking: boolean;
+}
+
+function FoxAvatarVideo({ sourceUri, isSpeaking }: FoxAvatarVideoProps) {
+  const player = useVideoPlayer({ uri: sourceUri }, (videoPlayer) => {
+    videoPlayer.muted = true;
+    videoPlayer.loop = isSpeaking;
+    if (isSpeaking) {
+      videoPlayer.play();
+    }
+  });
+
+  useEffect(() => {
+    player.muted = true;
+    player.loop = isSpeaking;
+    if (isSpeaking) {
+      player.play();
+    } else {
+      player.pause();
+      player.currentTime = 0;
+    }
+  }, [isSpeaking, player]);
+
+  return (
+    <VideoView
+      player={player}
+      style={styles.foxVideo}
+      contentFit="contain"
+      nativeControls={false}
+    />
+  );
+}
+
+interface StepMediaVideoProps {
+  sourceUri: string;
+  onFinished: () => void;
+}
+
+function StepMediaVideo({ sourceUri, onFinished }: StepMediaVideoProps) {
+  const player = useVideoPlayer({ uri: sourceUri }, (videoPlayer) => {
+    videoPlayer.loop = false;
+    videoPlayer.play();
+  });
+
+  useEffect(() => {
+    const subscription = player.addListener("playToEnd", onFinished);
+    player.loop = false;
+    player.play();
+    return () => {
+      subscription.remove();
+    };
+  }, [onFinished, player]);
+
+  return (
+    <VideoView
+      player={player}
+      style={styles.stepMediaVideo}
+      contentFit="contain"
+      nativeControls={false}
+    />
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -168,6 +233,11 @@ export function NativeLessonScreen() {
   const lessonTitle =
     lessonDefinition?.metadata.title || "Realtime Lesson";
   const foxVideos = lessonDefinition?.assets.foxVideos;
+  const foxVideoUri =
+    (isBotSpeaking ? foxVideos?.talking : foxVideos?.idle) ||
+    foxVideos?.idle ||
+    foxVideos?.talking ||
+    "";
 
   // Status badge color
   const statusColor =
@@ -278,41 +348,23 @@ export function NativeLessonScreen() {
       {/* Main canvas */}
       <View style={styles.canvas}>
         {/* Fox Avatar area */}
-        {foxVideos && (foxVideos.idle || foxVideos.talking) && (
+        {foxVideoUri ? (
           <View style={styles.foxAvatarContainer}>
-            <Video
-              source={{
-                uri:
-                  (isBotSpeaking
-                    ? foxVideos.talking
-                    : foxVideos.idle) ||
-                  foxVideos.idle ||
-                  foxVideos.talking ||
-                  "",
-              }}
-              style={styles.foxVideo}
-              isMuted
-              shouldPlay={isBotSpeaking}
-              isLooping={isBotSpeaking}
-              resizeMode={ResizeMode.CONTAIN}
+            <FoxAvatarVideo
+              key={foxVideoUri}
+              sourceUri={foxVideoUri}
+              isSpeaking={isBotSpeaking}
             />
           </View>
-        )}
+        ) : null}
 
         {/* Media display area */}
         <View style={styles.mediaArea}>
           {currentMedia?.kind === "video" && currentMedia.url ? (
-            <Video
+            <StepMediaVideo
               key={currentMedia.cueId || currentMedia.url}
-              source={{ uri: currentMedia.url }}
-              style={styles.stepMediaVideo}
-              resizeMode={ResizeMode.CONTAIN}
-              shouldPlay
-              isLooping={false}
-              onPlaybackStatusUpdate={(status) => {
-                if (!status.isLoaded || !status.didJustFinish) {
-                  return;
-                }
+              sourceUri={currentMedia.url}
+              onFinished={() => {
                 const cueKey =
                   currentMedia.cueId || currentMedia.url || "video";
                 if (mediaFinishedCueRef.current === cueKey) {

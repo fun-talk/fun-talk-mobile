@@ -1,5 +1,5 @@
 /**
- * Audio playback hook using expo-av Audio.Sound.
+ * Audio playback hook using expo-audio AudioPlayer.
  * Replaces the web's HTMLAudioElement pattern (new Audio(url) + play()).
  *
  * Web pattern:
@@ -9,15 +9,19 @@
  *   audio.onerror = () => { ... };
  *   void audio.play();
  *
- * Native pattern (expo-av):
- *   const { sound } = await Audio.Sound.createAsync({ uri: url });
- *   sound.setOnPlaybackStatusUpdate((status) => { ... });
- *   await sound.playAsync();
+ * Native pattern (expo-audio):
+ *   const player = createAudioPlayer({ uri: url });
+ *   player.addListener("playbackStatusUpdate", (status) => { ... });
+ *   player.play();
  */
 
 import { useCallback, useRef } from "react";
-import { Audio } from "expo-av";
-import type { AVPlaybackStatus, AVPlaybackStatusError } from "expo-av";
+import {
+  createAudioPlayer,
+  type AudioPlayer,
+  type AudioSource,
+  type AudioStatus,
+} from "expo-audio";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,25 +38,27 @@ export interface AudioPlaybackCallbacks {
 // ---------------------------------------------------------------------------
 
 export function useAudioPlayback() {
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const playerRef = useRef<AudioPlayer | null>(null);
+  const playbackSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const activeCallbacksRef = useRef<AudioPlaybackCallbacks>({});
+  const didNotifyPlayRef = useRef(false);
 
   const stopPlayback = useCallback(async () => {
-    const sound = soundRef.current;
-    if (!sound) return;
+    const player = playerRef.current;
+    if (!player) return;
 
     try {
-      const status = await sound.getStatusAsync();
-      if (status.isLoaded) {
-        await sound.stopAsync();
-        await sound.unloadAsync();
-      }
+      player.pause();
+      player.remove();
     } catch {
-      // Sound may already be unloaded
+      // Player may already be removed
     }
 
-    soundRef.current = null;
+    playbackSubscriptionRef.current?.remove();
+    playbackSubscriptionRef.current = null;
+    playerRef.current = null;
     activeCallbacksRef.current = {};
+    didNotifyPlayRef.current = false;
   }, []);
 
   const playAudio = useCallback(
@@ -67,19 +73,13 @@ export function useAudioPlayback() {
       activeCallbacksRef.current = callbacks;
 
       try {
-        const { sound } = await Audio.Sound.createAsync(
-          typeof source === "number" ? source : { uri: source.uri },
-          { shouldPlay: false },
-          (status: AVPlaybackStatus) => {
+        const audioSource: AudioSource =
+          typeof source === "number" ? source : { uri: source.uri };
+        const player = createAudioPlayer(audioSource, { updateInterval: 100 });
+        playbackSubscriptionRef.current = player.addListener(
+          "playbackStatusUpdate",
+          (status: AudioStatus) => {
             if (!status.isLoaded) {
-              // Error status
-              const errorStatus = status as AVPlaybackStatusError;
-              if (errorStatus.error) {
-                activeCallbacksRef.current.onError?.(
-                  `音频播放错误: ${errorStatus.error}`,
-                );
-                void stopPlayback();
-              }
               return;
             }
 
@@ -89,22 +89,25 @@ export function useAudioPlayback() {
               return;
             }
 
-            if (status.isPlaying && !status.isBuffering) {
-              // Trigger onPlay only once when playback actually starts
-              if (status.positionMillis > 0 && status.positionMillis < 200) {
-                activeCallbacksRef.current.onPlay?.();
-              }
+            if (
+              status.playing &&
+              !status.isBuffering &&
+              status.currentTime > 0 &&
+              !didNotifyPlayRef.current
+            ) {
+              didNotifyPlayRef.current = true;
+              activeCallbacksRef.current.onPlay?.();
             }
           },
         );
 
-        soundRef.current = sound;
-        await sound.playAsync();
+        playerRef.current = player;
+        player.play();
       } catch (error) {
         const message =
           error instanceof Error ? error.message : String(error);
         onError?.(`音频加载失败: ${message}`);
-        soundRef.current = null;
+        playerRef.current = null;
       }
     },
     [stopPlayback],
@@ -113,13 +116,12 @@ export function useAudioPlayback() {
   const preloadAudio = useCallback(
     async (
       source: { uri: string } | number,
-    ): Promise<Audio.Sound | null> => {
+    ): Promise<AudioPlayer | null> => {
       try {
-        const { sound } = await Audio.Sound.createAsync(
+        return createAudioPlayer(
           typeof source === "number" ? source : { uri: source.uri },
-          { shouldPlay: false },
+          { downloadFirst: true },
         );
-        return sound;
       } catch (error) {
         console.warn(
           "preload audio failed:",
@@ -132,15 +134,7 @@ export function useAudioPlayback() {
   );
 
   const isPlaying = useCallback(async (): Promise<boolean> => {
-    const sound = soundRef.current;
-    if (!sound) return false;
-
-    try {
-      const status = await sound.getStatusAsync();
-      return status.isLoaded && status.isPlaying;
-    } catch {
-      return false;
-    }
+    return Boolean(playerRef.current?.playing);
   }, []);
 
   return {
@@ -148,6 +142,6 @@ export function useAudioPlayback() {
     stopPlayback,
     preloadAudio,
     isPlaying,
-    soundRef,
+    playerRef,
   };
 }

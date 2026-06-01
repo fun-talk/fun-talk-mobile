@@ -119,7 +119,7 @@ export interface UseLessonFlowOptions {
     stopPlayback: () => Promise<void>;
     preloadAudio: (
       source: { uri: string } | number,
-    ) => Promise<import("expo-av").Audio.Sound | null>;
+    ) => Promise<import("expo-audio").AudioPlayer | null>;
   };
   /** Audio recording hook result (from useAudioRecording) */
   audioRecording: {

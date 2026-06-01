@@ -51,7 +51,9 @@
           }
         }
       ],
-      "expo-wechat-no-pay"
+      "expo-wechat-no-pay",
+      "expo-audio",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

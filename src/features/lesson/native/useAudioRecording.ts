@@ -1,5 +1,5 @@
 /**
- * Audio recording hook using expo-av Audio.Recording.
+ * Audio recording hook using expo-audio AudioRecorder.
  * Replaces the web's getUserMedia + ScriptProcessorNode pattern.
  *
  * Web pattern:
@@ -8,22 +8,30 @@
  *   const processor = ctx.createScriptProcessor(1024, 1, 1);
  *   processor.onaudioprocess = (e) => { const pcm = float32ToInt16(...); };
  *
- * Native pattern (expo-av):
- *   const recording = new Audio.Recording();
- *   await recording.prepareToRecordAsync(options);
- *   await recording.startAsync();
+ * Native pattern (expo-audio):
+ *   const recorder = useAudioRecorder(options);
+ *   await recorder.prepareToRecordAsync();
+ *   recorder.record();
  *   // ... later:
- *   await recording.stopAndUnloadAsync();
- *   const uri = recording.getURI();
+ *   await recorder.stop();
+ *   const uri = recorder.uri;
  *
- * Note: expo-av Audio.Recording writes to a file, not raw PCM chunks.
+ * Note: expo-audio AudioRecorder writes to a file, not raw PCM chunks.
  * For real-time audio streaming to WebSocket, a lower-level approach
  * (e.g. react-native-audio-api or native module) would be needed.
  * This hook covers the basic record-to-file use case.
  */
 
 import { useCallback, useRef, useState } from "react";
-import { Audio } from "expo-av";
+import {
+  AudioQuality,
+  IOSOutputFormat,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  type AudioRecorder,
+  type RecordingOptions,
+} from "expo-audio";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -31,24 +39,23 @@ import { Audio } from "expo-av";
 
 export const CAPTURE_SAMPLE_RATE = 16000;
 
-const DEFAULT_RECORDING_OPTIONS = {
+const DEFAULT_RECORDING_OPTIONS: RecordingOptions = {
   isMeteringEnabled: true,
-  keepAudioActiveHint: true,
+  extension: ".wav",
+  sampleRate: CAPTURE_SAMPLE_RATE,
+  numberOfChannels: 1,
+  bitRate: 256000,
   android: {
     extension: ".wav",
-    outputFormat: Audio.AndroidOutputFormat.DEFAULT,
-    audioEncoder: Audio.AndroidAudioEncoder.DEFAULT,
+    outputFormat: "default",
+    audioEncoder: "default",
     sampleRate: CAPTURE_SAMPLE_RATE,
-    numberOfChannels: 1,
-    bitRate: 256000,
   },
   ios: {
     extension: ".wav",
-    outputFormat: Audio.IOSOutputFormat.LINEARPCM,
-    audioQuality: Audio.IOSAudioQuality.MAX,
+    outputFormat: IOSOutputFormat.LINEARPCM,
+    audioQuality: AudioQuality.MAX,
     sampleRate: CAPTURE_SAMPLE_RATE,
-    numberOfChannels: 1,
-    bitRate: 256000,
     linearPCMBitDepth: 16,
     linearPCMIsBigEndian: false,
     linearPCMIsFloat: false,
@@ -76,7 +83,7 @@ export interface AudioRecordingCallbacks {
 
 export async function requestAudioPermission(): Promise<boolean> {
   try {
-    const { granted } = await Audio.requestPermissionsAsync();
+    const { granted } = await requestRecordingPermissionsAsync();
     return granted;
   } catch {
     return false;
@@ -120,7 +127,8 @@ export function isSpeechLikeFrame(
 // ---------------------------------------------------------------------------
 
 export function useAudioRecording() {
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recorder = useAudioRecorder(DEFAULT_RECORDING_OPTIONS);
+  const recordingRef = useRef<AudioRecorder | null>(null);
   const callbacksRef = useRef<AudioRecordingCallbacks>({});
   const [isRecording, setIsRecording] = useState(false);
 
@@ -129,7 +137,7 @@ export function useAudioRecording() {
     if (!recording) return;
 
     try {
-      await recording.stopAndUnloadAsync();
+      await recording.stop();
     } catch {
       // May already be stopped
     }
@@ -152,18 +160,17 @@ export function useAudioRecording() {
       }
 
       try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+          shouldPlayInBackground: false,
+          interruptionMode: "duckOthers",
+          shouldRouteThroughEarpiece: false,
         });
 
-        const recording = new Audio.Recording();
-        await recording.prepareToRecordAsync(DEFAULT_RECORDING_OPTIONS);
-        await recording.startAsync();
-        recordingRef.current = recording;
+        await recorder.prepareToRecordAsync();
+        recorder.record();
+        recordingRef.current = recorder;
         setIsRecording(true);
         onStart?.();
         return true;
@@ -174,7 +181,7 @@ export function useAudioRecording() {
         return false;
       }
     },
-    [stopAndUnload],
+    [recorder, stopAndUnload],
   );
 
   const stopRecording = useCallback(async (): Promise<string | null> => {
@@ -182,18 +189,18 @@ export function useAudioRecording() {
     if (!recording) return null;
 
     try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
+      await recording.stop();
+      const uri = recording.uri ?? recording.getStatus().url;
       recordingRef.current = null;
       setIsRecording(false);
 
       // Restore audio mode for playback
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: "duckOthers",
+        shouldRouteThroughEarpiece: false,
       });
 
       callbacksRef.current.onStop?.(uri ?? "");
