@@ -13,6 +13,10 @@ export {
   getNativeLessonRequestFromParams,
   normalizeNativeLessonDefinition,
 } from './nativeLessonLoader';
+export { computeNativeLessonLayout } from './nativeLessonLayout';
+export { resolveNativeLessonOpeningPreview } from './nativeLessonPreview';
+export { NativeLessonShell } from './components/NativeLessonShell';
+export { useNativeLessonScale } from './hooks/useNativeLessonScale';
 export type {
   NativeLessonChallenge,
   NativeLessonDefinition,

@@ -14,6 +14,7 @@ import {
   getNativeLessonRequestFromParams,
 } from '../nativeLessonLoader';
 import type { NativeLessonDefinition } from '../nativeLessonTypes';
+import { NativeLessonShell } from './NativeLessonShell';
 
 const LOGIN_ROUTE = '/(auth)/login' as Href;
 
@@ -118,51 +119,29 @@ export function NativeLessonScreen() {
     );
   }
 
-  return (
-    <View style={styles.root}>
-      <View style={styles.panel}>
-        <Text style={styles.kicker}>Native Lesson</Text>
-        <Text style={styles.title}>
-          {lessonDefinition?.metadata.title || '课程 Native 化入口已启用'}
-        </Text>
-        <Text style={styles.description}>
-          阶段 2 已接入真实 lesson loader。当前先展示课程结构摘要，后续阶段会接入 controller 和课程 UI。
-        </Text>
-
-        <View style={styles.metaList}>
-          <Text style={styles.metaItem}>
-            lesson_id: {lessonDefinition?.metadata.id || lessonId}
-          </Text>
-          {sectionId ? <Text style={styles.metaItem}>section_id: {sectionId}</Text> : null}
-          {courseNumber ? <Text style={styles.metaItem}>course_number: {courseNumber}</Text> : null}
-          {totalCourses ? <Text style={styles.metaItem}>total_courses: {totalCourses}</Text> : null}
-          {lessonDefinition ? (
-            <>
-              <Text style={styles.metaItem}>
-                bot: {lessonDefinition.metadata.botName || '未配置'}
-              </Text>
-              <Text style={styles.metaItem}>
-                challenges: {lessonDefinition.summary.challengeCount}
-              </Text>
-              <Text style={styles.metaItem}>steps: {lessonDefinition.summary.stepCount}</Text>
-              {lessonDefinition.summary.firstStep ? (
-                <Text style={styles.metaItem}>
-                  first_step: {lessonDefinition.summary.firstStep.promptText || '无提示文本'}
-                </Text>
-              ) : null}
-            </>
-          ) : null}
-        </View>
-
+  if (!lessonDefinition) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.title}>课程内容为空</Text>
         <Pressable
           accessibilityRole="button"
           style={styles.primaryButton}
-          onPress={() => router.replace(fallbackPath as Href)}
+          onPress={() => setRetryCount((current) => current + 1)}
         >
-          <Text style={styles.primaryButtonText}>切换到 WebView fallback</Text>
+          <Text style={styles.primaryButtonText}>重新加载</Text>
         </Pressable>
       </View>
-    </View>
+    );
+  }
+
+  return (
+    <NativeLessonShell
+      lesson={lessonDefinition}
+      courseNumber={courseNumber}
+      totalCourses={totalCourses}
+      onExit={() => router.replace('/(app)/courses' as Href)}
+      onFallback={() => router.replace(fallbackPath as Href)}
+    />
   );
 }
 
@@ -209,17 +188,6 @@ const styles = StyleSheet.create({
     color: '#cbd5e1',
     fontSize: 15,
     lineHeight: 23,
-  },
-  metaList: {
-    gap: 8,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: 'rgba(30, 41, 59, 0.75)',
-  },
-  metaItem: {
-    color: '#e2e8f0',
-    fontSize: 13,
-    lineHeight: 18,
   },
   primaryButton: {
     alignSelf: 'flex-start',
