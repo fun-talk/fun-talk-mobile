@@ -11,13 +11,16 @@
     ],
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.anonymous.funtalkmobile",
       "icon": "./assets/expo.icon",
       "associatedDomains": [
+        "applinks:ai-fun-talk.com",
         "applinks:ai-fun-talk.com"
       ],
       "infoPlist": {
         "NSMicrophoneUsageDescription": "FunTalk needs microphone access for speaking exercises in lessons.",
-        "NSCameraUsageDescription": "FunTalk may use the camera during interactive lessons."
+        "NSCameraUsageDescription": "FunTalk may use the camera during interactive lessons.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -58,6 +61,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5db2c1d4-0128-4575-bf32-993e20e3164a"
+      }
     }
   }
 }

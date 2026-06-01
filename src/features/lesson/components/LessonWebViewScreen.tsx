@@ -222,12 +222,6 @@ export function LessonWebViewScreen() {
         </Pressable>
       </View>
 
-      {webError ? (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorBannerText}>{webError}</Text>
-        </View>
-      ) : null}
-
       <WebView
         ref={webViewRef}
         source={{ uri: lessonUrl }}
@@ -243,6 +237,7 @@ export function LessonWebViewScreen() {
         javaScriptEnabled
         allowsInlineMediaPlayback
         allowsFullscreenVideo
+        mediaCapturePermissionGrantType="grant"
         mediaPlaybackRequiresUserAction={false}
         originWhitelist={['*']}
         mixedContentMode="always"
@@ -257,6 +252,12 @@ export function LessonWebViewScreen() {
         )}
         {...androidWebViewProps}
       />
+
+      {webError ? (
+        <View style={styles.errorBanner} pointerEvents="none">
+          <Text style={styles.errorBannerText}>{webError}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }

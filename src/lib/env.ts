@@ -17,7 +17,8 @@ type PublicEnvKey =
   | 'EXPO_PUBLIC_OSS_BASE_URL'
   | 'EXPO_PUBLIC_WECHAT_APP_ID'
   | 'EXPO_PUBLIC_WECHAT_UNIVERSAL_LINK'
-  | 'EXPO_PUBLIC_LESSON_RENDERER';
+  | 'EXPO_PUBLIC_LESSON_RENDERER'
+  | 'EXPO_PUBLIC_NATIVE_LESSON_ENABLED';
 
 function readProcessEnv(key: PublicEnvKey): string | undefined {
   switch (key) {
@@ -35,6 +36,8 @@ function readProcessEnv(key: PublicEnvKey): string | undefined {
       return process.env.EXPO_PUBLIC_WECHAT_UNIVERSAL_LINK;
     case 'EXPO_PUBLIC_LESSON_RENDERER':
       return process.env.EXPO_PUBLIC_LESSON_RENDERER;
+    case 'EXPO_PUBLIC_NATIVE_LESSON_ENABLED':
+      return process.env.EXPO_PUBLIC_NATIVE_LESSON_ENABLED;
   }
 }
 
@@ -84,9 +87,18 @@ export function getWechatUniversalLink(): string {
 export type LessonRenderer = 'webview' | 'native';
 
 export function getLessonRenderer(): LessonRenderer {
-  const value = readPublicEnv('EXPO_PUBLIC_LESSON_RENDERER');
-  if (value === 'native') {
+  const renderer = readPublicEnv('EXPO_PUBLIC_LESSON_RENDERER')?.toLowerCase();
+  if (renderer === 'webview') {
+    return 'webview';
+  }
+  if (renderer === 'native') {
     return 'native';
   }
-  return 'webview';
+
+  const legacyNativeEnabled = readPublicEnv('EXPO_PUBLIC_NATIVE_LESSON_ENABLED');
+  if (legacyNativeEnabled === '0' || legacyNativeEnabled === 'false') {
+    return 'webview';
+  }
+
+  return 'native';
 }

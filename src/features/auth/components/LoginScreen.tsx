@@ -85,8 +85,8 @@ export function LoginScreen() {
           error instanceof Error
             ? error.message
             : '登录失败，请稍后重试';
-        if (error instanceof ApiRequestError) {
-          setStatusMessage(`当前 API：${getApiHost()}`);
+        if (error instanceof LoginError || error instanceof ApiRequestError) {
+          setStatusMessage(`当前 API：${apiClient.baseUrl || getApiHost()}`);
         } else {
           setStatusMessage('');
         }
@@ -95,7 +95,7 @@ export function LoginScreen() {
         setIsSubmitting(false);
       }
     },
-    [router],
+    [apiClient.baseUrl, router],
   );
 
   /* ---- Landing View Handlers ---- */

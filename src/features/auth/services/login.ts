@@ -15,16 +15,28 @@ export class LoginError extends Error {
   }
 }
 
-async function parseJson<T>(response: Response): Promise<T> {
+async function parseJson<T>(response: Response): Promise<T | null> {
   try {
     return (await response.json()) as T;
   } catch {
-    return {} as T;
+    return null;
   }
 }
 
-function getErrorMessage(payload: { detail?: string; message?: string }, fallback: string) {
-  return payload.detail || payload.message || fallback;
+function getErrorMessage(
+  payload: { detail?: string; message?: string } | null,
+  fallback: string,
+  response?: Response,
+) {
+  if (payload?.detail || payload?.message) {
+    return payload.detail || payload.message || fallback;
+  }
+
+  if (response && !response.ok) {
+    return `${fallback}（HTTP ${response.status}）`;
+  }
+
+  return fallback;
 }
 
 export async function checkSession(
@@ -37,6 +49,10 @@ export async function checkSession(
   }
 
   const payload = await parseJson<CheckSessionResponse>(response);
+  if (!payload) {
+    throw new LoginError('登录状态返回格式异常，请稍后重试');
+  }
+
   return buildFtAuthFromCheckResponse(payload, previous);
 }
 
@@ -64,8 +80,8 @@ export async function loginWithFrontpage(
     response,
   );
 
-  if (!response.ok || !data.success) {
-    throw new LoginError(getErrorMessage(data, '登录失败，请检查填写内容'));
+  if (!response.ok || !data?.success) {
+    throw new LoginError(getErrorMessage(data, '登录失败，请检查填写内容', response));
   }
 
   return buildFtAuthFromLoginResponse(data, options.rememberMe);
@@ -88,7 +104,7 @@ export async function registerWechatUser(
   const payload = await parseJson<{ user?: { name?: string; phone?: string; logo?: string } }>(
     response,
   );
-  return payload.user ?? null;
+  return payload?.user ?? null;
 }
 
 export async function loginWithWechatCode(
@@ -101,8 +117,8 @@ export async function loginWithWechatCode(
     response,
   );
 
-  if (!response.ok || !data.token) {
-    throw new LoginError(getErrorMessage(data, '微信登录失败，请重试'));
+  if (!response.ok || !data?.token) {
+    throw new LoginError(getErrorMessage(data, '微信登录失败，请重试', response));
   }
 
   const authedClient = withAccessToken(apiClient, data.token);
