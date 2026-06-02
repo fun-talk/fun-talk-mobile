@@ -17,6 +17,7 @@ import type { NativeLessonDefinition } from '../nativeLessonTypes';
 import { NativeLessonShell } from './NativeLessonShell';
 import { useNativeLessonController } from '../hooks/useNativeLessonController';
 import { useNativeLessonMediaPreload } from '../hooks/useNativeLessonMediaPreload';
+import { useNativeLessonRecording } from '../hooks/useNativeLessonRecording';
 
 const LOGIN_ROUTE = '/(auth)/login' as Href;
 
@@ -161,6 +162,7 @@ function NativeLessonLoadedScreen({
   onFallback: () => void;
 }) {
   const controller = useNativeLessonController(lesson);
+  const recording = useNativeLessonRecording();
   useNativeLessonMediaPreload(controller.preloadUris);
 
   return (
@@ -172,6 +174,14 @@ function NativeLessonLoadedScreen({
       onNext={controller.next}
       onSubmitChoice={controller.submitChoice}
       onSubmitText={controller.submitText}
+      recordingState={recording.state}
+      onStartRecording={recording.start}
+      onStopRecording={recording.stop}
+      onCancelRecording={recording.cancel}
+      onSubmitRecording={() => {
+        recording.submit();
+        controller.next();
+      }}
       onMediaComplete={controller.next}
       onPauseToggle={controller.view.isPaused ? controller.resume : controller.pause}
       onExit={onExit}

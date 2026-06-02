@@ -6,8 +6,10 @@ import { courseHomeImages } from '@/features/courses/assets/courseHomeAssets';
 
 import type { NativeLessonDefinition } from '../nativeLessonTypes';
 import type { NativeLessonControllerView } from '../nativeLessonController';
+import type { RecordingControllerState } from '../recordingController';
 import { useNativeLessonScale } from '../hooks/useNativeLessonScale';
 import { CourseMediaArea } from './CourseMediaArea';
+import { RecordingPanel } from './RecordingPanel';
 
 type NativeLessonShellProps = {
   lesson: NativeLessonDefinition;
@@ -17,6 +19,11 @@ type NativeLessonShellProps = {
   onNext: () => void;
   onSubmitChoice: (optionId: string) => void;
   onSubmitText: (text: string) => void;
+  recordingState: RecordingControllerState;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
+  onCancelRecording: () => void;
+  onSubmitRecording: () => void;
   onMediaComplete: () => void;
   onPauseToggle: () => void;
   onFallback: () => void;
@@ -39,6 +46,11 @@ export function NativeLessonShell({
   onNext,
   onSubmitChoice,
   onSubmitText,
+  recordingState,
+  onStartRecording,
+  onStopRecording,
+  onCancelRecording,
+  onSubmitRecording,
   onMediaComplete,
   onPauseToggle,
   onFallback,
@@ -65,6 +77,9 @@ export function NativeLessonShell({
     !choiceOptions.length &&
     (Boolean(controllerView.step?.expectedPhrases?.length) ||
       controllerView.step?.responseMode === 'speech');
+  const expectsRecording =
+    controllerView.phase === 'free_chat' ||
+    controllerView.step?.responseMode === 'speech';
   const canSubmitText = draftAnswer.trim().length > 0;
 
   return (
@@ -264,7 +279,7 @@ export function NativeLessonShell({
                   style={[
                     styles.textAnswerRow,
                     {
-                      top: scaled(184, scale),
+                      top: scaled(expectsRecording ? 310 : 184, scale),
                       left: scaled(160, scale),
                       right: scaled(160, scale),
                       gap: scaled(16, scale),
@@ -312,6 +327,28 @@ export function NativeLessonShell({
                       提交
                     </Text>
                   </Pressable>
+                </View>
+              ) : null}
+
+              {expectsRecording ? (
+                <View
+                  style={[
+                    styles.recordingPanelWrap,
+                    {
+                      top: scaled(168, scale),
+                      left: scaled(210, scale),
+                      right: scaled(210, scale),
+                    },
+                  ]}
+                >
+                  <RecordingPanel
+                    state={recordingState}
+                    isFreeChat={controllerView.phase === 'free_chat'}
+                    onStart={onStartRecording}
+                    onStop={onStopRecording}
+                    onCancel={onCancelRecording}
+                    onSubmit={onSubmitRecording}
+                  />
                 </View>
               ) : null}
 
@@ -576,6 +613,9 @@ const styles = StyleSheet.create({
   textAnswerButtonText: {
     color: '#ffffff',
     fontWeight: '900',
+  },
+  recordingPanelWrap: {
+    position: 'absolute',
   },
   feedbackBubble: {
     position: 'absolute',
