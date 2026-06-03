@@ -30,7 +30,6 @@ export function OpeningAnimation({ onFinish }: Props) {
   // ── animation values ──
   const foxY = useSharedValue(SCREEN_H); // starts off-screen below
   const foxScale = useSharedValue(0.3);
-  const foxRotate = useSharedValue(-12);
   const foxFloat = useSharedValue(0);
 
   const logoOpacity = useSharedValue(0);
@@ -44,11 +43,6 @@ export function OpeningAnimation({ onFinish }: Props) {
     // Fox bounces in
     foxY.value = withSpring(0, { damping: 10, stiffness: 120, mass: 0.8 });
     foxScale.value = withSpring(1, { damping: 12, stiffness: 140 });
-    foxRotate.value = withSequence(
-      withTiming(6, { duration: 200 }),
-      withTiming(-4, { duration: 180 }),
-      withTiming(0, { duration: 160 }),
-    );
 
     // Fox floating loop (starts after landing)
     foxFloat.value = withDelay(
@@ -73,7 +67,7 @@ export function OpeningAnimation({ onFinish }: Props) {
         }
       }),
     );
-  }, [foxY, foxScale, foxRotate, foxFloat, logoOpacity, logoY, logoScale, exitOpacity, onFinish]);
+  }, [foxY, foxScale, foxFloat, logoOpacity, logoY, logoScale, exitOpacity, onFinish]);
 
   // ── animated styles ──
   const containerStyle = useAnimatedStyle(() => ({
@@ -84,7 +78,6 @@ export function OpeningAnimation({ onFinish }: Props) {
     transform: [
       { translateY: foxY.value + foxFloat.value },
       { scale: foxScale.value },
-      { rotate: `${foxRotate.value}deg` },
     ],
   }));
 
