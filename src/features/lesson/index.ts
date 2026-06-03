@@ -13,6 +13,10 @@ export {
   getNativeLessonRequestFromParams,
   normalizeNativeLessonDefinition,
 } from './nativeLessonLoader';
+export {
+  buildNativeLessonCompletionPayload,
+  completeNativeLessonProgress,
+} from './nativeLessonProgress';
 export { computeNativeLessonLayout } from './nativeLessonLayout';
 export { resolveNativeLessonOpeningPreview } from './nativeLessonPreview';
 export {
@@ -27,6 +31,8 @@ export { RecordingPanel } from './components/RecordingPanel';
 export { useNativeLessonController } from './hooks/useNativeLessonController';
 export { useNativeLessonMediaPreload } from './hooks/useNativeLessonMediaPreload';
 export { useNativeLessonRecording } from './hooks/useNativeLessonRecording';
+export { useNativeLessonRealtimeSession } from './hooks/useNativeLessonRealtimeSession';
+export { useNativeRealtimeAudioPlayback } from './hooks/useNativeRealtimeAudioPlayback';
 export { useNativeLessonScale } from './hooks/useNativeLessonScale';
 export type {
   NativeLessonChallenge,

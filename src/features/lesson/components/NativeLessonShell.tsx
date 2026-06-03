@@ -16,6 +16,10 @@ type NativeLessonShellProps = {
   courseNumber?: string;
   totalCourses?: string;
   controllerView: NativeLessonControllerView;
+  realtimeStatus?: string;
+  realtimeErrorText?: string;
+  completionStatus?: 'idle' | 'saving' | 'saved' | 'error';
+  completionErrorText?: string;
   onNext: () => void;
   onSubmitChoice: (optionId: string) => void;
   onSubmitText: (text: string) => void;
@@ -26,6 +30,7 @@ type NativeLessonShellProps = {
   onSubmitRecording: () => void;
   onMediaComplete: () => void;
   onPauseToggle: () => void;
+  onRetryCompletion?: () => void;
   onFallback: () => void;
   onExit: () => void;
 };
@@ -43,6 +48,10 @@ export function NativeLessonShell({
   courseNumber,
   totalCourses,
   controllerView,
+  realtimeStatus,
+  realtimeErrorText,
+  completionStatus = 'idle',
+  completionErrorText,
   onNext,
   onSubmitChoice,
   onSubmitText,
@@ -53,6 +62,7 @@ export function NativeLessonShell({
   onSubmitRecording,
   onMediaComplete,
   onPauseToggle,
+  onRetryCompletion,
   onFallback,
   onExit,
 }: NativeLessonShellProps) {
@@ -68,6 +78,17 @@ export function NativeLessonShell({
       ? `课程 ${courseNumber} / ${totalCourses} · ${controllerView.title}`
       : controllerView.title;
   const phaseLabel = `${controllerView.phase} · ${controllerView.lifecycle}`;
+  const sessionLabel = realtimeErrorText
+    ? `realtime error · ${realtimeErrorText}`
+    : realtimeStatus
+      ? `realtime · ${realtimeStatus}`
+      : phaseLabel;
+  const completionLabel =
+    completionStatus === 'saving'
+      ? '保存进度中...'
+      : completionStatus === 'error'
+        ? `进度保存失败${completionErrorText ? ` · ${completionErrorText}` : ''}`
+        : '';
   const displayText =
     controllerView.text ||
     controllerView.screenText ||
@@ -428,14 +449,26 @@ export function NativeLessonShell({
           </Text>
         </Pressable>
         <Pressable style={styles.controlButton}>
-          <Text style={styles.controlButtonText}>{phaseLabel}</Text>
+          <Text numberOfLines={1} style={styles.controlButtonText}>{sessionLabel}</Text>
         </Pressable>
+        {completionLabel ? (
+          <Pressable style={styles.completionStatusButton}>
+            <Text numberOfLines={1} style={styles.controlButtonText}>
+              {completionLabel}
+            </Text>
+          </Pressable>
+        ) : null}
+        {completionStatus === 'error' ? (
+          <Pressable style={styles.controlButtonPurple} onPress={onRetryCompletion}>
+            <Text style={styles.controlButtonText}>重试保存</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           style={[
             styles.controlButtonPurple,
-            !controllerView.canGoNext && styles.disabledButton,
+            (!controllerView.canGoNext || completionStatus === 'saving') && styles.disabledButton,
           ]}
-          disabled={!controllerView.canGoNext}
+          disabled={!controllerView.canGoNext || completionStatus === 'saving'}
           onPress={onNext}
         >
           <Text style={styles.controlButtonText}>跳到下一步</Text>
@@ -715,6 +748,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(216,180,254,0.5)',
     backgroundColor: '#2e2148',
+    paddingHorizontal: 16,
+  },
+  completionStatusButton: {
+    minHeight: 38,
+    maxWidth: 360,
+    justifyContent: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.55)',
+    backgroundColor: '#422006',
     paddingHorizontal: 16,
   },
   transcriptButton: {

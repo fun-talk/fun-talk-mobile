@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 
 import { useAuth } from '@/features/auth';
+import type { ApiClient } from '@/lib/api/client';
 
 import {
   buildNativeLessonFallbackPath,
@@ -13,11 +14,13 @@ import {
   fetchNativeLessonDefinition,
   getNativeLessonRequestFromParams,
 } from '../nativeLessonLoader';
+import { completeNativeLessonProgress } from '../nativeLessonProgress';
 import type { NativeLessonDefinition } from '../nativeLessonTypes';
 import { NativeLessonShell } from './NativeLessonShell';
 import { useNativeLessonController } from '../hooks/useNativeLessonController';
 import { useNativeLessonMediaPreload } from '../hooks/useNativeLessonMediaPreload';
 import { useNativeLessonRecording } from '../hooks/useNativeLessonRecording';
+import { useNativeLessonRealtimeSession } from '../hooks/useNativeLessonRealtimeSession';
 
 const LOGIN_ROUTE = '/(auth)/login' as Href;
 
@@ -140,6 +143,11 @@ export function NativeLessonScreen() {
   return (
     <NativeLessonLoadedScreen
       lesson={lessonDefinition}
+      lessonId={lessonId}
+      sectionId={sectionId}
+      apiClient={apiClient}
+      apiBaseUrl={apiClient.baseUrl}
+      token={auth.token}
       courseNumber={courseNumber}
       totalCourses={totalCourses}
       onExit={() => router.replace('/(app)/courses' as Href)}
@@ -150,12 +158,22 @@ export function NativeLessonScreen() {
 
 function NativeLessonLoadedScreen({
   lesson,
+  lessonId,
+  sectionId,
+  apiClient,
+  apiBaseUrl,
+  token,
   courseNumber,
   totalCourses,
   onExit,
   onFallback,
 }: {
   lesson: NativeLessonDefinition;
+  lessonId: string;
+  sectionId?: string;
+  apiClient: ApiClient;
+  apiBaseUrl: string;
+  token: string;
   courseNumber?: string;
   totalCourses?: string;
   onExit: () => void;
@@ -163,6 +181,54 @@ function NativeLessonLoadedScreen({
 }) {
   const controller = useNativeLessonController(lesson);
   const recording = useNativeLessonRecording();
+  const [completionStatus, setCompletionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [completionErrorText, setCompletionErrorText] = useState('');
+  const realtime = useNativeLessonRealtimeSession({
+    enabled: true,
+    apiBaseUrl,
+    token,
+    lessonId,
+    sectionId,
+    title: lesson.metadata.title,
+    backgroundImageUrl:
+      lesson.assets.backgrounds.story ||
+      lesson.assets.backgrounds.teaching ||
+      lesson.assets.backgrounds.challengeLevel1,
+  });
+  const controllerView = realtime.realtimeView ?? controller.view;
+  const isLessonComplete =
+    controllerView.phase === 'end' ||
+    controllerView.lifecycle === 'completed' ||
+    realtime.projection.completed;
+  const completionParams = useMemo(
+    () => ({
+      lessonId,
+      courseNumber,
+      totalCourses,
+    }),
+    [courseNumber, lessonId, totalCourses],
+  );
+
+  const saveCompletion = useCallback(async () => {
+    setCompletionStatus('saving');
+    setCompletionErrorText('');
+    try {
+      await completeNativeLessonProgress(completionParams, apiClient);
+      setCompletionStatus('saved');
+      onExit();
+    } catch (error) {
+      setCompletionErrorText(error instanceof Error ? error.message : String(error));
+      setCompletionStatus('error');
+    }
+  }, [apiClient, completionParams, onExit]);
+
+  useEffect(() => {
+    if (!isLessonComplete || completionStatus !== 'idle') {
+      return;
+    }
+    void saveCompletion();
+  }, [completionStatus, isLessonComplete, saveCompletion]);
+
   useNativeLessonMediaPreload(controller.preloadUris);
 
   return (
@@ -170,20 +236,60 @@ function NativeLessonLoadedScreen({
       lesson={lesson}
       courseNumber={courseNumber}
       totalCourses={totalCourses}
-      controllerView={controller.view}
-      onNext={controller.next}
-      onSubmitChoice={controller.submitChoice}
-      onSubmitText={controller.submitText}
+      controllerView={controllerView}
+      realtimeStatus={
+        realtime.audioStatus === 'idle'
+          ? realtime.status
+          : `${realtime.status} · audio ${realtime.audioStatus}`
+      }
+      realtimeErrorText={realtime.errorText || realtime.audioErrorText}
+      completionStatus={completionStatus}
+      completionErrorText={completionErrorText}
+      onRetryCompletion={() => setCompletionStatus('idle')}
+      onNext={() => {
+        const stepId = controllerView.step?.step;
+        if (!stepId || !realtime.sendAssistantPromptSpoken(stepId)) {
+          controller.next();
+        }
+      }}
+      onSubmitChoice={(optionId) => {
+        const stepId = controllerView.step?.step;
+        if (!stepId || !realtime.sendChoice(stepId, optionId)) {
+          controller.submitChoice(optionId);
+        }
+      }}
+      onSubmitText={(text) => {
+        const stepId = controllerView.step?.step;
+        if (!realtime.sendText(text, stepId)) {
+          controller.submitText(text);
+        }
+      }}
       recordingState={recording.state}
       onStartRecording={recording.start}
       onStopRecording={recording.stop}
       onCancelRecording={recording.cancel}
-      onSubmitRecording={() => {
+      onSubmitRecording={async () => {
+        let sentRecording = false;
+        if (recording.state.recordingUri) {
+          try {
+            const response = await fetch(recording.state.recordingUri);
+            sentRecording = realtime.sendAudioChunk(await response.arrayBuffer());
+          } catch {
+            sentRecording = false;
+          }
+        }
         recording.submit();
-        controller.next();
+        if (!sentRecording && !realtime.isConnected) {
+          controller.next();
+        }
       }}
-      onMediaComplete={controller.next}
-      onPauseToggle={controller.view.isPaused ? controller.resume : controller.pause}
+      onMediaComplete={() => {
+        const cueId = controllerView.step?.mediaCueId;
+        if (!realtime.sendMediaFinished(cueId)) {
+          controller.next();
+        }
+      }}
+      onPauseToggle={controllerView.isPaused ? controller.resume : controller.pause}
       onExit={onExit}
       onFallback={onFallback}
     />
