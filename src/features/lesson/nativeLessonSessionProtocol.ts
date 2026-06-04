@@ -220,6 +220,10 @@ export function buildAssistantPromptSpokenCommand(stepId: number) {
   };
 }
 
+export function buildRequestDebugNextStepCommand() {
+  return { type: 'REQUEST_DEBUG_NEXT_STEP' as const };
+}
+
 export function buildRealtimeLessonWsUrl(
   apiBaseUrl: string,
   deviceId: string,

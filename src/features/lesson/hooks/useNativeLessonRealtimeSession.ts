@@ -14,6 +14,7 @@ import {
   buildInitSessionCommand,
   buildMediaFinishedCommand,
   buildRealtimeLessonWsUrl,
+  buildRequestDebugNextStepCommand,
   buildStartLessonCommand,
   buildSubmitChoiceCommand,
   buildSubmitUserTextCommand,
@@ -235,6 +236,10 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     return sendJson(socketRef.current, buildAssistantPromptSpokenCommand(stepId));
   }, []);
 
+  const requestDebugNextStep = useCallback(() => {
+    return sendJson(socketRef.current, buildRequestDebugNextStepCommand());
+  }, []);
+
   const sendAudioChunk = useCallback((chunk: ArrayBuffer | Uint8Array) => {
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -258,6 +263,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     sendChoice,
     sendMediaFinished,
     sendAssistantPromptSpoken,
+    requestDebugNextStep,
     sendAudioChunk,
   };
 }

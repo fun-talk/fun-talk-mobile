@@ -248,6 +248,15 @@ function NativeLessonLoadedScreen({
       onRetryCompletion={() => setCompletionStatus('idle')}
       onNext={() => {
         const stepId = controllerView.step?.step;
+        if (
+          realtime.realtimeView &&
+          (controllerView.lifecycle === 'waiting_user' || controllerView.phase === 'free_chat')
+        ) {
+          if (!realtime.requestDebugNextStep()) {
+            controller.next();
+          }
+          return;
+        }
         if (!stepId || !realtime.sendAssistantPromptSpoken(stepId)) {
           controller.next();
         }

@@ -6,6 +6,7 @@ import {
   buildInitSessionCommand,
   buildMediaFinishedCommand,
   buildRealtimeLessonWsUrl,
+  buildRequestDebugNextStepCommand,
   buildStartLessonCommand,
   buildSubmitChoiceCommand,
   buildSubmitUserTextCommand,
@@ -34,6 +35,9 @@ describe('nativeLessonSessionProtocol', () => {
     assert.deepEqual(buildAssistantPromptSpokenCommand(8), {
       type: 'ASSISTANT_PROMPT_SPOKEN',
       step_id: 8,
+    });
+    assert.deepEqual(buildRequestDebugNextStepCommand(), {
+      type: 'REQUEST_DEBUG_NEXT_STEP',
     });
   });
 
