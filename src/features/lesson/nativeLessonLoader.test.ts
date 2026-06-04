@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import type { ApiClient } from '@/lib/api/client';
 
+import { NativeLessonUnsupportedError } from './nativeLessonErrors.ts';
 import {
   buildNativeRealtimeLessonPath,
   fetchNativeLessonDefinition,
@@ -154,6 +155,20 @@ describe('nativeLessonLoader', () => {
     await assert.rejects(
       () => fetchNativeLessonDefinition(apiClient, { lessonId: '999' }),
       /加载实时教学配置失败：404 missing/,
+    );
+  });
+
+  it('rejects unsupported empty lesson shapes before native rendering', () => {
+    assert.throws(
+      () =>
+        normalizeNativeLessonDefinition({
+          metadata: { id: 'empty', title: '空课程' },
+          story: { enabled: false },
+          teaching: { enabled: false },
+          challenges: [],
+          freeChatBridges: {},
+        }),
+      NativeLessonUnsupportedError,
     );
   });
 });

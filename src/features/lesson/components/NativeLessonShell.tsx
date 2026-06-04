@@ -6,6 +6,7 @@ import { courseHomeImages } from '@/features/courses/assets/courseHomeAssets';
 
 import type { NativeLessonDefinition } from '../nativeLessonTypes';
 import type { NativeLessonControllerView } from '../nativeLessonController';
+import type { NativeLessonErrorView } from '../nativeLessonErrors';
 import type { RecordingControllerState } from '../recordingController';
 import { useNativeLessonScale } from '../hooks/useNativeLessonScale';
 import { CourseMediaArea } from './CourseMediaArea';
@@ -18,6 +19,7 @@ type NativeLessonShellProps = {
   controllerView: NativeLessonControllerView;
   realtimeStatus?: string;
   realtimeErrorText?: string;
+  nativeError?: NativeLessonErrorView | null;
   completionStatus?: 'idle' | 'saving' | 'saved' | 'error';
   completionErrorText?: string;
   onNext: () => void;
@@ -31,6 +33,7 @@ type NativeLessonShellProps = {
   onMediaComplete: () => void;
   onPauseToggle: () => void;
   onRetryCompletion?: () => void;
+  onRetryNativeError?: () => void;
   onFallback: () => void;
   onExit: () => void;
 };
@@ -50,6 +53,7 @@ export function NativeLessonShell({
   controllerView,
   realtimeStatus,
   realtimeErrorText,
+  nativeError,
   completionStatus = 'idle',
   completionErrorText,
   onNext,
@@ -63,6 +67,7 @@ export function NativeLessonShell({
   onMediaComplete,
   onPauseToggle,
   onRetryCompletion,
+  onRetryNativeError,
   onFallback,
   onExit,
 }: NativeLessonShellProps) {
@@ -78,8 +83,10 @@ export function NativeLessonShell({
       ? `课程 ${courseNumber} / ${totalCourses} · ${controllerView.title}`
       : controllerView.title;
   const phaseLabel = `${controllerView.phase} · ${controllerView.lifecycle}`;
-  const sessionLabel = realtimeErrorText
-    ? `realtime error · ${realtimeErrorText}`
+  const sessionLabel = nativeError
+    ? `${nativeError.title} · ${nativeError.message}`
+    : realtimeErrorText
+      ? `realtime error · ${realtimeErrorText}`
     : realtimeStatus
       ? `realtime · ${realtimeStatus}`
       : phaseLabel;
@@ -462,6 +469,16 @@ export function NativeLessonShell({
           <Pressable style={styles.controlButtonPurple} onPress={onRetryCompletion}>
             <Text style={styles.controlButtonText}>重试保存</Text>
           </Pressable>
+        ) : null}
+        {nativeError ? (
+          <>
+            <Pressable style={styles.controlButtonPurple} onPress={onRetryNativeError}>
+              <Text style={styles.controlButtonText}>{nativeError.retryLabel}</Text>
+            </Pressable>
+            <Pressable style={styles.controlButton} onPress={onFallback}>
+              <Text style={styles.controlButtonText}>WebView 兜底</Text>
+            </Pressable>
+          </>
         ) : null}
         <Pressable
           style={[

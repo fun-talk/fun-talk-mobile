@@ -51,6 +51,29 @@ export function shouldAcceptMediaCompletion(
   return true;
 }
 
+export function shouldCompleteNativeLessonVideoPlayback(status: {
+  isLoaded: boolean;
+  didJustFinish?: boolean;
+  durationMillis?: number;
+  positionMillis?: number;
+  error?: string;
+}): boolean {
+  if (!status.isLoaded) {
+    return Boolean(status.error);
+  }
+  if (status.didJustFinish) {
+    return true;
+  }
+  if (
+    typeof status.durationMillis === 'number' &&
+    typeof status.positionMillis === 'number' &&
+    status.durationMillis > 0
+  ) {
+    return status.durationMillis - status.positionMillis <= 350;
+  }
+  return false;
+}
+
 export function getNativeLessonMediaPreloadUris(
   views: { media: { url: string } | null }[],
   currentIndex: number,

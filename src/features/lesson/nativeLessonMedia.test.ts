@@ -5,6 +5,7 @@ import {
   buildNativeLessonMediaView,
   getNativeLessonMediaPreloadUris,
   shouldAcceptMediaCompletion,
+  shouldCompleteNativeLessonVideoPlayback,
 } from './nativeLessonMedia.ts';
 import type { NativeLessonControllerView } from './nativeLessonController.ts';
 
@@ -73,6 +74,39 @@ describe('nativeLessonMedia', () => {
     assert.equal(shouldAcceptMediaCompletion(seen, 'a'), true);
     assert.equal(shouldAcceptMediaCompletion(seen, 'a'), false);
     assert.equal(shouldAcceptMediaCompletion(seen, 'b'), true);
+  });
+
+  it('treats finished, near-ended, and errored video statuses as complete', () => {
+    assert.equal(
+      shouldCompleteNativeLessonVideoPlayback({
+        isLoaded: true,
+        didJustFinish: true,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldCompleteNativeLessonVideoPlayback({
+        isLoaded: true,
+        durationMillis: 10_000,
+        positionMillis: 9_800,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldCompleteNativeLessonVideoPlayback({
+        isLoaded: false,
+        error: 'decode failed',
+      }),
+      true,
+    );
+    assert.equal(
+      shouldCompleteNativeLessonVideoPlayback({
+        isLoaded: true,
+        durationMillis: 10_000,
+        positionMillis: 5_000,
+      }),
+      false,
+    );
   });
 
   it('selects current and next media urls for preload without duplicates', () => {

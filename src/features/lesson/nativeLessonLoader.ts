@@ -1,6 +1,8 @@
 import type { ApiClient } from '@/lib/api/client';
 
 import { normalizeRouteParam } from './buildLessonWebUrl';
+import { NativeLessonUnsupportedError } from './nativeLessonErrors';
+import { assertNativeLessonSupported } from './nativeLessonSupport';
 import type { LessonModeRouteParams } from './lessonMode';
 import type {
   NativeLessonChallenge,
@@ -107,7 +109,10 @@ function normalizeSteps(rawSteps: unknown): Record<number, NativeLessonStep> {
     const step = asRecord(rawStep, 'challenge.step');
     const stepNumber = asNumber(step.step, Number(stepKey));
     if (!Number.isFinite(stepNumber)) {
-      throw new Error('challenge step must include numeric step');
+      throw new NativeLessonUnsupportedError(
+        'invalid_challenge_step_number',
+        'challenge step must include numeric step',
+      );
     }
 
     steps[stepNumber] = {
@@ -131,14 +136,20 @@ function normalizeSteps(rawSteps: unknown): Record<number, NativeLessonStep> {
 
 function normalizeChallenges(rawChallenges: unknown): NativeLessonChallenge[] {
   if (!Array.isArray(rawChallenges)) {
-    throw new Error('challenges must be an array');
+    throw new NativeLessonUnsupportedError(
+      'missing_challenges_array',
+      'lesson.challenges must be an array',
+    );
   }
 
   return rawChallenges.map((rawChallenge) => {
     const challenge = asRecord(rawChallenge, 'challenge');
     const key = asString(challenge.key).trim();
     if (!key) {
-      throw new Error('challenge key is required');
+      throw new NativeLessonUnsupportedError(
+        'missing_challenge_key',
+        'challenge key is required',
+      );
     }
     const steps = normalizeSteps(challenge.steps);
     const stepNumbers = Object.keys(steps).map((step) => Number(step));
@@ -192,7 +203,7 @@ export function normalizeNativeLessonDefinition(rawLesson: unknown): NativeLesso
       .filter((step): step is NativeLessonStep => Boolean(step)),
   );
 
-  return {
+  const normalized = {
     metadata: {
       id: asString(metadata.id, '413'),
       title: asString(metadata.title, 'FunTalk 课程'),
@@ -217,6 +228,8 @@ export function normalizeNativeLessonDefinition(rawLesson: unknown): NativeLesso
       firstStep: orderedSteps[0] ?? null,
     },
   };
+  assertNativeLessonSupported(normalized);
+  return normalized;
 }
 
 export async function fetchNativeLessonDefinition(

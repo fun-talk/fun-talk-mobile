@@ -11,6 +11,10 @@ import {
 } from '../lessonMode';
 import { normalizeRouteParam } from '../buildLessonWebUrl';
 import {
+  classifyNativeLessonError,
+  type NativeLessonErrorView,
+} from '../nativeLessonErrors';
+import {
   fetchNativeLessonDefinition,
   getNativeLessonRequestFromParams,
 } from '../nativeLessonLoader';
@@ -29,7 +33,7 @@ export function NativeLessonScreen() {
   const router = useRouter();
   const { auth, apiClient } = useAuth();
   const [lessonDefinition, setLessonDefinition] = useState<NativeLessonDefinition | null>(null);
-  const [loadError, setLoadError] = useState('');
+  const [loadError, setLoadError] = useState<NativeLessonErrorView | null>(null);
   const [isLoadingLesson, setIsLoadingLesson] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -37,7 +41,27 @@ export function NativeLessonScreen() {
   const sectionId = normalizeRouteParam(params.section_id)?.trim();
   const courseNumber = normalizeRouteParam(params.course_number)?.trim();
   const totalCourses = normalizeRouteParam(params.total_courses)?.trim();
-  const fallbackPath = useMemo(() => buildNativeLessonFallbackPath(params), [params]);
+  const goFallback = useCallback(
+    (error?: NativeLessonErrorView) => {
+      const fallbackPath = buildNativeLessonFallbackPath(
+        params,
+        error
+          ? {
+              reason: error.fallbackReason,
+              category: error.category,
+            }
+          : { reason: 'manual_native_fallback' },
+      );
+      console.warn('native_lesson_fallback', {
+        reason: error?.fallbackReason ?? 'manual_native_fallback',
+        category: error?.category ?? 'manual',
+        lessonId,
+        sectionId,
+      });
+      router.replace(fallbackPath as Href);
+    },
+    [lessonId, params, router, sectionId],
+  );
   const lessonRequest = useMemo(
     () => getNativeLessonRequestFromParams({ lesson_id: lessonId, section_id: sectionId }),
     [lessonId, sectionId],
@@ -50,7 +74,7 @@ export function NativeLessonScreen() {
 
     let cancelled = false;
     setIsLoadingLesson(true);
-    setLoadError('');
+    setLoadError(null);
 
     void fetchNativeLessonDefinition(apiClient, lessonRequest)
       .then((lesson) => {
@@ -61,7 +85,7 @@ export function NativeLessonScreen() {
       .catch((error) => {
         if (!cancelled) {
           setLessonDefinition(null);
-          setLoadError(error instanceof Error ? error.message : String(error));
+          setLoadError(classifyNativeLessonError('loader', error));
         }
       })
       .finally(() => {
@@ -102,20 +126,27 @@ export function NativeLessonScreen() {
       <View style={styles.root}>
         <View style={styles.panel}>
           <Text style={styles.kicker}>Native Lesson</Text>
-          <Text style={styles.title}>课程加载失败</Text>
-          <Text style={styles.description}>{loadError}</Text>
+          <Text style={styles.title}>{loadError.title}</Text>
+          <Text style={styles.description}>{loadError.message}</Text>
           <View style={styles.actionRow}>
             <Pressable
               accessibilityRole="button"
               style={styles.primaryButton}
               onPress={() => setRetryCount((current) => current + 1)}
             >
-              <Text style={styles.primaryButtonText}>重试加载</Text>
+              <Text style={styles.primaryButtonText}>{loadError.retryLabel}</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
               style={styles.secondaryButton}
-              onPress={() => router.replace(fallbackPath as Href)}
+              onPress={() => router.replace('/(app)/courses' as Href)}
+            >
+              <Text style={styles.secondaryButtonText}>返回课程</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.secondaryButton}
+              onPress={() => goFallback(loadError)}
             >
               <Text style={styles.secondaryButtonText}>切换到 WebView</Text>
             </Pressable>
@@ -151,7 +182,7 @@ export function NativeLessonScreen() {
       courseNumber={courseNumber}
       totalCourses={totalCourses}
       onExit={() => router.replace('/(app)/courses' as Href)}
-      onFallback={() => router.replace(fallbackPath as Href)}
+      onFallback={(error) => goFallback(error)}
     />
   );
 }
@@ -177,7 +208,7 @@ function NativeLessonLoadedScreen({
   courseNumber?: string;
   totalCourses?: string;
   onExit: () => void;
-  onFallback: () => void;
+  onFallback: (error?: NativeLessonErrorView) => void;
 }) {
   const controller = useNativeLessonController(lesson);
   const recording = useNativeLessonRecording();
@@ -195,6 +226,18 @@ function NativeLessonLoadedScreen({
       lesson.assets.backgrounds.teaching ||
       lesson.assets.backgrounds.challengeLevel1,
   });
+  const runtimeError = useMemo<NativeLessonErrorView | null>(() => {
+    if (realtime.errorText) {
+      return classifyNativeLessonError('session', realtime.errorText);
+    }
+    if (realtime.audioErrorText) {
+      return classifyNativeLessonError('audio', realtime.audioErrorText);
+    }
+    if (recording.state.status === 'error' && recording.state.errorText) {
+      return classifyNativeLessonError('permission', recording.state.errorText);
+    }
+    return null;
+  }, [recording.state.errorText, recording.state.status, realtime.audioErrorText, realtime.errorText]);
   const controllerView = realtime.realtimeView ?? controller.view;
   const isLessonComplete =
     controllerView.phase === 'end' ||
@@ -243,9 +286,20 @@ function NativeLessonLoadedScreen({
           : `${realtime.status} · audio ${realtime.audioStatus}`
       }
       realtimeErrorText={realtime.errorText || realtime.audioErrorText}
+      nativeError={runtimeError}
       completionStatus={completionStatus}
       completionErrorText={completionErrorText}
       onRetryCompletion={() => setCompletionStatus('idle')}
+      onRetryNativeError={() => {
+        if (!runtimeError) {
+          return;
+        }
+        if (runtimeError.category === 'permission') {
+          void recording.start();
+          return;
+        }
+        void realtime.connect();
+      }}
       onNext={() => {
         const stepId = controllerView.step?.step;
         if (
@@ -300,7 +354,7 @@ function NativeLessonLoadedScreen({
       }}
       onPauseToggle={controllerView.isPaused ? controller.resume : controller.pause}
       onExit={onExit}
-      onFallback={onFallback}
+      onFallback={() => onFallback(runtimeError ?? undefined)}
     />
   );
 }

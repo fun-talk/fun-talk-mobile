@@ -1,13 +1,14 @@
 import type { AVPlaybackStatus } from 'expo-av';
 import { ResizeMode, Video } from 'expo-av';
 import { Image } from 'expo-image';
-import { useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { NativeLessonControllerView } from '../nativeLessonController';
 import {
   buildNativeLessonMediaView,
   shouldAcceptMediaCompletion,
+  shouldCompleteNativeLessonVideoPlayback,
 } from '../nativeLessonMedia';
 
 type CourseMediaAreaProps = {
@@ -29,14 +30,29 @@ export function CourseMediaArea({
     [controllerView],
   );
 
-  const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+  const completeCurrentMedia = useCallback(() => {
     if (
       mediaView.kind === 'video' &&
-      status.isLoaded &&
-      status.didJustFinish &&
       shouldAcceptMediaCompletion(completedPlaybackKeysRef.current, mediaView.playbackKey)
     ) {
       onComplete();
+    }
+  }, [mediaView.kind, mediaView.playbackKey, onComplete]);
+
+  useEffect(() => {
+    if (mediaView.kind !== 'video' || !mediaView.shouldPlay) {
+      return undefined;
+    }
+    const timeout = setTimeout(completeCurrentMedia, 90_000);
+    return () => clearTimeout(timeout);
+  }, [completeCurrentMedia, mediaView.kind, mediaView.shouldPlay]);
+
+  const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+    if (
+      mediaView.kind === 'video' &&
+      shouldCompleteNativeLessonVideoPlayback(status)
+    ) {
+      completeCurrentMedia();
     }
   };
 
@@ -61,6 +77,7 @@ export function CourseMediaArea({
         useNativeControls
         isLooping={false}
         onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+        onError={completeCurrentMedia}
       />
     );
   }
@@ -96,4 +113,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

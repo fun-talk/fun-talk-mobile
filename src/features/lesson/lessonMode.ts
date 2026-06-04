@@ -9,6 +9,8 @@ export type LessonModeRouteParams = LessonRouteParams & {
   native?: string | string[];
   fallback?: string | string[];
   mode?: string | string[];
+  native_fallback_reason?: string | string[];
+  native_error_category?: string | string[];
 };
 
 const FALLBACK_PRESERVED_PARAM_KEYS = [
@@ -60,7 +62,10 @@ export function resolveLessonRenderMode(
   return nativeEnabled ? 'native' : 'webview';
 }
 
-export function buildNativeLessonFallbackPath(params: LessonModeRouteParams): string {
+export function buildNativeLessonFallbackPath(
+  params: LessonModeRouteParams,
+  fallback?: { reason?: string; category?: string },
+): string {
   const search = new URLSearchParams();
 
   for (const key of FALLBACK_PRESERVED_PARAM_KEYS) {
@@ -72,5 +77,11 @@ export function buildNativeLessonFallbackPath(params: LessonModeRouteParams): st
 
   search.set('fallback', 'webview');
   search.set('native', '0');
+  if (fallback?.reason?.trim()) {
+    search.set('native_fallback_reason', fallback.reason.trim());
+  }
+  if (fallback?.category?.trim()) {
+    search.set('native_error_category', fallback.category.trim());
+  }
   return `/(app)/lesson?${search.toString()}`;
 }

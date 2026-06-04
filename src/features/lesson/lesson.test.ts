@@ -88,6 +88,19 @@ describe('lessonMode', () => {
       '/(app)/lesson?lesson_id=413&section_id=section-a&from=course_home&course_number=3&total_courses=23&autostart=1&skip_opening=1&web_destination=%2Fapp%2Flesson%3Flesson_id%3D413%26section_id%3Dsection-a&web_base_url=http%3A%2F%2Flocalhost%3A19001&fallback=webview&native=0',
     );
   });
+
+  it('adds fallback reason and category when native fails', () => {
+    assert.equal(
+      buildNativeLessonFallbackPath(
+        { lesson_id: '414' },
+        {
+          reason: 'session:reconnect_failed',
+          category: 'session',
+        },
+      ),
+      '/(app)/lesson?lesson_id=414&fallback=webview&native=0&native_fallback_reason=session%3Areconnect_failed&native_error_category=session',
+    );
+  });
 });
 
 describe('webViewMessages', () => {
