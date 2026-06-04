@@ -20,6 +20,7 @@ export type RealtimeLessonStepPayload = {
   assistantPrompt: string;
   inputMode: string;
   advancePolicy: string;
+  voiceUrl?: string;
   expectedPhrases: string[];
   choiceOptions: RealtimeLessonChoiceOption[];
   correctOptionId?: string;
@@ -152,6 +153,7 @@ function normalizeStepPayload(value: unknown): RealtimeLessonStepPayload {
     assistantPrompt: asString(raw.assistant_prompt || raw.assistantPrompt),
     inputMode: asString(raw.input_mode || raw.inputMode, 'none'),
     advancePolicy: asString(raw.advance_policy || raw.advancePolicy, 'auto'),
+    voiceUrl: asString(raw.voice_url || raw.voiceUrl).trim() || undefined,
     expectedPhrases: asStringArray(raw.expected_phrases || raw.expectedPhrases),
     choiceOptions: normalizeChoiceOptions(raw.choice_options || raw.choiceOptions),
     correctOptionId: asString(raw.correct_option_id || raw.correctOptionId).trim() || undefined,

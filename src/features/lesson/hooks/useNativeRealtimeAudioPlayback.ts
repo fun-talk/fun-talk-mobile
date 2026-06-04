@@ -83,6 +83,38 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
     }
   }, []);
 
+  const playRemoteUrl = useCallback(async (url: string) => {
+    const normalizedUrl = url.trim();
+    if (!normalizedUrl) {
+      onPlaybackCompleteRef.current();
+      return;
+    }
+
+    try {
+      await soundRef.current?.unloadAsync();
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: normalizedUrl },
+        { shouldPlay: true },
+      );
+      soundRef.current = sound;
+      setStatus('playing');
+      sound.setOnPlaybackStatusUpdate((playbackStatus) => {
+        if (playbackStatus.isLoaded && playbackStatus.didJustFinish) {
+          setStatus('idle');
+          onPlaybackCompleteRef.current();
+          void sound.unloadAsync();
+          if (soundRef.current === sound) {
+            soundRef.current = null;
+          }
+        }
+      });
+    } catch (error) {
+      setStatus('error');
+      setErrorText(error instanceof Error ? error.message : 'Realtime voiceUrl 播放失败。');
+      onPlaybackCompleteRef.current();
+    }
+  }, []);
+
   useEffect(
     () => () => {
       chunksRef.current = [];
@@ -97,6 +129,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
     errorText,
     pushPcmChunk,
     playBufferedPcm,
+    playRemoteUrl,
     resetBuffer,
   };
 }

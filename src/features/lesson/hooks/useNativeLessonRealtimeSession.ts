@@ -70,6 +70,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const {
     pushPcmChunk,
     playBufferedPcm,
+    playRemoteUrl,
     resetBuffer,
     status: audioStatus,
     errorText: audioErrorText,
@@ -152,6 +153,9 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
           if (event.event === 'step_started') {
             currentStepIdRef.current = event.step.stepId;
             spokenStepIdsRef.current.delete(event.step.stepId);
+            if (event.step.voiceUrl) {
+              void playRemoteUrl(event.step.voiceUrl);
+            }
           }
           if (event.event === 'tts_start') {
             if (ttsFallbackTimerRef.current) {
@@ -202,6 +206,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     options.token,
     markAssistantPromptSpoken,
     playBufferedPcm,
+    playRemoteUrl,
     pushPcmChunk,
     resetBuffer,
   ]);

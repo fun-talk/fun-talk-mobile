@@ -98,4 +98,27 @@ describe('nativeLessonSessionProtocol', () => {
     assert.deepEqual(event?.completedStepIds, [1]);
     assert.equal(event?.totalSteps, 9);
   });
+
+  it('normalizes voiceUrl from step started events', () => {
+    const event = normalizeRealtimeLessonEvent({
+      event: 'step_started',
+      lifecycle: 'assistant_turn',
+      step: {
+        step_id: 1,
+        phase: 'teaching',
+        assistant_prompt: '咱赶紧拆——',
+        input_mode: 'none',
+        advance_policy: 'wait_media_finished',
+        voice_url: 'https://example.test/voice.mp3',
+        media_cue: {
+          cue_id: 'teaching:intro',
+          kind: 'video',
+          url: 'https://example.test/intro.mp4',
+        },
+      },
+    });
+
+    assert.equal(event?.event, 'step_started');
+    assert.equal(event?.step.voiceUrl, 'https://example.test/voice.mp3');
+  });
 });
