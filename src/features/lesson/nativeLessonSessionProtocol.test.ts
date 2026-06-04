@@ -88,6 +88,7 @@ describe('nativeLessonSessionProtocol', () => {
       screen_text: 'Pick one',
       choice_options: [{ option_id: 'A', label: 'A', text: 'Globe' }],
       completed_step_ids: [1],
+      total_steps: 9,
     });
 
     assert.equal(event?.event, 'lesson_state_snapshot');
@@ -95,6 +96,6 @@ describe('nativeLessonSessionProtocol', () => {
     assert.equal(event?.lifecycle, 'waiting_user');
     assert.equal(event?.choiceOptions[0]?.optionId, 'A');
     assert.deepEqual(event?.completedStepIds, [1]);
+    assert.equal(event?.totalSteps, 9);
   });
 });
-

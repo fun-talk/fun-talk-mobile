@@ -30,6 +30,7 @@ describe('nativeLessonRealtimeProjection', () => {
       currentMedia: { cueId: 'stage', kind: 'image', url: 'https://example.com/stage.png' },
       choiceOptions: [{ optionId: 'A', label: 'A', text: '宣誓台' }],
       completedStepIds: [1, 2],
+      totalSteps: 8,
       userTurnOpen: true,
     });
     const view = getRealtimeControllerView(state, {
@@ -43,6 +44,7 @@ describe('nativeLessonRealtimeProjection', () => {
     assert.equal(view?.media?.url, 'https://example.com/stage.png');
     assert.equal(view?.step?.options[0]?.id, 'A');
     assert.equal(view?.index, 2);
+    assert.equal(view?.total, 8);
   });
 
   it('updates assistant text and answer feedback from server events', () => {
@@ -95,4 +97,3 @@ describe('nativeLessonRealtimeProjection', () => {
     assert.equal(state.errorText, 'boom');
   });
 });
-

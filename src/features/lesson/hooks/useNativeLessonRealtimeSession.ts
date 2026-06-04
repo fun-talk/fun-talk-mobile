@@ -47,18 +47,25 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const socketRef = useRef<WebSocket | null>(null);
   const closedByUserRef = useRef(false);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ttsFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const currentStepIdRef = useRef<number | null>(null);
+  const spokenStepIdsRef = useRef(new Set<number>());
   const [status, setStatus] = useState<RealtimeSessionStatus>('idle');
   const [projection, setProjection] = useState<RealtimeLessonProjectionState>(
     INITIAL_REALTIME_LESSON_PROJECTION_STATE,
   );
   const [errorText, setErrorText] = useState('');
-  const audioPlayback = useNativeRealtimeAudioPlayback(() => {
+  const markAssistantPromptSpoken = useCallback(() => {
     const stepId = currentStepIdRef.current;
-    if (typeof stepId === 'number') {
-      sendJson(socketRef.current, buildAssistantPromptSpokenCommand(stepId));
+    if (typeof stepId !== 'number' || spokenStepIdsRef.current.has(stepId)) {
+      return;
     }
+    spokenStepIdsRef.current.add(stepId);
+    sendJson(socketRef.current, buildAssistantPromptSpokenCommand(stepId));
+  }, []);
+  const audioPlayback = useNativeRealtimeAudioPlayback(() => {
+    markAssistantPromptSpoken();
   });
   const {
     pushPcmChunk,
@@ -83,6 +90,10 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
+    if (ttsFallbackTimerRef.current) {
+      clearTimeout(ttsFallbackTimerRef.current);
+      ttsFallbackTimerRef.current = null;
+    }
     socketRef.current?.close();
     socketRef.current = null;
   }, []);
@@ -100,6 +111,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
       const socket = new WebSocket(
         buildRealtimeLessonWsUrl(options.apiBaseUrl, deviceId, options.token),
       );
+      socket.binaryType = 'arraybuffer';
       socketRef.current = socket;
 
       socket.onopen = () => {
@@ -139,12 +151,24 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
           }
           if (event.event === 'step_started') {
             currentStepIdRef.current = event.step.stepId;
+            spokenStepIdsRef.current.delete(event.step.stepId);
           }
           if (event.event === 'tts_start') {
+            if (ttsFallbackTimerRef.current) {
+              clearTimeout(ttsFallbackTimerRef.current);
+            }
+            ttsFallbackTimerRef.current = setTimeout(() => {
+              ttsFallbackTimerRef.current = null;
+              markAssistantPromptSpoken();
+            }, 20000);
             resetBuffer();
             return;
           }
           if (event.event === 'tts_end') {
+            if (ttsFallbackTimerRef.current) {
+              clearTimeout(ttsFallbackTimerRef.current);
+              ttsFallbackTimerRef.current = null;
+            }
             await playBufferedPcm();
             return;
           }
@@ -176,6 +200,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     options.lessonId,
     options.sectionId,
     options.token,
+    markAssistantPromptSpoken,
     playBufferedPcm,
     pushPcmChunk,
     resetBuffer,

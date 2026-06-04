@@ -230,7 +230,12 @@ export function getRealtimeControllerView(
     lifecycle,
     isPaused: false,
     index: Math.max(0, (stepId ?? 1) - 1),
-    total: Math.max(stepId ?? 1, snapshot?.completedStepIds.length ?? 0, 1),
+    total: Math.max(
+      snapshot?.totalSteps ?? 0,
+      stepId ?? 1,
+      snapshot?.completedStepIds.length ?? 0,
+      1,
+    ),
     canGoNext: !state.completed,
     answer: state.answer,
   };

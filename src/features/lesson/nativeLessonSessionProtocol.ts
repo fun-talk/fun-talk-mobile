@@ -48,6 +48,7 @@ export type RealtimeLessonEvent =
       screenText: string;
       choiceOptions: RealtimeLessonChoiceOption[];
       completedStepIds: number[];
+      totalSteps?: number;
     }
   | {
       event: 'step_started';
@@ -298,6 +299,7 @@ export function normalizeRealtimeLessonEvent(payload: unknown): RealtimeLessonEv
             .map((step) => asNumber(step))
             .filter((step): step is number => typeof step === 'number')
         : [],
+      totalSteps: asNumber(raw.total_steps || raw.totalSteps),
     };
   }
   if (event === 'step_started') {

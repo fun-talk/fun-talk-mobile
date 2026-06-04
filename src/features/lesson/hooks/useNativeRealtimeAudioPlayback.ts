@@ -15,8 +15,22 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
   const chunksRef = useRef<Uint8Array[]>([]);
   const soundRef = useRef<Audio.Sound | null>(null);
   const sequenceRef = useRef(0);
+  const onPlaybackCompleteRef = useRef(onPlaybackComplete);
   const [status, setStatus] = useState<PlaybackStatus>('idle');
   const [errorText, setErrorText] = useState('');
+
+  useEffect(() => {
+    void Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+    }).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    onPlaybackCompleteRef.current = onPlaybackComplete;
+  }, [onPlaybackComplete]);
 
   const resetBuffer = useCallback(() => {
     chunksRef.current = [];
@@ -34,7 +48,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
     chunksRef.current = [];
     if (!pcm.byteLength) {
       setStatus('idle');
-      onPlaybackComplete();
+      onPlaybackCompleteRef.current();
       return;
     }
 
@@ -56,7 +70,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
       sound.setOnPlaybackStatusUpdate((playbackStatus) => {
         if (playbackStatus.isLoaded && playbackStatus.didJustFinish) {
           setStatus('idle');
-          onPlaybackComplete();
+          onPlaybackCompleteRef.current();
           void sound.unloadAsync();
           if (soundRef.current === sound) {
             soundRef.current = null;
@@ -67,7 +81,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
       setStatus('error');
       setErrorText(error instanceof Error ? error.message : 'Realtime audio 播放失败。');
     }
-  }, [onPlaybackComplete]);
+  }, []);
 
   useEffect(
     () => () => {
