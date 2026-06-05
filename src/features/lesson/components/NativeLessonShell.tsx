@@ -237,12 +237,7 @@ export function NativeLessonShell({
               >
                 <FreeChatPanel
                   state={recordingState}
-                  targetText={displayText}
                   scale={scale}
-                  onStart={onStartRecording}
-                  onStop={onStopRecording}
-                  onCancel={onCancelRecording}
-                  onSubmit={onSubmitRecording}
                 />
               </View>
             ) : null}

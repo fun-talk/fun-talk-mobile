@@ -8,7 +8,7 @@ import {
 
 describe('recordingController', () => {
   it('moves through permission, recording, and submitted states', () => {
-    let state = createRecordingControllerState();
+    let state = createRecordingControllerState({ silenceTimeoutMs: 2000 });
 
     state = reduceRecordingController(state, { type: 'permission_granted' });
     state = reduceRecordingController(state, { type: 'start' });
@@ -24,6 +24,7 @@ describe('recordingController', () => {
     assert.equal(state.status, 'submitted');
     assert.equal(state.recordingUri, 'file:///tmp/answer.m4a');
     assert.equal(state.hasSpeech, true);
+    assert.equal(state.vadConfig.silenceTimeoutMs, 2000);
   });
 
   it('keeps permission denial visible', () => {
@@ -55,6 +56,18 @@ describe('recordingController', () => {
     state = reduceRecordingController(state, { type: 'metering', metering: -60, elapsedMs: 400 });
 
     assert.equal(state.hasSpeech, false);
+    assert.equal(state.status, 'recording');
+  });
+
+  it('preserves custom VAD config across cancel and restart', () => {
+    let state = createRecordingControllerState({ silenceTimeoutMs: 2000 });
+
+    state = reduceRecordingController(state, { type: 'permission_granted' });
+    state = reduceRecordingController(state, { type: 'start' });
+    state = reduceRecordingController(state, { type: 'cancel' });
+    state = reduceRecordingController(state, { type: 'start' });
+
+    assert.equal(state.vad.silenceTimeoutMs, 2000);
     assert.equal(state.status, 'recording');
   });
 });

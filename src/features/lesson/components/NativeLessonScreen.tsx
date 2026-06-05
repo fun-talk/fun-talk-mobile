@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 
@@ -25,6 +25,11 @@ import { useNativeLessonController } from '../hooks/useNativeLessonController';
 import { useNativeLessonMediaPreload } from '../hooks/useNativeLessonMediaPreload';
 import { useNativeLessonRecording } from '../hooks/useNativeLessonRecording';
 import { useNativeLessonRealtimeSession } from '../hooks/useNativeLessonRealtimeSession';
+import {
+  getFreeChatAutoTurnKey,
+  shouldAutoStartFreeChatRecording,
+  shouldAutoSubmitFreeChatRecording,
+} from '../freeChatAutoRecording';
 
 const LOGIN_ROUTE = '/(auth)/login' as Href;
 
@@ -211,10 +216,14 @@ function NativeLessonLoadedScreen({
   onFallback: (error?: NativeLessonErrorView) => void;
 }) {
   const controller = useNativeLessonController(lesson);
-  const recording = useNativeLessonRecording();
+  const recording = useNativeLessonRecording({
+    vadConfig: { silenceTimeoutMs: 2000 },
+  });
   const [mediaErrorText, setMediaErrorText] = useState('');
   const [completionStatus, setCompletionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [completionErrorText, setCompletionErrorText] = useState('');
+  const lastFreeChatAutoStartTurnKeyRef = useRef<string | null>(null);
+  const lastFreeChatAutoSubmittedUriRef = useRef<string | null>(null);
   const realtime = useNativeLessonRealtimeSession({
     enabled: true,
     apiBaseUrl,
@@ -243,6 +252,14 @@ function NativeLessonLoadedScreen({
     return null;
   }, [mediaErrorText, recording.state.errorText, recording.state.status, realtime.audioErrorText, realtime.errorText]);
   const controllerView = realtime.realtimeView ?? controller.view;
+  const nextControllerStep = controller.next;
+  const recordingStatus = recording.state.status;
+  const recordingUri = recording.state.recordingUri;
+  const startRecording = recording.start;
+  const submitRecordingState = recording.submit;
+  const isRealtimeConnected = realtime.isConnected;
+  const realtimeAudioStatus = realtime.audioStatus;
+  const sendRealtimeAudioChunk = realtime.sendAudioChunk;
   const isLessonComplete =
     controllerView.phase === 'end' ||
     controllerView.lifecycle === 'completed' ||
@@ -255,6 +272,27 @@ function NativeLessonLoadedScreen({
     }),
     [courseNumber, lessonId, totalCourses],
   );
+  const submitRecording = useCallback(async () => {
+    let sentRecording = false;
+    if (recordingUri) {
+      try {
+        const response = await fetch(recordingUri);
+        sentRecording = sendRealtimeAudioChunk(await response.arrayBuffer());
+      } catch {
+        sentRecording = false;
+      }
+    }
+    submitRecordingState();
+    if (!sentRecording && !isRealtimeConnected) {
+      nextControllerStep();
+    }
+  }, [
+    isRealtimeConnected,
+    nextControllerStep,
+    recordingUri,
+    sendRealtimeAudioChunk,
+    submitRecordingState,
+  ]);
 
   const saveCompletion = useCallback(async () => {
     setCompletionStatus('saving');
@@ -275,6 +313,61 @@ function NativeLessonLoadedScreen({
     }
     void saveCompletion();
   }, [completionStatus, isLessonComplete, saveCompletion]);
+
+  useEffect(() => {
+    if (
+      recordingStatus === 'recording' ||
+      recordingStatus === 'cancelled' ||
+      recordingStatus === 'idle'
+    ) {
+      lastFreeChatAutoSubmittedUriRef.current = null;
+    }
+  }, [recordingStatus]);
+
+  useEffect(() => {
+    const autoTurnKey = getFreeChatAutoTurnKey(controllerView);
+    if (
+      !shouldAutoStartFreeChatRecording({
+        controllerView,
+        realtimeConnected: isRealtimeConnected,
+        audioStatus: realtimeAudioStatus,
+        recordingStatus,
+        lastStartedTurnKey: lastFreeChatAutoStartTurnKeyRef.current,
+      })
+    ) {
+      return;
+    }
+
+    lastFreeChatAutoStartTurnKeyRef.current = autoTurnKey;
+    void startRecording();
+  }, [
+    controllerView,
+    isRealtimeConnected,
+    realtimeAudioStatus,
+    recordingStatus,
+    startRecording,
+  ]);
+
+  useEffect(() => {
+    if (
+      !shouldAutoSubmitFreeChatRecording({
+        controllerView,
+        recordingStatus,
+        recordingUri,
+        lastSubmittedRecordingUri: lastFreeChatAutoSubmittedUriRef.current,
+      })
+    ) {
+      return;
+    }
+
+    lastFreeChatAutoSubmittedUriRef.current = recordingUri;
+    void submitRecording();
+  }, [
+    controllerView,
+    recordingStatus,
+    recordingUri,
+    submitRecording,
+  ]);
 
   useNativeLessonMediaPreload(controller.preloadUris);
 
@@ -335,21 +428,7 @@ function NativeLessonLoadedScreen({
       onStartRecording={recording.start}
       onStopRecording={recording.stop}
       onCancelRecording={recording.cancel}
-      onSubmitRecording={async () => {
-        let sentRecording = false;
-        if (recording.state.recordingUri) {
-          try {
-            const response = await fetch(recording.state.recordingUri);
-            sentRecording = realtime.sendAudioChunk(await response.arrayBuffer());
-          } catch {
-            sentRecording = false;
-          }
-        }
-        recording.submit();
-        if (!sentRecording && !realtime.isConnected) {
-          controller.next();
-        }
-      }}
+      onSubmitRecording={submitRecording}
       onMediaComplete={() => {
         setMediaErrorText('');
         const cueId = controllerView.step?.mediaCueId;

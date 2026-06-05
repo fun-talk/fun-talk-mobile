@@ -5,6 +5,7 @@ import {
   createRecordingControllerState,
   reduceRecordingController,
 } from '../recordingController';
+import type { SimpleVadConfig } from '../simpleVad';
 import { loadNativeExpoAv } from '../nativeExpoAv';
 
 type NativeRecordingStatus = {
@@ -13,14 +14,18 @@ type NativeRecordingStatus = {
   durationMillis?: number;
 };
 
-export function useNativeLessonRecording() {
+type UseNativeLessonRecordingOptions = {
+  vadConfig?: Partial<SimpleVadConfig>;
+};
+
+export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptions) {
   const recordingRef = useRef<{
     stopAndUnloadAsync: () => Promise<{ durationMillis?: number }>;
     getURI: () => string | null;
   } | null>(null);
   const [state, dispatch] = useReducer(
     reduceRecordingController,
-    undefined,
+    options?.vadConfig,
     createRecordingControllerState,
   );
 

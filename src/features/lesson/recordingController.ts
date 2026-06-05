@@ -1,6 +1,7 @@
 import {
   createSimpleVadState,
   reduceSimpleVad,
+  type SimpleVadConfig,
   type SimpleVadState,
 } from './simpleVad';
 
@@ -23,6 +24,7 @@ export type RecordingControllerState = {
   hasSpeech: boolean;
   shouldStopRecording: boolean;
   errorText: string | null;
+  vadConfig: Partial<SimpleVadConfig>;
   vad: SimpleVadState;
 };
 
@@ -36,7 +38,9 @@ export type RecordingControllerAction =
   | { type: 'cancel' }
   | { type: 'error'; message: string };
 
-export function createRecordingControllerState(): RecordingControllerState {
+export function createRecordingControllerState(
+  vadConfig: Partial<SimpleVadConfig> = {},
+): RecordingControllerState {
   return {
     status: 'idle',
     hasPermission: false,
@@ -46,7 +50,8 @@ export function createRecordingControllerState(): RecordingControllerState {
     hasSpeech: false,
     shouldStopRecording: false,
     errorText: null,
-    vad: createSimpleVadState(),
+    vadConfig,
+    vad: createSimpleVadState(vadConfig),
   };
 }
 
@@ -78,10 +83,10 @@ export function reduceRecordingController(
         };
       }
       return {
-        ...createRecordingControllerState(),
+        ...createRecordingControllerState(state.vadConfig),
         hasPermission: true,
         status: 'recording',
-        vad: createSimpleVadState(),
+        vad: createSimpleVadState(state.vadConfig),
       };
     case 'metering': {
       if (state.status !== 'recording') {
@@ -117,7 +122,7 @@ export function reduceRecordingController(
       };
     case 'cancel':
       return {
-        ...createRecordingControllerState(),
+        ...createRecordingControllerState(state.vadConfig),
         hasPermission: state.hasPermission,
         status: 'cancelled',
       };
