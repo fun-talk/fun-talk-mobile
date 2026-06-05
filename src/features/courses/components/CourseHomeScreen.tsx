@@ -105,7 +105,7 @@ export function CourseHomeScreen() {
         style={styles.scroll}
         contentContainerStyle={{
           minHeight: height,
-          paddingBottom: insets.bottom + 80,
+          paddingBottom: insets.bottom,
         }}
         showsVerticalScrollIndicator={false}
         bounces={false}
