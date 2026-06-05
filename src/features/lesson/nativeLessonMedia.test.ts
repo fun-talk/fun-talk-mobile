@@ -44,6 +44,18 @@ describe('nativeLessonMedia', () => {
     assert.equal(media.shouldPlay, true);
   });
 
+  it('auto plays realtime video cues during assistant turn', () => {
+    const media = buildNativeLessonMediaView(
+      createView({
+        media: { type: 'video', url: 'https://example.com/opening.mp4' },
+        lifecycle: 'assistant_turn',
+      }),
+    );
+
+    assert.equal(media.kind, 'video');
+    assert.equal(media.shouldPlay, true);
+  });
+
   it('pauses video autoplay when the lesson is paused', () => {
     const media = buildNativeLessonMediaView(
       createView({

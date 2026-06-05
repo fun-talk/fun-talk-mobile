@@ -29,6 +29,7 @@ export function CourseMediaArea({
   const completedPlaybackKeysRef = useRef(new Set<string>());
   const playAttemptCountsRef = useRef(new Map<string, number>());
   const reportedErrorKeysRef = useRef(new Set<string>());
+  const hasLoadedCurrentVideoRef = useRef(false);
   const [expoAv, setExpoAv] = useState<NativeExpoAvModule | null>(null);
   const [videoErrorText, setVideoErrorText] = useState('');
   const mediaView = useMemo(
@@ -58,11 +59,22 @@ export function CourseMediaArea({
     void videoRef.current?.playAsync().catch(() => undefined);
   }, [mediaView.kind, mediaView.playbackKey, mediaView.shouldPlay]);
 
+  const handleVideoRef = useCallback(
+    (instance: NativeExpoVideoRef | null) => {
+      videoRef.current = instance;
+      if (instance && hasLoadedCurrentVideoRef.current) {
+        attemptCurrentVideoPlayback();
+      }
+    },
+    [attemptCurrentVideoPlayback],
+  );
+
   useEffect(() => {
     if (mediaView.kind !== 'video') {
       return undefined;
     }
     let cancelled = false;
+    hasLoadedCurrentVideoRef.current = false;
     setVideoErrorText('');
     void loadNativeExpoAv()
       .then((module) => {
@@ -95,16 +107,6 @@ export function CourseMediaArea({
   }, [completeCurrentMedia, mediaView.kind, mediaView.shouldPlay]);
 
   useEffect(() => {
-    if (mediaView.kind !== 'video' || !mediaView.shouldPlay) {
-      return undefined;
-    }
-    const timer = setTimeout(() => {
-      attemptCurrentVideoPlayback();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [attemptCurrentVideoPlayback, mediaView.kind, mediaView.playbackKey, mediaView.shouldPlay]);
-
-  useEffect(() => {
     const video = videoRef.current;
     return () => {
       void video?.unloadAsync().catch(() => undefined);
@@ -112,7 +114,8 @@ export function CourseMediaArea({
   }, [mediaView.playbackKey]);
 
   const handlePlaybackStatusUpdate = (
-    status: Parameters<typeof shouldCompleteNativeLessonVideoPlayback>[0],
+    status: Parameters<typeof shouldAttemptNativeLessonVideoPlayback>[0] &
+      Parameters<typeof shouldCompleteNativeLessonVideoPlayback>[0],
   ) => {
     if (
       mediaView.kind === 'video' &&
@@ -126,6 +129,11 @@ export function CourseMediaArea({
     ) {
       completeCurrentMedia();
     }
+  };
+
+  const handleVideoLoad = () => {
+    hasLoadedCurrentVideoRef.current = true;
+    attemptCurrentVideoPlayback();
   };
 
   if (mediaView.kind === 'image') {
@@ -154,16 +162,14 @@ export function CourseMediaArea({
     const Video = expoAv.Video;
     return (
       <Video
-        ref={(instance) => {
-          videoRef.current = instance as NativeExpoVideoRef | null;
-        }}
+        ref={handleVideoRef}
         key={mediaView.playbackKey}
         source={{ uri: mediaView.uri }}
         style={styles.fill}
         resizeMode={expoAv.ResizeMode.CONTAIN}
         shouldPlay={mediaView.shouldPlay}
-        useNativeControls
         isLooping={false}
+        onLoad={handleVideoLoad}
         onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
         onError={completeCurrentMedia}
       />

@@ -18,6 +18,13 @@ function normalizeMediaType(type: string | undefined): 'image' | 'video' {
   return type === 'image' ? 'image' : 'video';
 }
 
+function shouldAutoPlayVideo(view: NativeLessonControllerView): boolean {
+  if (view.isPaused) {
+    return false;
+  }
+  return view.lifecycle === 'waiting_media' || view.lifecycle === 'assistant_turn';
+}
+
 export function buildNativeLessonMediaView(
   view: NativeLessonControllerView,
 ): NativeLessonMediaView {
@@ -35,7 +42,7 @@ export function buildNativeLessonMediaView(
   return {
     kind,
     playbackKey: `${view.id}:${uri}`,
-    shouldPlay: kind === 'video' && view.lifecycle === 'waiting_media' && !view.isPaused,
+    shouldPlay: kind === 'video' && shouldAutoPlayVideo(view),
     uri,
   };
 }

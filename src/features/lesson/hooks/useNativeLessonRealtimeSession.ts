@@ -21,7 +21,11 @@ import {
   decodeRealtimeLessonMessage,
   normalizeRealtimeLessonEvent,
 } from '../nativeLessonSessionProtocol';
-import type { NativeLessonControllerView } from '../nativeLessonController';
+import type {
+  NativeLessonControllerView,
+  NativeLessonPhase,
+} from '../nativeLessonController';
+import { shouldUseServerOnlyTts } from '../nativeLessonTtsPolicy';
 import { useNativeRealtimeAudioPlayback } from './useNativeRealtimeAudioPlayback';
 
 type NativeLessonRealtimeSessionOptions = {
@@ -55,7 +59,9 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const ttsFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localTtsFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const forceFreshSessionRef = useRef(false);
   const currentStepIdRef = useRef<number | null>(null);
+  const currentStepPhaseRef = useRef<NativeLessonPhase | null>(null);
   const currentAssistantPromptRef = useRef('');
   const ttsReceivedAudioRef = useRef(false);
   const reconnectAttemptRef = useRef(0);
@@ -85,6 +91,20 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     status: audioStatus,
     errorText: audioErrorText,
   } = audioPlayback;
+
+  const clearSessionState = useCallback(() => {
+    sessionIdRef.current = null;
+    currentStepIdRef.current = null;
+    currentStepPhaseRef.current = null;
+    currentAssistantPromptRef.current = '';
+    ttsReceivedAudioRef.current = false;
+    reconnectAttemptRef.current = 0;
+    spokenStepIdsRef.current.clear();
+    setProjection(INITIAL_REALTIME_LESSON_PROJECTION_STATE);
+    setErrorText('');
+    setStatus('idle');
+    resetBuffer();
+  }, [resetBuffer]);
 
   const realtimeView = useMemo<NativeLessonControllerView | null>(
     () =>
@@ -138,9 +158,11 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
             lessonId: options.lessonId,
             sectionId: options.sectionId,
             token: options.token,
-            resumeSessionId: sessionIdRef.current,
+            resumeSessionId: forceFreshSessionRef.current ? null : sessionIdRef.current,
+            allowOwnerResume: forceFreshSessionRef.current ? false : true,
           }),
         );
+        forceFreshSessionRef.current = false;
         sendJson(socket, buildStartLessonCommand());
       };
 
@@ -169,9 +191,23 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
           }
           if (event.event === 'lesson_state_snapshot' && event.currentStepId) {
             currentStepIdRef.current = event.currentStepId;
+            currentStepPhaseRef.current =
+              event.phase === 'story' ||
+              event.phase === 'teaching' ||
+              event.phase === 'challenge' ||
+              event.phase === 'free_chat'
+                ? event.phase
+                : currentStepPhaseRef.current;
           }
           if (event.event === 'step_started') {
             currentStepIdRef.current = event.step.stepId;
+            currentStepPhaseRef.current =
+              event.step.phase === 'story' ||
+              event.step.phase === 'teaching' ||
+              event.step.phase === 'challenge' ||
+              event.step.phase === 'free_chat'
+                ? event.step.phase
+                : null;
             currentAssistantPromptRef.current = event.step.assistantPrompt;
             spokenStepIdsRef.current.delete(event.step.stepId);
             if (event.step.voiceUrl) {
@@ -195,12 +231,14 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
               ttsFallbackTimerRef.current = null;
               markAssistantPromptSpoken();
             }, 20000);
-            localTtsFallbackTimerRef.current = setTimeout(() => {
-              localTtsFallbackTimerRef.current = null;
-              if (!ttsReceivedAudioRef.current) {
-                void speakTextFallback(currentAssistantPromptRef.current);
-              }
-            }, 4500);
+            if (!shouldUseServerOnlyTts(currentStepPhaseRef.current)) {
+              localTtsFallbackTimerRef.current = setTimeout(() => {
+                localTtsFallbackTimerRef.current = null;
+                if (!ttsReceivedAudioRef.current) {
+                  void speakTextFallback(currentAssistantPromptRef.current);
+                }
+              }, 4500);
+            }
             resetBuffer();
             return;
           }
@@ -215,6 +253,9 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
             }
             if (ttsReceivedAudioRef.current) {
               await playBufferedPcm();
+            } else if (shouldUseServerOnlyTts(currentStepPhaseRef.current)) {
+              setErrorText('Server TTS 未返回音频，请重试。');
+              markAssistantPromptSpoken();
             } else {
               await speakTextFallback(currentAssistantPromptRef.current);
             }
@@ -267,12 +308,12 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   ]);
 
   useEffect(() => {
-    setProjection(INITIAL_REALTIME_LESSON_PROJECTION_STATE);
+    clearSessionState();
     if (options.enabled) {
       void connect();
     }
     return closeSocket;
-  }, [closeSocket, connect, options.enabled]);
+  }, [clearSessionState, closeSocket, connect, options.enabled]);
 
   const sendText = useCallback((text: string, stepId?: number) => {
     return sendJson(socketRef.current, buildSubmitUserTextCommand(text, stepId));
@@ -303,6 +344,19 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     return true;
   }, []);
 
+  const reset = useCallback(() => {
+    closeSocket();
+    clearSessionState();
+    if (options.enabled) {
+      forceFreshSessionRef.current = true;
+      closedByUserRef.current = false;
+      setStatus('connecting');
+      setTimeout(() => {
+        void connect();
+      }, 0);
+    }
+  }, [clearSessionState, closeSocket, connect, options.enabled]);
+
   return {
     status,
     errorText: errorText || projection.errorText,
@@ -313,6 +367,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     isConnected: status === 'connected',
     connect,
     close: closeSocket,
+    reset,
     sendText,
     sendChoice,
     sendMediaFinished,

@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { courseHomeImages } from '@/features/courses/assets/courseHomeAssets';
@@ -34,6 +34,7 @@ type NativeLessonShellProps = {
   onMediaComplete: () => void;
   onMediaError?: (message: string) => void;
   onPauseToggle: () => void;
+  onReset: () => void;
   onRetryCompletion?: () => void;
   onRetryNativeError?: () => void;
   onFallback: () => void;
@@ -69,6 +70,7 @@ export function NativeLessonShell({
   onMediaComplete,
   onMediaError,
   onPauseToggle,
+  onReset,
   onRetryCompletion,
   onRetryNativeError,
   onFallback,
@@ -104,14 +106,20 @@ export function NativeLessonShell({
     controllerView.screenText ||
     (controllerView.phase === 'end' ? '课程完成' : controllerView.title);
   const choiceOptions = controllerView.step?.options ?? [];
+  const isFreeChatPhase = controllerView.phase === 'free_chat';
   const expectsTextAnswer =
+    !isFreeChatPhase &&
     !choiceOptions.length &&
     (Boolean(controllerView.step?.expectedPhrases?.length) ||
       controllerView.step?.responseMode === 'speech');
   const expectsRecording =
-    controllerView.phase === 'free_chat' ||
+    isFreeChatPhase ||
     controllerView.step?.responseMode === 'speech';
   const canSubmitText = draftAnswer.trim().length > 0;
+
+  useEffect(() => {
+    setDraftAnswer('');
+  }, [controllerView.id]);
 
   return (
     <View style={styles.root}>
@@ -205,6 +213,31 @@ export function NativeLessonShell({
                 />
               </View>
             </View>
+
+            {isFreeChatPhase ? (
+              <View
+                style={[
+                  styles.freeChatPanelWrap,
+                  {
+                    left: scaled(1393, scale),
+                    top: scaled(780, scale),
+                    width: scaled(1052, scale),
+                    minHeight: scaled(247, scale),
+                    borderRadius: scaled(38, scale),
+                  },
+                ]}
+              >
+                <FreeChatPanel
+                  state={recordingState}
+                  targetText={displayText}
+                  scale={scale}
+                  onStart={onStartRecording}
+                  onStop={onStopRecording}
+                  onCancel={onCancelRecording}
+                  onSubmit={onSubmitRecording}
+                />
+              </View>
+            ) : null}
 
             <View
               style={[
@@ -366,7 +399,7 @@ export function NativeLessonShell({
                 </View>
               ) : null}
 
-              {expectsRecording ? (
+              {expectsRecording && !isFreeChatPhase ? (
                 <View
                   style={[
                     styles.recordingPanelWrap,
@@ -377,24 +410,14 @@ export function NativeLessonShell({
                     },
                   ]}
                 >
-                  {controllerView.phase === 'free_chat' ? (
-                    <FreeChatPanel
-                      state={recordingState}
-                      onStart={onStartRecording}
-                      onStop={onStopRecording}
-                      onCancel={onCancelRecording}
-                      onSubmit={onSubmitRecording}
-                    />
-                  ) : (
-                    <RecordingPanel
-                      state={recordingState}
-                      isFreeChat={false}
-                      onStart={onStartRecording}
-                      onStop={onStopRecording}
-                      onCancel={onCancelRecording}
-                      onSubmit={onSubmitRecording}
-                    />
-                  )}
+                  <RecordingPanel
+                    state={recordingState}
+                    isFreeChat={false}
+                    onStart={onStartRecording}
+                    onStop={onStopRecording}
+                    onCancel={onCancelRecording}
+                    onSubmit={onSubmitRecording}
+                  />
                 </View>
               ) : null}
 
@@ -472,6 +495,9 @@ export function NativeLessonShell({
           <Text style={styles.startButtonText}>
             {controllerView.isPaused ? '恢复课程' : '暂停课程'}
           </Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" hitSlop={8} style={styles.controlButton} onPress={onReset}>
+          <Text style={styles.controlButtonText}>重置课程</Text>
         </Pressable>
         <Pressable style={styles.controlButton}>
           <Text numberOfLines={1} style={styles.controlButtonText}>{sessionLabel}</Text>
@@ -686,6 +712,10 @@ const styles = StyleSheet.create({
   },
   recordingPanelWrap: {
     position: 'absolute',
+  },
+  freeChatPanelWrap: {
+    position: 'absolute',
+    zIndex: 30,
   },
   feedbackBubble: {
     position: 'absolute',

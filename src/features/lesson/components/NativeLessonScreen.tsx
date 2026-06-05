@@ -359,6 +359,13 @@ function NativeLessonLoadedScreen({
       }}
       onMediaError={setMediaErrorText}
       onPauseToggle={controllerView.isPaused ? controller.resume : controller.pause}
+      onReset={() => {
+        setMediaErrorText('');
+        setCompletionStatus('idle');
+        setCompletionErrorText('');
+        controller.reset();
+        realtime.reset();
+      }}
       onExit={onExit}
       onFallback={() => onFallback(runtimeError ?? undefined)}
     />

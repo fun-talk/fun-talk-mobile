@@ -83,6 +83,7 @@ export type InitSessionCommandOptions = {
   sectionId?: string;
   token?: string | null;
   resumeSessionId?: string | null;
+  allowOwnerResume?: boolean;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -181,7 +182,7 @@ export function buildInitSessionCommand(options: InitSessionCommandOptions) {
     ...(options.lessonId ? { lesson_id: options.lessonId } : {}),
     ...(Number.isFinite(sectionId) ? { section_id: sectionId } : {}),
     ...(options.resumeSessionId ? { resume_session_id: options.resumeSessionId } : {}),
-    allow_owner_resume: true,
+    allow_owner_resume: options.allowOwnerResume ?? true,
   };
 }
 
