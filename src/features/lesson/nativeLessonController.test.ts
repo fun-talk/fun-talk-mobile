@@ -65,6 +65,18 @@ const lesson = {
           autoAdvance: false,
           raw: {},
         },
+        3: {
+          step: 3,
+          promptText: '',
+          screenText: '',
+          options: [],
+          autoAdvance: false,
+          raw: {
+            freeChatConfig: {
+              openingQuestion: '你准备好了吗？',
+            },
+          },
+        },
       },
     },
   ],
@@ -116,6 +128,7 @@ describe('nativeLessonController', () => {
 
     state = reduceNativeLessonController(lesson, state, { type: 'next' });
     assert.equal(getNativeLessonControllerView(lesson, state).phase, 'free_chat');
+    assert.equal(getNativeLessonControllerView(lesson, state).text, '你准备好了吗？');
 
     state = reduceNativeLessonController(lesson, state, { type: 'next' });
     assert.equal(getNativeLessonControllerView(lesson, state).phase, 'end');

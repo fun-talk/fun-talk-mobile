@@ -29,6 +29,7 @@ export function CourseMediaArea({
     () => buildNativeLessonMediaView(controllerView),
     [controllerView],
   );
+  const videoRef = useRef<Video | null>(null);
 
   const completeCurrentMedia = useCallback(() => {
     if (
@@ -46,6 +47,16 @@ export function CourseMediaArea({
     const timeout = setTimeout(completeCurrentMedia, 90_000);
     return () => clearTimeout(timeout);
   }, [completeCurrentMedia, mediaView.kind, mediaView.shouldPlay]);
+
+  useEffect(() => {
+    if (mediaView.kind !== 'video' || !mediaView.shouldPlay) {
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      void videoRef.current?.playAsync().catch(() => undefined);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [mediaView.kind, mediaView.playbackKey, mediaView.shouldPlay]);
 
   const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (
@@ -69,6 +80,7 @@ export function CourseMediaArea({
   if (mediaView.kind === 'video') {
     return (
       <Video
+        ref={videoRef}
         key={mediaView.playbackKey}
         source={{ uri: mediaView.uri }}
         style={styles.fill}

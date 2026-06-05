@@ -1,5 +1,6 @@
 import { Audio } from 'expo-av';
 import { File, Paths } from 'expo-file-system';
+import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
@@ -115,9 +116,47 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
     }
   }, []);
 
+  const speakTextFallback = useCallback(async (text: string) => {
+    const normalizedText = text.trim();
+    if (!normalizedText) {
+      onPlaybackCompleteRef.current();
+      return;
+    }
+
+    try {
+      await soundRef.current?.unloadAsync();
+      soundRef.current = null;
+      Speech.stop();
+      setStatus('playing');
+      setErrorText('');
+      Speech.speak(normalizedText, {
+        language: 'zh-CN',
+        rate: 0.92,
+        onDone: () => {
+          setStatus('idle');
+          onPlaybackCompleteRef.current();
+        },
+        onStopped: () => {
+          setStatus('idle');
+          onPlaybackCompleteRef.current();
+        },
+        onError: () => {
+          setStatus('error');
+          setErrorText('Native TTS 播放失败。');
+          onPlaybackCompleteRef.current();
+        },
+      });
+    } catch (error) {
+      setStatus('error');
+      setErrorText(error instanceof Error ? error.message : 'Native TTS 播放失败。');
+      onPlaybackCompleteRef.current();
+    }
+  }, []);
+
   useEffect(
     () => () => {
       chunksRef.current = [];
+      Speech.stop();
       void soundRef.current?.unloadAsync();
       soundRef.current = null;
     },
@@ -130,6 +169,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
     pushPcmChunk,
     playBufferedPcm,
     playRemoteUrl,
+    speakTextFallback,
     resetBuffer,
   };
 }

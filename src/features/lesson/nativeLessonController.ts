@@ -73,6 +73,11 @@ function isEnabled(value: unknown, fallback = true): boolean {
   return typeof value === 'boolean' ? value : fallback;
 }
 
+function freeChatQuestionFromRaw(raw: Record<string, unknown>): string {
+  const config = asRecord(raw.freeChatConfig);
+  return asString(config.openingQuestion || config.prompt || config.message);
+}
+
 function mediaFromRawSegment(raw: Record<string, unknown>): { type: string; url: string } | null {
   const url = asString(raw.mediaUrl || raw.videoUrl || raw.imageUrl);
   if (!url) {
@@ -126,6 +131,31 @@ function teachingItems(lesson: NativeLessonDefinition): NativeLessonControllerIt
   const segments = Array.isArray(teaching.segments) ? teaching.segments : [];
   return segments.map((segment, index) => {
     const raw = asRecord(segment);
+    const freeChatQuestion = freeChatQuestionFromRaw(raw);
+    if (asString(raw.kind) === 'free_chat' && freeChatQuestion) {
+      return {
+        id: `teaching:${asString(raw.id) || index + 1}:free_chat`,
+        phase: 'free_chat',
+        title: '自由对话',
+        text: freeChatQuestion,
+        screenText: asString(raw.screenText) || freeChatQuestion,
+        backgroundImageUrl:
+          asString(raw.backgroundImageUrl) ||
+          asString(teaching.backgroundImageUrl) ||
+          lesson.assets.backgrounds.teaching ||
+          '',
+        media: mediaFromRawSegment(raw),
+        step: {
+          step: index + 1,
+          promptText: freeChatQuestion,
+          screenText: asString(raw.screenText) || freeChatQuestion,
+          responseMode: 'speech',
+          options: [],
+          autoAdvance: false,
+          raw,
+        },
+      };
+    }
     return {
       id: `teaching:${asString(raw.id) || index + 1}`,
       phase: 'teaching',
@@ -149,47 +179,31 @@ function challengeItems(lesson: NativeLessonDefinition): NativeLessonControllerI
       .sort((a, b) => a - b)
       .map((stepNumber) => {
         const step = challenge.steps[stepNumber];
+        const freeChatQuestion = freeChatQuestionFromRaw(step.raw);
+        const isFreeChat = Boolean(freeChatQuestion);
         return {
           id: `challenge:${challenge.key}:${stepNumber}`,
-          phase: 'challenge' as const,
-          title: challenge.title || challenge.key,
-          text: step.promptText,
-          screenText: step.screenText,
+          phase: isFreeChat ? 'free_chat' as const : 'challenge' as const,
+          title: isFreeChat ? '自由对话' : challenge.title || challenge.key,
+          text: freeChatQuestion || step.promptText,
+          screenText: isFreeChat ? step.screenText || freeChatQuestion : step.screenText,
           backgroundImageUrl:
             challenge.backgroundImageUrl ||
             lesson.assets.backgrounds[challenge.key] ||
             lesson.assets.backgrounds.challengeLevel1 ||
             '',
           media: getStepMedia(lesson, step),
-          step,
+          step: isFreeChat
+            ? {
+                ...step,
+                promptText: freeChatQuestion,
+                screenText: step.screenText || freeChatQuestion,
+                responseMode: 'speech',
+              }
+            : step,
         };
       }),
   );
-}
-
-function freeChatItems(lesson: NativeLessonDefinition): NativeLessonControllerItem[] {
-  const bridges = Object.entries(lesson.freeChatBridges);
-  if (!bridges.length) {
-    return [];
-  }
-  return bridges.map(([key, rawBridge], index) => {
-    const bridge = asRecord(rawBridge);
-    return {
-      id: `free_chat:${key || index + 1}`,
-      phase: 'free_chat',
-      title: '自由对话',
-      text:
-        asString(bridge.openingQuestion || bridge.prompt || bridge.message) ||
-        '现在可以和欧波自由聊一聊。',
-      screenText: '',
-      backgroundImageUrl:
-        lesson.assets.backgrounds.duolingo ||
-        lesson.assets.backgrounds.teaching ||
-        lesson.assets.backgrounds.story ||
-        '',
-      media: null,
-    };
-  });
 }
 
 export function buildNativeLessonControllerItems(
@@ -199,7 +213,6 @@ export function buildNativeLessonControllerItems(
     ...storyItems(lesson),
     ...teachingItems(lesson),
     ...challengeItems(lesson),
-    ...freeChatItems(lesson),
   ].filter((item) => item.text || item.screenText || item.media);
 
   return [

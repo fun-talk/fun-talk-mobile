@@ -49,8 +49,11 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const closedByUserRef = useRef(false);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ttsFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localTtsFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const currentStepIdRef = useRef<number | null>(null);
+  const currentAssistantPromptRef = useRef('');
+  const ttsReceivedAudioRef = useRef(false);
   const spokenStepIdsRef = useRef(new Set<number>());
   const [status, setStatus] = useState<RealtimeSessionStatus>('idle');
   const [projection, setProjection] = useState<RealtimeLessonProjectionState>(
@@ -72,6 +75,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     pushPcmChunk,
     playBufferedPcm,
     playRemoteUrl,
+    speakTextFallback,
     resetBuffer,
     status: audioStatus,
     errorText: audioErrorText,
@@ -95,6 +99,10 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     if (ttsFallbackTimerRef.current) {
       clearTimeout(ttsFallbackTimerRef.current);
       ttsFallbackTimerRef.current = null;
+    }
+    if (localTtsFallbackTimerRef.current) {
+      clearTimeout(localTtsFallbackTimerRef.current);
+      localTtsFallbackTimerRef.current = null;
     }
     socketRef.current?.close();
     socketRef.current = null;
@@ -134,6 +142,11 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
         void (async () => {
           const wireFrame = unpackRealtimeWireFrame(message.data);
           if (wireFrame?.kind === 'audio') {
+            ttsReceivedAudioRef.current = true;
+            if (localTtsFallbackTimerRef.current) {
+              clearTimeout(localTtsFallbackTimerRef.current);
+              localTtsFallbackTimerRef.current = null;
+            }
             pushPcmChunk(wireFrame.payload);
             return;
           }
@@ -153,19 +166,35 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
           }
           if (event.event === 'step_started') {
             currentStepIdRef.current = event.step.stepId;
+            currentAssistantPromptRef.current = event.step.assistantPrompt;
             spokenStepIdsRef.current.delete(event.step.stepId);
             if (event.step.voiceUrl) {
               void playRemoteUrl(event.step.voiceUrl);
+            }
+          }
+          if (event.event === 'assistant_message' || event.event === 'assistant_speech_start') {
+            if (event.text.trim()) {
+              currentAssistantPromptRef.current = event.text.trim();
             }
           }
           if (event.event === 'tts_start') {
             if (ttsFallbackTimerRef.current) {
               clearTimeout(ttsFallbackTimerRef.current);
             }
+            if (localTtsFallbackTimerRef.current) {
+              clearTimeout(localTtsFallbackTimerRef.current);
+            }
+            ttsReceivedAudioRef.current = false;
             ttsFallbackTimerRef.current = setTimeout(() => {
               ttsFallbackTimerRef.current = null;
               markAssistantPromptSpoken();
             }, 20000);
+            localTtsFallbackTimerRef.current = setTimeout(() => {
+              localTtsFallbackTimerRef.current = null;
+              if (!ttsReceivedAudioRef.current) {
+                void speakTextFallback(currentAssistantPromptRef.current);
+              }
+            }, 4500);
             resetBuffer();
             return;
           }
@@ -174,7 +203,15 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
               clearTimeout(ttsFallbackTimerRef.current);
               ttsFallbackTimerRef.current = null;
             }
-            await playBufferedPcm();
+            if (localTtsFallbackTimerRef.current) {
+              clearTimeout(localTtsFallbackTimerRef.current);
+              localTtsFallbackTimerRef.current = null;
+            }
+            if (ttsReceivedAudioRef.current) {
+              await playBufferedPcm();
+            } else {
+              await speakTextFallback(currentAssistantPromptRef.current);
+            }
             return;
           }
           setProjection((current) => applyRealtimeLessonEvent(current, event));
@@ -210,6 +247,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     playRemoteUrl,
     pushPcmChunk,
     resetBuffer,
+    speakTextFallback,
   ]);
 
   useEffect(() => {
