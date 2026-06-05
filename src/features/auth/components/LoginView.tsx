@@ -10,6 +10,7 @@ type LoginViewProps = {
   activeTab: LoginTab;
   onTabChange: (tab: LoginTab) => void;
   onHomePress: () => void;
+  isDesktopLayout: boolean;
   isSubmitting: boolean;
   statusMessage: string;
   errorMessage: string;
@@ -24,6 +25,7 @@ export function LoginView({
   activeTab,
   onTabChange,
   onHomePress,
+  isDesktopLayout,
   isSubmitting,
   statusMessage,
   errorMessage,
@@ -47,7 +49,7 @@ export function LoginView({
       {/* Login Stage — matches web .login-stage: padding 86px 16px 32px */}
       <View style={styles.loginStage}>
         {/* Login Panel — matches web .login-panel */}
-        <View style={styles.panel}>
+        <View style={[styles.panel, isDesktopLayout && styles.panelDesktop]}>
           {/* Tabs */}
           <View style={styles.tabs}>
             <Pressable
@@ -170,7 +172,6 @@ const styles = StyleSheet.create({
   panel: {
     width: '100%',
     maxWidth: LoginSizes.panelMaxWidth,
-    aspectRatio: LoginSizes.panelAspectW / LoginSizes.panelAspectH,
     borderRadius: LoginSizes.panelBorderRadius,
     backgroundColor: LoginColors.panelBg,
     overflow: 'hidden',
@@ -179,6 +180,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 44,
     elevation: 10,
+  },
+  panelDesktop: {
+    aspectRatio: LoginSizes.panelAspectW / LoginSizes.panelAspectH,
   },
 
   /* ---- Tabs — matches web .tabs ---- */

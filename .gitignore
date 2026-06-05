@@ -46,4 +46,5 @@ example
 .env
 .env.local
 
-build-1780472067496.apk
+#bundle
+*.apk
