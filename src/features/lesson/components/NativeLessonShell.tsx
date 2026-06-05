@@ -10,6 +10,7 @@ import type { NativeLessonErrorView } from '../nativeLessonErrors';
 import type { RecordingControllerState } from '../recordingController';
 import { useNativeLessonScale } from '../hooks/useNativeLessonScale';
 import { CourseMediaArea } from './CourseMediaArea';
+import { FreeChatPanel } from './FreeChatPanel';
 import { RecordingPanel } from './RecordingPanel';
 
 type NativeLessonShellProps = {
@@ -376,14 +377,24 @@ export function NativeLessonShell({
                     },
                   ]}
                 >
-                  <RecordingPanel
-                    state={recordingState}
-                    isFreeChat={controllerView.phase === 'free_chat'}
-                    onStart={onStartRecording}
-                    onStop={onStopRecording}
-                    onCancel={onCancelRecording}
-                    onSubmit={onSubmitRecording}
-                  />
+                  {controllerView.phase === 'free_chat' ? (
+                    <FreeChatPanel
+                      state={recordingState}
+                      onStart={onStartRecording}
+                      onStop={onStopRecording}
+                      onCancel={onCancelRecording}
+                      onSubmit={onSubmitRecording}
+                    />
+                  ) : (
+                    <RecordingPanel
+                      state={recordingState}
+                      isFreeChat={false}
+                      onStart={onStartRecording}
+                      onStop={onStopRecording}
+                      onCancel={onCancelRecording}
+                      onSubmit={onSubmitRecording}
+                    />
+                  )}
                 </View>
               ) : null}
 

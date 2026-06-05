@@ -5,6 +5,7 @@ import {
   buildNativeLessonMediaView,
   getNativeLessonMediaPreloadUris,
   shouldAcceptMediaCompletion,
+  shouldAttemptNativeLessonVideoPlayback,
   shouldCompleteNativeLessonVideoPlayback,
 } from './nativeLessonMedia.ts';
 import type { NativeLessonControllerView } from './nativeLessonController.ts';
@@ -105,6 +106,48 @@ describe('nativeLessonMedia', () => {
         durationMillis: 10_000,
         positionMillis: 5_000,
       }),
+      false,
+    );
+  });
+
+  it('retries native video playback after the video is loaded but idle', () => {
+    assert.equal(
+      shouldAttemptNativeLessonVideoPlayback(
+        {
+          isLoaded: true,
+          isPlaying: false,
+        },
+        true,
+      ),
+      true,
+    );
+    assert.equal(
+      shouldAttemptNativeLessonVideoPlayback(
+        {
+          isLoaded: true,
+          isPlaying: true,
+        },
+        true,
+      ),
+      false,
+    );
+    assert.equal(
+      shouldAttemptNativeLessonVideoPlayback(
+        {
+          isLoaded: false,
+        },
+        true,
+      ),
+      false,
+    );
+    assert.equal(
+      shouldAttemptNativeLessonVideoPlayback(
+        {
+          isLoaded: true,
+          isPlaying: false,
+        },
+        false,
+      ),
       false,
     );
   });

@@ -14,6 +14,7 @@ export type RealtimeLessonProjectionState = {
   sessionId: string | null;
   lastEvent: RealtimeLessonEvent | null;
   currentStep: RealtimeLessonStepPayload | null;
+  currentLifecycle: string | null;
   snapshot: Extract<RealtimeLessonEvent, { event: 'lesson_state_snapshot' }> | null;
   answer?: {
     itemId: string;
@@ -31,6 +32,7 @@ export const INITIAL_REALTIME_LESSON_PROJECTION_STATE: RealtimeLessonProjectionS
   sessionId: null,
   lastEvent: null,
   currentStep: null,
+  currentLifecycle: null,
   snapshot: null,
   answer: undefined,
   completed: false,
@@ -114,6 +116,7 @@ export function applyRealtimeLessonEvent(
       ...state,
       snapshot: event,
       lastEvent: event,
+      currentLifecycle: event.lifecycle,
       answer: undefined,
       completed: event.lifecycle === 'completed' ? true : state.completed,
       errorText: '',
@@ -123,6 +126,7 @@ export function applyRealtimeLessonEvent(
     return {
       ...state,
       currentStep: event.step,
+      currentLifecycle: event.lifecycle,
       lastEvent: event,
       answer: undefined,
       errorText: '',
@@ -181,7 +185,7 @@ export function getRealtimeControllerView(
   }
   const phase = normalizePhase(snapshot?.phase ?? step?.phase ?? 'challenge');
   const lifecycle = normalizeLifecycle(
-    state.completed ? 'completed' : snapshot?.lifecycle ?? 'pending',
+    state.completed ? 'completed' : snapshot?.lifecycle ?? state.currentLifecycle ?? 'pending',
   );
   const media =
     snapshot?.currentMedia?.url

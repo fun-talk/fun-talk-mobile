@@ -12,6 +12,7 @@ const initialState: RealtimeLessonProjectionState = {
   sessionId: null,
   lastEvent: null,
   currentStep: null,
+  currentLifecycle: null,
   snapshot: null,
   answer: undefined,
   completed: false,
@@ -74,6 +75,35 @@ describe('nativeLessonRealtimeProjection', () => {
     assert.equal(view?.step?.responseMode, 'speech');
     assert.equal(view?.answer?.correct, false);
     assert.equal(view?.answer?.feedbackText, '再试一次。');
+  });
+
+  it('uses step_started lifecycle before a snapshot arrives', () => {
+    const state = applyRealtimeLessonEvent(initialState, {
+      event: 'step_started',
+      lifecycle: 'waiting_media',
+      step: {
+        stepId: 2,
+        phase: 'story',
+        assistantPrompt: '看这段视频。',
+        inputMode: 'none',
+        advancePolicy: 'auto',
+        expectedPhrases: [],
+        choiceOptions: [],
+        mediaCue: {
+          cueId: 'intro-video',
+          kind: 'video',
+          url: 'https://example.com/intro.mp4',
+        },
+        screenText: '看这段视频。',
+        screenTextFallback: '',
+        successReply: '',
+        retryText: '',
+      },
+    });
+
+    const view = getRealtimeControllerView(state, { title: 'Lesson' });
+    assert.equal(view?.lifecycle, 'waiting_media');
+    assert.equal(view?.media?.url, 'https://example.com/intro.mp4');
   });
 
   it('marks session ready, completed, and errors', () => {

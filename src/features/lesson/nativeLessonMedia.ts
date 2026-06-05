@@ -74,6 +74,21 @@ export function shouldCompleteNativeLessonVideoPlayback(status: {
   return false;
 }
 
+export function shouldAttemptNativeLessonVideoPlayback(status: {
+  isLoaded: boolean;
+  isPlaying?: boolean;
+  didJustFinish?: boolean;
+  error?: string;
+}, shouldPlay: boolean): boolean {
+  return Boolean(
+    shouldPlay &&
+      status.isLoaded &&
+      !status.isPlaying &&
+      !status.didJustFinish &&
+      !status.error,
+  );
+}
+
 export function getNativeLessonMediaPreloadUris(
   views: { media: { url: string } | null }[],
   currentIndex: number,

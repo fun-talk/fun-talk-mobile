@@ -12,6 +12,28 @@ type LessonDetailResponse = {
   };
 };
 
+const DEFAULT_OPENING_SCENE_LOOKUP_TIMEOUT_MS = 3_500;
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutValue: T,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      resolve(timeoutValue);
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
+}
+
 export function sanitizeInternalReturnPath(path: string | null | undefined): string | null {
   if (!path || !path.startsWith('/') || path.startsWith('//')) {
     return null;
@@ -76,6 +98,7 @@ export async function resolveCourseLessonEntryPath(
   lessonSearch: URLSearchParams,
   skipOpeningScene: boolean,
   apiClient: ApiClient,
+  openingSceneLookupTimeoutMs = DEFAULT_OPENING_SCENE_LOOKUP_TIMEOUT_MS,
 ): Promise<string> {
   const lessonPath = `/app/lesson?${lessonSearch.toString()}`;
   if (skipOpeningScene) {
@@ -87,7 +110,14 @@ export async function resolveCourseLessonEntryPath(
     return lessonPath;
   }
 
-  const hasOpeningScene = await lessonHasOpeningSceneConfig(lessonId, apiClient);
+  const hasOpeningScene = await withTimeout(
+    lessonHasOpeningSceneConfig(lessonId, apiClient).catch((error) => {
+      console.warn('opening scene lookup failed:', error);
+      return false;
+    }),
+    openingSceneLookupTimeoutMs,
+    false,
+  );
   if (!hasOpeningScene) {
     return lessonPath;
   }

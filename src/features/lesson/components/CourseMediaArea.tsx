@@ -6,6 +6,7 @@ import type { NativeLessonControllerView } from '../nativeLessonController';
 import {
   buildNativeLessonMediaView,
   shouldAcceptMediaCompletion,
+  shouldAttemptNativeLessonVideoPlayback,
   shouldCompleteNativeLessonVideoPlayback,
 } from '../nativeLessonMedia';
 import { loadNativeExpoAv, type NativeExpoAvModule, type NativeExpoVideoRef } from '../nativeExpoAv';
@@ -26,6 +27,7 @@ export function CourseMediaArea({
   onError,
 }: CourseMediaAreaProps) {
   const completedPlaybackKeysRef = useRef(new Set<string>());
+  const playAttemptCountsRef = useRef(new Map<string, number>());
   const reportedErrorKeysRef = useRef(new Set<string>());
   const [expoAv, setExpoAv] = useState<NativeExpoAvModule | null>(null);
   const [videoErrorText, setVideoErrorText] = useState('');
@@ -43,6 +45,18 @@ export function CourseMediaArea({
       onComplete();
     }
   }, [mediaView.kind, mediaView.playbackKey, onComplete]);
+
+  const attemptCurrentVideoPlayback = useCallback(() => {
+    if (mediaView.kind !== 'video' || !mediaView.shouldPlay) {
+      return;
+    }
+    const attempts = playAttemptCountsRef.current.get(mediaView.playbackKey) ?? 0;
+    if (attempts >= 3) {
+      return;
+    }
+    playAttemptCountsRef.current.set(mediaView.playbackKey, attempts + 1);
+    void videoRef.current?.playAsync().catch(() => undefined);
+  }, [mediaView.kind, mediaView.playbackKey, mediaView.shouldPlay]);
 
   useEffect(() => {
     if (mediaView.kind !== 'video') {
@@ -85,10 +99,10 @@ export function CourseMediaArea({
       return undefined;
     }
     const timer = setTimeout(() => {
-      void videoRef.current?.playAsync().catch(() => undefined);
+      attemptCurrentVideoPlayback();
     }, 100);
     return () => clearTimeout(timer);
-  }, [mediaView.kind, mediaView.playbackKey, mediaView.shouldPlay]);
+  }, [attemptCurrentVideoPlayback, mediaView.kind, mediaView.playbackKey, mediaView.shouldPlay]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -100,6 +114,12 @@ export function CourseMediaArea({
   const handlePlaybackStatusUpdate = (
     status: Parameters<typeof shouldCompleteNativeLessonVideoPlayback>[0],
   ) => {
+    if (
+      mediaView.kind === 'video' &&
+      shouldAttemptNativeLessonVideoPlayback(status, mediaView.shouldPlay)
+    ) {
+      attemptCurrentVideoPlayback();
+    }
     if (
       mediaView.kind === 'video' &&
       shouldCompleteNativeLessonVideoPlayback(status)

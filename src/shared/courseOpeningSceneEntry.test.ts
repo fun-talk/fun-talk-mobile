@@ -51,4 +51,43 @@ describe('courseOpeningSceneEntry', () => {
     );
     assert.equal(path, '/app/lesson?lesson_id=9&autostart=1');
   });
+
+  it('falls back to lesson path when opening scene lookup hangs', async () => {
+    const apiClient = {
+      baseUrl: 'http://localhost:9000',
+      request: async () => new Promise<Response>(() => {}),
+      get: async () => new Promise<Response>(() => {}),
+      post: async () => new Promise<Response>(() => {}),
+    };
+
+    const path = await resolveCourseLessonEntryPath(
+      new URLSearchParams('lesson_id=9&autostart=1'),
+      false,
+      apiClient,
+      10,
+    );
+    assert.equal(path, '/app/lesson?lesson_id=9&autostart=1');
+  });
+
+  it('falls back to lesson path when opening scene lookup rejects', async () => {
+    const apiClient = {
+      baseUrl: 'http://localhost:9000',
+      request: async () => {
+        throw new Error('network failed');
+      },
+      get: async () => {
+        throw new Error('network failed');
+      },
+      post: async () => {
+        throw new Error('network failed');
+      },
+    };
+
+    const path = await resolveCourseLessonEntryPath(
+      new URLSearchParams('lesson_id=9&autostart=1'),
+      false,
+      apiClient,
+    );
+    assert.equal(path, '/app/lesson?lesson_id=9&autostart=1');
+  });
 });
