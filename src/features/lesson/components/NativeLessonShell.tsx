@@ -77,11 +77,16 @@ export function NativeLessonShell({
   onExit,
 }: NativeLessonShellProps) {
   const [draftAnswer, setDraftAnswer] = useState('');
+  const [viewportHeight, setViewportHeight] = useState(0);
   const layout = useNativeLessonScale();
+  const landscapeViewportHeight =
+    layout.isLandscapeTablet && viewportHeight > 0 ? viewportHeight : layout.canvasHeight;
+  const scale = layout.isLandscapeTablet
+    ? landscapeViewportHeight / WEB_CANVAS_HEIGHT
+    : Math.max(layout.width, COMPACT_CANVAS_WIDTH) / WEB_CANVAS_WIDTH;
   const canvasWidth = layout.isLandscapeTablet
-    ? layout.canvasWidth
+    ? WEB_CANVAS_WIDTH * scale
     : Math.max(layout.width, COMPACT_CANVAS_WIDTH);
-  const scale = canvasWidth / WEB_CANVAS_WIDTH;
   const canvasHeight = WEB_CANVAS_HEIGHT * scale;
   const progressLabel =
     courseNumber && totalCourses
@@ -142,9 +147,12 @@ export function NativeLessonShell({
 
       <ScrollView
         style={styles.viewport}
+        onLayout={(event) => {
+          setViewportHeight(event.nativeEvent.layout.height);
+        }}
         contentContainerStyle={[
           styles.viewportContent,
-          layout.isLandscapeTablet && { minHeight: layout.height - 56 },
+          layout.isLandscapeTablet && { minHeight: viewportHeight || layout.height },
         ]}
       >
         <ScrollView
