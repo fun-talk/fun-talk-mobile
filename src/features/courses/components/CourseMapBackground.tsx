@@ -2,28 +2,31 @@ import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 
 import { courseHomeImages } from '../assets/courseHomeAssets';
+import {
+  computeBackgroundTileCount,
+  computeBackgroundTileHeight,
+} from '../layout/courseHomeLayout';
 
 type CourseMapBackgroundProps = {
   width: number;
   height: number;
-  segmentCount: number;
 };
 
-export function CourseMapBackground({ width, height, segmentCount }: CourseMapBackgroundProps) {
-  const safeSegmentCount = Math.max(1, segmentCount);
-  const segmentHeight = height / safeSegmentCount;
+export function CourseMapBackground({ width, height }: CourseMapBackgroundProps) {
+  const tileHeight = computeBackgroundTileHeight(width);
+  const tileCount = computeBackgroundTileCount(width, height);
 
   return (
     <View style={[styles.container, { width, height }]} pointerEvents="none">
-      {Array.from({ length: safeSegmentCount }, (_, index) => (
+      {Array.from({ length: tileCount }, (_, index) => (
         <Image
           key={index}
           source={courseHomeImages.background}
           style={{
             position: 'absolute',
-            top: index * segmentHeight,
+            top: index * tileHeight,
             width,
-            height: segmentHeight,
+            height: tileHeight,
           }}
           contentFit="fill"
         />

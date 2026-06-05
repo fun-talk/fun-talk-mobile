@@ -38,7 +38,6 @@ export function CourseHomeScreen() {
     isLoggingOut,
     totalCourses,
     mapHeight,
-    mapSegmentCount,
     mapPixelHeight,
     mapPixelWidth,
     completedSet,
@@ -120,7 +119,6 @@ export function CourseHomeScreen() {
           <CourseMapBackground
             width={mapPixelWidth}
             height={mapPixelHeight}
-            segmentCount={mapSegmentCount}
           />
 
           <View
