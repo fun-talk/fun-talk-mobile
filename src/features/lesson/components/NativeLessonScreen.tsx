@@ -212,6 +212,7 @@ function NativeLessonLoadedScreen({
 }) {
   const controller = useNativeLessonController(lesson);
   const recording = useNativeLessonRecording();
+  const [mediaErrorText, setMediaErrorText] = useState('');
   const [completionStatus, setCompletionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [completionErrorText, setCompletionErrorText] = useState('');
   const realtime = useNativeLessonRealtimeSession({
@@ -233,11 +234,14 @@ function NativeLessonLoadedScreen({
     if (realtime.audioErrorText) {
       return classifyNativeLessonError('audio', realtime.audioErrorText);
     }
+    if (mediaErrorText) {
+      return classifyNativeLessonError('media', mediaErrorText);
+    }
     if (recording.state.status === 'error' && recording.state.errorText) {
       return classifyNativeLessonError('permission', recording.state.errorText);
     }
     return null;
-  }, [recording.state.errorText, recording.state.status, realtime.audioErrorText, realtime.errorText]);
+  }, [mediaErrorText, recording.state.errorText, recording.state.status, realtime.audioErrorText, realtime.errorText]);
   const controllerView = realtime.realtimeView ?? controller.view;
   const isLessonComplete =
     controllerView.phase === 'end' ||
@@ -347,11 +351,13 @@ function NativeLessonLoadedScreen({
         }
       }}
       onMediaComplete={() => {
+        setMediaErrorText('');
         const cueId = controllerView.step?.mediaCueId;
         if (!realtime.sendMediaFinished(cueId)) {
           controller.next();
         }
       }}
+      onMediaError={setMediaErrorText}
       onPauseToggle={controllerView.isPaused ? controller.resume : controller.pause}
       onExit={onExit}
       onFallback={() => onFallback(runtimeError ?? undefined)}

@@ -12,6 +12,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.anonymous.funtalkmobile",
       "associatedDomains": [
         "applinks:ai-fun-talk.com"
       ],

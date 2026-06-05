@@ -13,6 +13,7 @@ describe('recordingController', () => {
     state = reduceRecordingController(state, { type: 'permission_granted' });
     state = reduceRecordingController(state, { type: 'start' });
     state = reduceRecordingController(state, { type: 'metering', metering: -28, elapsedMs: 300 });
+    state = reduceRecordingController(state, { type: 'metering', metering: -27, elapsedMs: 500 });
     state = reduceRecordingController(state, {
       type: 'stop',
       uri: 'file:///tmp/answer.m4a',
@@ -39,10 +40,21 @@ describe('recordingController', () => {
 
     state = reduceRecordingController(state, { type: 'permission_granted' });
     state = reduceRecordingController(state, { type: 'start' });
-    state = reduceRecordingController(state, { type: 'metering', metering: -60, elapsedMs: 16000 });
+    state = reduceRecordingController(state, { type: 'metering', metering: -60, elapsedMs: 19000 });
 
     assert.equal(state.status, 'auto_stopping');
     assert.equal(state.shouldStopRecording, true);
   });
-});
 
+  it('does not start speech from a single noisy metering spike', () => {
+    let state = createRecordingControllerState();
+
+    state = reduceRecordingController(state, { type: 'permission_granted' });
+    state = reduceRecordingController(state, { type: 'start' });
+    state = reduceRecordingController(state, { type: 'metering', metering: -25, elapsedMs: 200 });
+    state = reduceRecordingController(state, { type: 'metering', metering: -60, elapsedMs: 400 });
+
+    assert.equal(state.hasSpeech, false);
+    assert.equal(state.status, 'recording');
+  });
+});

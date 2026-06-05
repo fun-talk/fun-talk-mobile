@@ -20,6 +20,17 @@ describe('simpleVad', () => {
     assert.equal(state.hasSpeech, true);
   });
 
+  it('ignores one loud sample before speech is established', () => {
+    let state = createSimpleVadState();
+
+    state = reduceSimpleVad(state, { metering: -27, elapsedMs: 100 });
+    state = reduceSimpleVad(state, { metering: -58, elapsedMs: 300 });
+
+    assert.equal(state.status, 'silence');
+    assert.equal(state.hasSpeech, false);
+    assert.equal(state.shouldAutoSubmit, false);
+  });
+
   it('marks silence timeout after speech ends', () => {
     let state = createSimpleVadState({ silenceTimeoutMs: 500 });
 
@@ -42,4 +53,3 @@ describe('simpleVad', () => {
     assert.equal(state.shouldAutoSubmit, true);
   });
 });
-

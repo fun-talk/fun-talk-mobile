@@ -22,10 +22,10 @@ export type SimpleVadSample = {
 };
 
 const DEFAULT_SIMPLE_VAD_CONFIG: SimpleVadConfig = {
-  speechThresholdDb: -35,
+  speechThresholdDb: -38,
   speechStartSamples: 2,
-  silenceTimeoutMs: 1200,
-  maxDurationMs: 15000,
+  silenceTimeoutMs: 1400,
+  maxDurationMs: 18000,
 };
 
 export function createSimpleVadState(
@@ -95,4 +95,3 @@ export function reduceSimpleVad(
     shouldAutoSubmit: false,
   };
 }
-

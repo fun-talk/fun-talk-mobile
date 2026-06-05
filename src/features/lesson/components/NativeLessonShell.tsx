@@ -31,6 +31,7 @@ type NativeLessonShellProps = {
   onCancelRecording: () => void;
   onSubmitRecording: () => void;
   onMediaComplete: () => void;
+  onMediaError?: (message: string) => void;
   onPauseToggle: () => void;
   onRetryCompletion?: () => void;
   onRetryNativeError?: () => void;
@@ -65,6 +66,7 @@ export function NativeLessonShell({
   onCancelRecording,
   onSubmitRecording,
   onMediaComplete,
+  onMediaError,
   onPauseToggle,
   onRetryCompletion,
   onRetryNativeError,
@@ -113,7 +115,7 @@ export function NativeLessonShell({
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" onPress={onExit} style={styles.headerButton}>
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={onExit} style={styles.headerButton}>
           <Text style={styles.headerButtonText}>返回课程</Text>
         </Pressable>
         <View style={styles.headerTitleWrap}>
@@ -124,7 +126,7 @@ export function NativeLessonShell({
             {progressLabel}
           </Text>
         </View>
-        <Pressable accessibilityRole="button" onPress={onFallback} style={styles.headerButton}>
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={onFallback} style={styles.headerButton}>
           <Text style={styles.headerButtonText}>WebView</Text>
         </Pressable>
       </View>
@@ -146,7 +148,9 @@ export function NativeLessonShell({
               <Image
                 source={{ uri: controllerView.backgroundImageUrl }}
                 style={StyleSheet.absoluteFillObject}
+                cachePolicy="memory-disk"
                 contentFit="cover"
+                recyclingKey={controllerView.backgroundImageUrl}
               />
             ) : null}
             <View style={styles.backgroundDim} />
@@ -196,6 +200,7 @@ export function NativeLessonShell({
                   titleFontSize={scaled(44, scale)}
                   captionFontSize={scaled(24, scale)}
                   onComplete={onMediaComplete}
+                  onError={onMediaError}
                 />
               </View>
             </View>
@@ -273,7 +278,9 @@ export function NativeLessonShell({
                                 borderRadius: scaled(12, scale),
                               },
                             ]}
+                            cachePolicy="memory-disk"
                             contentFit="cover"
+                            recyclingKey={option.imageUrl}
                           />
                         ) : null}
                         <View style={styles.optionTextWrap}>
@@ -450,7 +457,7 @@ export function NativeLessonShell({
       </ScrollView>
 
       <View style={styles.bottomControls}>
-        <Pressable style={styles.startButton} onPress={onPauseToggle}>
+        <Pressable accessibilityRole="button" hitSlop={8} style={styles.startButton} onPress={onPauseToggle}>
           <Text style={styles.startButtonText}>
             {controllerView.isPaused ? '恢复课程' : '暂停课程'}
           </Text>
@@ -466,16 +473,16 @@ export function NativeLessonShell({
           </Pressable>
         ) : null}
         {completionStatus === 'error' ? (
-          <Pressable style={styles.controlButtonPurple} onPress={onRetryCompletion}>
+          <Pressable accessibilityRole="button" hitSlop={8} style={styles.controlButtonPurple} onPress={onRetryCompletion}>
             <Text style={styles.controlButtonText}>重试保存</Text>
           </Pressable>
         ) : null}
         {nativeError ? (
           <>
-            <Pressable style={styles.controlButtonPurple} onPress={onRetryNativeError}>
+            <Pressable accessibilityRole="button" hitSlop={8} style={styles.controlButtonPurple} onPress={onRetryNativeError}>
               <Text style={styles.controlButtonText}>{nativeError.retryLabel}</Text>
             </Pressable>
-            <Pressable style={styles.controlButton} onPress={onFallback}>
+            <Pressable accessibilityRole="button" hitSlop={8} style={styles.controlButton} onPress={onFallback}>
               <Text style={styles.controlButtonText}>WebView 兜底</Text>
             </Pressable>
           </>
@@ -486,6 +493,7 @@ export function NativeLessonShell({
             (!controllerView.canGoNext || completionStatus === 'saving') && styles.disabledButton,
           ]}
           disabled={!controllerView.canGoNext || completionStatus === 'saving'}
+          hitSlop={8}
           onPress={onNext}
         >
           <Text style={styles.controlButtonText}>跳到下一步</Text>
@@ -517,7 +525,8 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   headerButton: {
-    minHeight: 38,
+    minHeight: 44,
+    minWidth: 76,
     justifyContent: 'center',
     borderRadius: 8,
     borderWidth: 1,
@@ -740,7 +749,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   startButton: {
-    minHeight: 38,
+    minHeight: 44,
+    minWidth: 96,
     justifyContent: 'center',
     borderRadius: 8,
     backgroundColor: '#64748b',
@@ -752,14 +762,15 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   controlButton: {
-    minHeight: 38,
+    minHeight: 44,
     justifyContent: 'center',
     borderRadius: 8,
     backgroundColor: '#3f324f',
     paddingHorizontal: 16,
   },
   controlButtonPurple: {
-    minHeight: 38,
+    minHeight: 44,
+    minWidth: 96,
     justifyContent: 'center',
     borderRadius: 8,
     borderWidth: 1,
@@ -768,7 +779,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   completionStatusButton: {
-    minHeight: 38,
+    minHeight: 44,
     maxWidth: 360,
     justifyContent: 'center',
     borderRadius: 8,
@@ -778,7 +789,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   transcriptButton: {
-    minHeight: 38,
+    minHeight: 44,
     justifyContent: 'center',
     borderRadius: 8,
     borderWidth: 1,

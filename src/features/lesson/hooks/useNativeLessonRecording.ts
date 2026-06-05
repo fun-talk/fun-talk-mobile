@@ -1,10 +1,11 @@
-import { Audio } from 'expo-av';
 import { useCallback, useEffect, useRef, useReducer } from 'react';
+import { AppState } from 'react-native';
 
 import {
   createRecordingControllerState,
   reduceRecordingController,
 } from '../recordingController';
+import { loadNativeExpoAv } from '../nativeExpoAv';
 
 type NativeRecordingStatus = {
   isRecording?: boolean;
@@ -13,7 +14,10 @@ type NativeRecordingStatus = {
 };
 
 export function useNativeLessonRecording() {
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingRef = useRef<{
+    stopAndUnloadAsync: () => Promise<{ durationMillis?: number }>;
+    getURI: () => string | null;
+  } | null>(null);
   const [state, dispatch] = useReducer(
     reduceRecordingController,
     undefined,
@@ -43,6 +47,7 @@ export function useNativeLessonRecording() {
 
   const start = useCallback(async () => {
     try {
+      const { Audio } = await loadNativeExpoAv();
       const permission = await Audio.requestPermissionsAsync();
       if (!permission.granted) {
         dispatch({ type: 'permission_denied' });
@@ -105,6 +110,16 @@ export function useNativeLessonRecording() {
     },
     [],
   );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active' && recordingRef.current) {
+        void stop();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [stop]);
 
   return {
     state,

@@ -81,7 +81,7 @@ export function reduceRecordingController(
         ...createRecordingControllerState(),
         hasPermission: true,
         status: 'recording',
-        vad: createSimpleVadState({ speechStartSamples: 1 }),
+        vad: createSimpleVadState(),
       };
     case 'metering': {
       if (state.status !== 'recording') {

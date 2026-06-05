@@ -2,14 +2,10 @@ import { useEffect } from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, {
-  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
-  withRepeat,
-  withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -27,11 +23,6 @@ type Props = {
 };
 
 export function OpeningAnimation({ onFinish }: Props) {
-  // ── animation values ──
-  const foxY = useSharedValue(SCREEN_H); // starts off-screen below
-  const foxScale = useSharedValue(0.3);
-  const foxFloat = useSharedValue(0);
-
   const logoOpacity = useSharedValue(0);
   const logoY = useSharedValue(40);
   const logoScale = useSharedValue(0.8);
@@ -40,23 +31,9 @@ export function OpeningAnimation({ onFinish }: Props) {
 
   // ── kick off entrance sequence ──
   useEffect(() => {
-    // Fox bounces in
-    foxY.value = withSpring(0, { damping: 10, stiffness: 120, mass: 0.8 });
-    foxScale.value = withSpring(1, { damping: 12, stiffness: 140 });
-
-    // Fox floating loop (starts after landing)
-    foxFloat.value = withDelay(
-      600,
-      withRepeat(withSequence(
-        withTiming(-10, { duration: 1200, easing: Easing.linear }),
-        withTiming(0, { duration: 1200, easing: Easing.linear }),
-      ), -1, true),
-    );
-
-    // Logo fades in after fox lands
     logoOpacity.value = withDelay(450, withTiming(1, { duration: 500 }));
-    logoY.value = withDelay(450, withSpring(0, { damping: 14, stiffness: 100 }));
-    logoScale.value = withDelay(500, withSpring(1, { damping: 14, stiffness: 120 }));
+    logoY.value = withDelay(450, withTiming(0, { duration: 500 }));
+    logoScale.value = withDelay(500, withTiming(1, { duration: 500 }));
 
     // Exit: fade everything out after ~2.8s
     exitOpacity.value = withDelay(
@@ -67,18 +44,11 @@ export function OpeningAnimation({ onFinish }: Props) {
         }
       }),
     );
-  }, [foxY, foxScale, foxFloat, logoOpacity, logoY, logoScale, exitOpacity, onFinish]);
+  }, [logoOpacity, logoY, logoScale, exitOpacity, onFinish]);
 
   // ── animated styles ──
   const containerStyle = useAnimatedStyle(() => ({
     opacity: exitOpacity.value,
-  }));
-
-  const foxStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: foxY.value + foxFloat.value },
-      { scale: foxScale.value },
-    ],
   }));
 
   const logoStyle = useAnimatedStyle(() => ({
@@ -99,13 +69,13 @@ export function OpeningAnimation({ onFinish }: Props) {
 
       {/* Main content */}
       <View style={styles.content}>
-        <Animated.View style={foxStyle}>
+        <View>
           <Image
             source={foxImage}
             style={{ width: FOX_SIZE, height: FOX_SIZE * 1.05 }}
             contentFit="contain"
           />
-        </Animated.View>
+        </View>
 
         <Animated.View style={[styles.logoWrap, logoStyle]}>
           <Image
@@ -169,6 +139,6 @@ const styles = StyleSheet.create({
     paddingBottom: SCREEN_H * 0.06,
   },
   logoWrap: {
-    marginTop: 8,
+    marginTop: -6,
   },
 });

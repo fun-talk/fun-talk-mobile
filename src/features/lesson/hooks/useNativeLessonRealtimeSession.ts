@@ -36,6 +36,10 @@ type NativeLessonRealtimeSessionOptions = {
 
 type RealtimeSessionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
+const MAX_RECONNECT_ATTEMPTS = 5;
+const INITIAL_RECONNECT_DELAY_MS = 800;
+const MAX_RECONNECT_DELAY_MS = 8000;
+
 function sendJson(socket: WebSocket | null, payload: unknown): boolean {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return false;
@@ -54,6 +58,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const currentStepIdRef = useRef<number | null>(null);
   const currentAssistantPromptRef = useRef('');
   const ttsReceivedAudioRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
   const spokenStepIdsRef = useRef(new Set<number>());
   const [status, setStatus] = useState<RealtimeSessionStatus>('idle');
   const [projection, setProjection] = useState<RealtimeLessonProjectionState>(
@@ -125,6 +130,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
       socketRef.current = socket;
 
       socket.onopen = () => {
+        reconnectAttemptRef.current = 0;
         setStatus('connected');
         sendJson(
           socket,
@@ -227,9 +233,19 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
         setStatus((current) => (current === 'error' ? 'error' : 'disconnected'));
         socketRef.current = null;
         if (!closedByUserRef.current && options.enabled) {
+          if (reconnectAttemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
+            setStatus('error');
+            setErrorText('Realtime session 多次重连失败，请重试或切换到 WebView。');
+            return;
+          }
+          const delay = Math.min(
+            INITIAL_RECONNECT_DELAY_MS * 2 ** reconnectAttemptRef.current,
+            MAX_RECONNECT_DELAY_MS,
+          );
+          reconnectAttemptRef.current += 1;
           reconnectTimerRef.current = setTimeout(() => {
             void connect();
-          }, 800);
+          }, delay);
         }
       };
     } catch (error) {

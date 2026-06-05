@@ -1,7 +1,5 @@
-import type { AVPlaybackStatus } from 'expo-av';
-import { ResizeMode, Video } from 'expo-av';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { NativeLessonControllerView } from '../nativeLessonController';
@@ -10,12 +8,14 @@ import {
   shouldAcceptMediaCompletion,
   shouldCompleteNativeLessonVideoPlayback,
 } from '../nativeLessonMedia';
+import { loadNativeExpoAv, type NativeExpoAvModule, type NativeExpoVideoRef } from '../nativeExpoAv';
 
 type CourseMediaAreaProps = {
   controllerView: NativeLessonControllerView;
   titleFontSize: number;
   captionFontSize: number;
   onComplete: () => void;
+  onError?: (message: string) => void;
 };
 
 export function CourseMediaArea({
@@ -23,13 +23,17 @@ export function CourseMediaArea({
   titleFontSize,
   captionFontSize,
   onComplete,
+  onError,
 }: CourseMediaAreaProps) {
   const completedPlaybackKeysRef = useRef(new Set<string>());
+  const reportedErrorKeysRef = useRef(new Set<string>());
+  const [expoAv, setExpoAv] = useState<NativeExpoAvModule | null>(null);
+  const [videoErrorText, setVideoErrorText] = useState('');
   const mediaView = useMemo(
     () => buildNativeLessonMediaView(controllerView),
     [controllerView],
   );
-  const videoRef = useRef<Video | null>(null);
+  const videoRef = useRef<NativeExpoVideoRef | null>(null);
 
   const completeCurrentMedia = useCallback(() => {
     if (
@@ -39,6 +43,34 @@ export function CourseMediaArea({
       onComplete();
     }
   }, [mediaView.kind, mediaView.playbackKey, onComplete]);
+
+  useEffect(() => {
+    if (mediaView.kind !== 'video') {
+      return undefined;
+    }
+    let cancelled = false;
+    setVideoErrorText('');
+    void loadNativeExpoAv()
+      .then((module) => {
+        if (!cancelled) {
+          setExpoAv(module);
+        }
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : 'Native video module is unavailable.';
+        if (!cancelled) {
+          setVideoErrorText(message);
+        }
+        if (!reportedErrorKeysRef.current.has(mediaView.playbackKey)) {
+          reportedErrorKeysRef.current.add(mediaView.playbackKey);
+          onError?.(message);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mediaView.kind, mediaView.playbackKey, onError]);
 
   useEffect(() => {
     if (mediaView.kind !== 'video' || !mediaView.shouldPlay) {
@@ -58,7 +90,16 @@ export function CourseMediaArea({
     return () => clearTimeout(timer);
   }, [mediaView.kind, mediaView.playbackKey, mediaView.shouldPlay]);
 
-  const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+  useEffect(() => {
+    const video = videoRef.current;
+    return () => {
+      void video?.unloadAsync().catch(() => undefined);
+    };
+  }, [mediaView.playbackKey]);
+
+  const handlePlaybackStatusUpdate = (
+    status: Parameters<typeof shouldCompleteNativeLessonVideoPlayback>[0],
+  ) => {
     if (
       mediaView.kind === 'video' &&
       shouldCompleteNativeLessonVideoPlayback(status)
@@ -72,19 +113,34 @@ export function CourseMediaArea({
       <Image
         source={{ uri: mediaView.uri }}
         style={styles.fill}
+        cachePolicy="memory-disk"
         contentFit="contain"
+        recyclingKey={mediaView.playbackKey}
       />
     );
   }
 
   if (mediaView.kind === 'video') {
+    if (!expoAv) {
+      return (
+        <View style={styles.placeholder}>
+          <Text style={[styles.placeholderTitle, { fontSize: titleFontSize }]}>课程视频</Text>
+          <Text style={[styles.placeholderText, { fontSize: captionFontSize }]}>
+            {videoErrorText || '正在准备 Native 视频模块'}
+          </Text>
+        </View>
+      );
+    }
+    const Video = expoAv.Video;
     return (
       <Video
-        ref={videoRef}
+        ref={(instance) => {
+          videoRef.current = instance as NativeExpoVideoRef | null;
+        }}
         key={mediaView.playbackKey}
         source={{ uri: mediaView.uri }}
         style={styles.fill}
-        resizeMode={ResizeMode.CONTAIN}
+        resizeMode={expoAv.ResizeMode.CONTAIN}
         shouldPlay={mediaView.shouldPlay}
         useNativeControls
         isLooping={false}
