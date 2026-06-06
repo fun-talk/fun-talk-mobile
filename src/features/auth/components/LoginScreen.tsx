@@ -1,28 +1,34 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
-  Text,
-  TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 
+import { ApiRequestError } from '@/lib/api/client';
 import { readRememberMePreference, writeRememberMePreference } from '@/lib/auth/preferences';
+import { getApiHost } from '@/lib/env';
 
 import { useAuth } from '../AuthProvider';
+import { loginImages } from '../assets/loginAssets';
 import {
   LoginError,
   loginWithFrontpage,
   loginWithWechatCode,
+  checkSession,
 } from '../services/login';
-import { isWechatLoginSupported, requestWechatAuthCode } from '../services/wechatNative';
+import { requestWechatAuthCode } from '../services/wechatNative';
+import { LoginColors } from './LoginConstants';
+import { LandingView } from './LandingView';
+import { LoginView } from './LoginView';
+import { WechatModal } from './WechatModal';
 
+type ViewMode = 'landing' | 'login';
 type LoginTab = 'personal' | 'school';
 
 const COURSES_ROUTE = '/(app)/courses' as Href;
@@ -30,25 +36,38 @@ const COURSES_ROUTE = '/(app)/courses' as Href;
 export function LoginScreen() {
   const router = useRouter();
   const { apiClient, saveAuth } = useAuth();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
 
-  const [tab, setTab] = useState<LoginTab>('personal');
+  // Desktop logo: height clamp(36px, 4vw, 56px), centered at 56px from top
+  const isDesktopLayout = windowWidth >= 760;
+  const logoHeight = isDesktopLayout
+    ? Math.min(56, Math.max(36, windowWidth * 0.04))
+    : 34;
+  const logoLeft = isDesktopLayout ? 28 : 18;
+  const logoTop = isDesktopLayout ? 56 - logoHeight / 2 : 40;
+
+  const [viewMode, setViewMode] = useState<ViewMode>('landing');
+  const [activeTab, setActiveTab] = useState<LoginTab>('personal');
   const [rememberMe, setRememberMe] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [wechatModalVisible, setWechatModalVisible] = useState(false);
 
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-
-  const [school, setSchool] = useState('');
-  const [className, setClassName] = useState('');
-  const [studentName, setStudentName] = useState('');
-  const [schoolCode, setSchoolCode] = useState('');
+  // Keep rememberMe in a ref so finishLogin closures don't go stale
+  const rememberMeRef = useRef(rememberMe);
+  rememberMeRef.current = rememberMe;
 
   useEffect(() => {
     void readRememberMePreference().then(setRememberMe);
   }, []);
 
+  const handleRememberMeChange = useCallback(async (value: boolean) => {
+    setRememberMe(value);
+    await writeRememberMePreference(value);
+  }, []);
+
+  /* ---- Shared login finish handler ---- */
   const finishLogin = useCallback(
     async (action: () => Promise<void>) => {
       setIsSubmitting(true);
@@ -61,11 +80,17 @@ export function LoginScreen() {
         router.replace(COURSES_ROUTE);
       } catch (error) {
         const message =
-          error instanceof LoginError || error instanceof Error
+          error instanceof LoginError ||
+          error instanceof ApiRequestError ||
+          error instanceof Error
             ? error.message
             : '登录失败，请稍后重试';
+        if (error instanceof ApiRequestError) {
+          setStatusMessage(`当前 API：${getApiHost()}`);
+        } else {
+          setStatusMessage('');
+        }
         setErrorMessage(message);
-        setStatusMessage('');
       } finally {
         setIsSubmitting(false);
       }
@@ -73,324 +98,194 @@ export function LoginScreen() {
     [router],
   );
 
-  const handleRememberMeChange = async (value: boolean) => {
-    setRememberMe(value);
-    await writeRememberMePreference(value);
-  };
-
-  const handlePersonalLogin = () => {
-    const trimmedPhone = phone.trim();
-    const trimmedPassword = password.trim();
-    if (!trimmedPhone || !trimmedPassword) {
-      setErrorMessage('请输入手机号和密码');
-      return;
+  /* ---- Landing View Handlers ---- */
+  const handleReturningUser = useCallback(async () => {
+    try {
+      await checkSession(apiClient, null);
+      router.replace(COURSES_ROUTE);
+    } catch {
+      setViewMode('login');
+      setErrorMessage('登录已过期，请重新登录');
     }
+  }, [apiClient, router]);
 
-    void finishLogin(async () => {
-      const auth = await loginWithFrontpage(apiClient, {
-        mode: 'personal',
-        rememberMe,
-        payload: {
-          phone: trimmedPhone,
-          name: trimmedPassword,
-        },
+  const handleNewUser = useCallback(() => {
+    setActiveTab('personal');
+    setViewMode('login');
+    setErrorMessage('');
+    setStatusMessage('');
+  }, []);
+
+  /* ---- Login View Handlers ---- */
+  const handleHomePress = useCallback(() => {
+    setViewMode('landing');
+    setErrorMessage('');
+    setStatusMessage('');
+  }, []);
+
+  const handlePersonalSubmit = useCallback(
+    (phone: string, password: string) => {
+      const trimmedPhone = phone.trim();
+      const trimmedPassword = password.trim();
+      if (!trimmedPhone || !trimmedPassword) {
+        setErrorMessage('请输入手机号和密码');
+        return;
+      }
+
+      void finishLogin(async () => {
+        const auth = await loginWithFrontpage(apiClient, {
+          mode: 'personal',
+          rememberMe: rememberMeRef.current,
+          payload: {
+            phone: trimmedPhone,
+            name: trimmedPassword,
+          },
+        });
+        await saveAuth(auth);
       });
-      await saveAuth(auth);
-    });
-  };
+    },
+    [apiClient, saveAuth, finishLogin],
+  );
 
-  const handleSchoolLogin = () => {
-    if (!school.trim() || !className.trim() || !studentName.trim() || !schoolCode.trim()) {
-      setErrorMessage('请完整填写学校、班级、姓名和密码');
-      return;
-    }
+  const handleSchoolSubmit = useCallback(
+    (school: string, className: string, studentName: string, schoolCode: string) => {
+      const s = school.trim();
+      const c = className.trim();
+      const n = studentName.trim();
+      const code = schoolCode.trim();
+      if (!s || !c || !n || !code) {
+        setErrorMessage('请完整填写学校、班级、姓名和密码');
+        return;
+      }
 
-    void finishLogin(async () => {
-      const auth = await loginWithFrontpage(apiClient, {
-        mode: 'school',
-        rememberMe,
-        payload: {
-          school: school.trim(),
-          class_name: className.trim(),
-          student_name: studentName.trim(),
-          school_code: schoolCode.trim(),
-        },
+      void finishLogin(async () => {
+        const auth = await loginWithFrontpage(apiClient, {
+          mode: 'school',
+          rememberMe: rememberMeRef.current,
+          payload: {
+            school: s,
+            class_name: c,
+            student_name: n,
+            school_code: code,
+          },
+        });
+        await saveAuth(auth);
       });
-      await saveAuth(auth);
-    });
-  };
+    },
+    [apiClient, saveAuth, finishLogin],
+  );
 
-  const handleWechatLogin = () => {
+  const handleWechatLoginPress = useCallback(() => {
+    setWechatModalVisible(true);
+  }, []);
+
+  const handleWechatLogin = useCallback(() => {
+    setWechatModalVisible(false);
+
     void finishLogin(async () => {
       const code = await requestWechatAuthCode();
-      const auth = await loginWithWechatCode(apiClient, code, rememberMe);
+      const auth = await loginWithWechatCode(apiClient, code, rememberMeRef.current);
       await saveAuth(auth);
     });
-  };
+  }, [apiClient, saveAuth, finishLogin]);
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>欧波开心说</Text>
-        <Text style={styles.subtitle}>登录后开始学习</Text>
+      <View style={styles.page}>
+        {/* Background image layer */}
+        <Image
+          source={loginImages.background}
+          style={styles.backgroundImage}
+          contentFit="cover"
+        />
 
-        <View style={styles.tabRow}>
-          <Pressable
-            style={[styles.tab, tab === 'personal' && styles.tabActive]}
-            onPress={() => setTab('personal')}
-            disabled={isSubmitting}>
-            <Text style={[styles.tabText, tab === 'personal' && styles.tabTextActive]}>
-              个人登录
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tab, tab === 'school' && styles.tabActive]}
-            onPress={() => setTab('school')}
-            disabled={isSubmitting}>
-            <Text style={[styles.tabText, tab === 'school' && styles.tabTextActive]}>
-              学校登录
-            </Text>
-          </Pressable>
-        </View>
+        {/* Scrollable scene (matches web mobile: page overflow:auto, scene position:relative, min-height:100vh) */}
+        <ScrollView
+          style={styles.sceneScroll}
+          contentContainerStyle={styles.sceneContent}
+          bounces={false}
+          keyboardShouldPersistTaps="handled">
+          <View style={[styles.scene, { minHeight: windowHeight }]}>
+            {/* Logo — absolute within scene, matches web .brand */}
+            <Image
+              source={loginImages.logo}
+              style={[
+                styles.logoBase,
+                {
+                  left: logoLeft,
+                  top: logoTop,
+                  height: logoHeight,
+                  // Estimate width from logo aspect ratio (~3.2:1)
+                  width: logoHeight * 3.2,
+                },
+              ]}
+              contentFit="contain"
+            />
 
-        {tab === 'personal' ? (
-          <View style={styles.form}>
-            <Text style={styles.label}>手机号</Text>
-            <TextInput
-              style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="请输入手机号"
-              keyboardType="phone-pad"
-              autoCapitalize="none"
-              editable={!isSubmitting}
-            />
-            <Text style={styles.label}>密码</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="请输入密码"
-              secureTextEntry
-              editable={!isSubmitting}
-            />
-            <Pressable
-              style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
-              onPress={handlePersonalLogin}
-              disabled={isSubmitting}>
-              {isSubmitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.primaryButtonText}>登录</Text>
-              )}
-            </Pressable>
+            {viewMode === 'landing' ? (
+              <LandingView
+                onReturningUser={handleReturningUser}
+                onNewUser={handleNewUser}
+                windowWidth={windowWidth}
+                windowHeight={windowHeight}
+              />
+            ) : (
+              <LoginView
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                onHomePress={handleHomePress}
+                isSubmitting={isSubmitting}
+                statusMessage={statusMessage}
+                errorMessage={errorMessage}
+                rememberMe={rememberMe}
+                onRememberMeChange={handleRememberMeChange}
+                onWechatLoginPress={handleWechatLoginPress}
+                onPersonalSubmit={handlePersonalSubmit}
+                onSchoolSubmit={handleSchoolSubmit}
+              />
+            )}
           </View>
-        ) : (
-          <View style={styles.form}>
-            <Text style={styles.label}>学校名称</Text>
-            <TextInput
-              style={styles.input}
-              value={school}
-              onChangeText={setSchool}
-              placeholder="请输入学校名称"
-              editable={!isSubmitting}
-            />
-            <Text style={styles.label}>班级</Text>
-            <TextInput
-              style={styles.input}
-              value={className}
-              onChangeText={setClassName}
-              placeholder="请输入班级"
-              editable={!isSubmitting}
-            />
-            <Text style={styles.label}>姓名</Text>
-            <TextInput
-              style={styles.input}
-              value={studentName}
-              onChangeText={setStudentName}
-              placeholder="请输入姓名"
-              editable={!isSubmitting}
-            />
-            <Text style={styles.label}>密码</Text>
-            <TextInput
-              style={styles.input}
-              value={schoolCode}
-              onChangeText={setSchoolCode}
-              placeholder="请输入密码"
-              secureTextEntry
-              editable={!isSubmitting}
-            />
-            <Pressable
-              style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
-              onPress={handleSchoolLogin}
-              disabled={isSubmitting}>
-              {isSubmitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.primaryButtonText}>登录</Text>
-              )}
-            </Pressable>
-          </View>
-        )}
+        </ScrollView>
+      </View>
 
-        <View style={styles.rememberRow}>
-          <Text style={styles.rememberLabel}>记住登录</Text>
-          <Switch value={rememberMe} onValueChange={handleRememberMeChange} disabled={isSubmitting} />
-        </View>
-
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>或</Text>
-          <View style={styles.divider} />
-        </View>
-
-        <Pressable
-          style={[styles.wechatButton, isSubmitting && styles.buttonDisabled]}
-          onPress={handleWechatLogin}
-          disabled={isSubmitting || !isWechatLoginSupported()}>
-          <Text style={styles.wechatButtonText}>
-            {isWechatLoginSupported() ? '微信登录' : '微信登录（仅 iOS/Android 真机）'}
-          </Text>
-        </Pressable>
-
-        {statusMessage ? <Text style={styles.status}>{statusMessage}</Text> : null}
-        {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
-      </ScrollView>
+      <WechatModal
+        visible={wechatModalVisible}
+        isSubmitting={isSubmitting}
+        onClose={() => setWechatModalVisible(false)}
+        onWechatLogin={handleWechatLogin}
+      />
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#fff7ee',
+    backgroundColor: LoginColors.skyBg,
   },
-  scrollContent: {
+  page: {
+    flex: 1,
+    backgroundColor: LoginColors.skyBg,
+  },
+  backgroundImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  sceneScroll: {
+    flex: 1,
+  },
+  sceneContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 72,
-    paddingBottom: 32,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#2089ea',
-    textAlign: 'center',
+  scene: {
+    position: 'relative',
+    width: '100%',
   },
-  subtitle: {
-    marginTop: 8,
-    marginBottom: 28,
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  tabRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 999,
-    backgroundColor: '#f2dcc4',
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: '#ff7a15',
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#7a5a43',
-  },
-  tabTextActive: {
-    color: '#fff',
-  },
-  form: {
-    gap: 10,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4b3424',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#f2dcc4',
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#222',
-    marginBottom: 6,
-  },
-  primaryButton: {
-    marginTop: 8,
-    backgroundColor: '#2089ea',
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  rememberRow: {
-    marginTop: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  rememberLabel: {
-    fontSize: 15,
-    color: '#4b3424',
-  },
-  dividerRow: {
-    marginVertical: 22,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#e8d4bd',
-  },
-  dividerText: {
-    color: '#999',
-    fontSize: 14,
-  },
-  wechatButton: {
-    backgroundColor: '#07c160',
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  wechatButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  buttonDisabled: {
-    opacity: 0.65,
-  },
-  status: {
-    marginTop: 16,
-    textAlign: 'center',
-    color: '#2a9f42',
-    fontSize: 14,
-  },
-  error: {
-    marginTop: 16,
-    textAlign: 'center',
-    color: '#d94b32',
-    fontSize: 14,
+  logoBase: {
+    position: 'absolute',
+    zIndex: 5,
   },
 });

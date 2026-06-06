@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect } from 'react';
+import { useFocusEffect } from 'expo-router';
 
 import { useAuth } from '@/features/auth';
 import { MAP_WIDTH } from '@/shared/courseHomeMap';
@@ -47,6 +48,7 @@ export function CourseHomeScreen() {
     handleCourseClick,
     handleContinue,
     handleLogout,
+    refreshCourseHome,
   } = useCourseHome({
     apiClient,
     auth,
@@ -60,6 +62,12 @@ export function CourseHomeScreen() {
   }, [handleLogout]);
 
   useLogoutTimer(apiClient, onForceLogout);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshCourseHome();
+    }, [refreshCourseHome]),
+  );
 
   useEffect(() => {
     void ScreenOrientation.unlockAsync();

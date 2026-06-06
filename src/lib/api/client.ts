@@ -1,5 +1,14 @@
 import { getDeviceID } from '@/lib/device/deviceId';
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+
+export class ApiRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
+
 export type ApiClient = {
   baseUrl: string;
   request: (path: string, init?: RequestInit) => Promise<Response>;
@@ -12,6 +21,7 @@ export type CreateApiClientOptions = {
   getDeviceId?: () => Promise<string>;
   getAccessToken?: () => string | null | Promise<string | null>;
   onUnauthorized?: () => void;
+  requestTimeoutMs?: number;
 };
 
 function appendDeviceId(url: URL, deviceId: string) {
@@ -20,8 +30,17 @@ function appendDeviceId(url: URL, deviceId: string) {
   }
 }
 
+function buildNetworkErrorMessage(baseUrl: string, error: unknown): string {
+  if (error instanceof Error && error.name === 'AbortError') {
+    return `连接超时，请确认后端已启动且 EXPO_PUBLIC_API_HOST 配置正确（当前：${baseUrl}）`;
+  }
+
+  return `无法连接服务器，请确认后端已启动且 EXPO_PUBLIC_API_HOST 配置正确（当前：${baseUrl}）`;
+}
+
 export function createApiClient(options: CreateApiClientOptions): ApiClient {
   const getDeviceId = options.getDeviceId ?? getDeviceID;
+  const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
 
   async function request(path: string, init?: RequestInit): Promise<Response> {
     const url = new URL(path, options.baseUrl);
@@ -37,11 +56,22 @@ export function createApiClient(options: CreateApiClientOptions): ApiClient {
       headers.set('Authorization', `Bearer ${accessToken}`);
     }
 
-    const response = await fetch(url.toString(), {
-      ...init,
-      credentials: 'include',
-      headers,
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs);
+
+    let response: Response;
+    try {
+      response = await fetch(url.toString(), {
+        ...init,
+        credentials: 'include',
+        headers,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      throw new ApiRequestError(buildNetworkErrorMessage(options.baseUrl, error));
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (response.status === 401 && options.onUnauthorized) {
       options.onUnauthorized();
