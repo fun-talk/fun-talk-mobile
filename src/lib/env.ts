@@ -7,7 +7,29 @@ const DEFAULT_WECHAT_APP_ID = 'wx4f3da33035cc1d14';
 const DEFAULT_WECHAT_UNIVERSAL_LINK = 'https://ai-fun-talk.com/app/';
 
 function readPublicEnv(key: string): string | undefined {
-  const fromProcess = process.env[key];
+  let fromProcess: string | undefined;
+
+  switch (key) {
+    case 'EXPO_PUBLIC_API_HOST':
+      fromProcess = process.env.EXPO_PUBLIC_API_HOST;
+      break;
+    case 'EXPO_PUBLIC_WEB_BASE_URL':
+      fromProcess = process.env.EXPO_PUBLIC_WEB_BASE_URL;
+      break;
+    case 'EXPO_PUBLIC_ASSET_BASE_URL':
+      fromProcess = process.env.EXPO_PUBLIC_ASSET_BASE_URL;
+      break;
+    case 'EXPO_PUBLIC_OSS_BASE_URL':
+      fromProcess = process.env.EXPO_PUBLIC_OSS_BASE_URL;
+      break;
+    case 'EXPO_PUBLIC_WECHAT_APP_ID':
+      fromProcess = process.env.EXPO_PUBLIC_WECHAT_APP_ID;
+      break;
+    case 'EXPO_PUBLIC_WECHAT_UNIVERSAL_LINK':
+      fromProcess = process.env.EXPO_PUBLIC_WECHAT_UNIVERSAL_LINK;
+      break;
+  }
+
   if (fromProcess) {
     return fromProcess;
   }
