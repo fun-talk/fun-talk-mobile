@@ -97,7 +97,7 @@ function DesktopLandingView({
   const entryArrowSize = Math.min(38, 4.2 * vh);
 
   return (
-    <View style={desktopStyles.container}>
+    <View style={[desktopStyles.container, { top: 0, left: 0, right: 0, bottom: 0 }]}>
       {/* ---- QR Stage: left 0, width 66.666%, top 10.5vh ---- */}
       <View style={[desktopStyles.qrStage, { top: qrTop }]}>
         <View style={desktopStyles.qrHero}>
@@ -158,6 +158,7 @@ function DesktopLandingView({
             bottom: entryBottom,
             width: entryWidth,
             height: entryHeight,
+            gap: entryWidth * 0.042,
           },
         ]}>
         <Pressable
@@ -205,7 +206,6 @@ function DesktopLandingView({
 const desktopStyles = StyleSheet.create({
   container: {
     position: 'absolute',
-    inset: 0,
   },
   /* -- QR Stage -- */
   qrStage: {
@@ -281,7 +281,6 @@ const desktopStyles = StyleSheet.create({
   entryActions: {
     position: 'absolute',
     flexDirection: 'row',
-    gap: '4.2%',
   },
   entryBtn: {
     flex: 1,
