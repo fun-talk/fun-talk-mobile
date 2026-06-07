@@ -48,3 +48,4 @@ example
 
 #bundle
 *.apk
+/fun-talk-web

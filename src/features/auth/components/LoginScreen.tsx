@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     backgroundColor: LoginColors.skyBg,
   },
   backgroundImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: '100%',
     height: '100%',
   },
