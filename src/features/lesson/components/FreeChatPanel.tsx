@@ -1,16 +1,13 @@
 import { Image, type ImageSource } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { localImage } from '@/lib/assets/localImage';
 import type { RecordingControllerState } from '../recordingController';
 
 type FreeChatPanelProps = {
   state: RecordingControllerState;
   scale: number;
 };
-
-function localImage(moduleId: number): ImageSource {
-  return moduleId as unknown as ImageSource;
-}
 
 const freeChatImages = {
   mic: localImage(require('@/assets/images/lesson/mic_icon.png')),
