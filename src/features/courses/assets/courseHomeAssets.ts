@@ -1,10 +1,7 @@
 import type { ImageSource } from 'expo-image';
 
 import { ossAssets } from '@/lib/assets/ossAssets';
-
-function localImage(moduleId: number): ImageSource {
-  return moduleId as unknown as ImageSource;
-}
+import { localImage } from '@/lib/assets/localImage';
 
 export function getCourseButtonImageSource(completed: boolean): ImageSource {
   return completed

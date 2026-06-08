@@ -2,7 +2,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 
 import { loginImages } from '../assets/loginAssets';
+import type { QrLoginState } from '../hooks/useWechatQrLogin';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
+import { WechatQrBox } from './WechatQrBox';
 
 /** Web breakpoint: @media (max-width: 760px) */
 const MOBILE_BREAKPOINT = 760;
@@ -12,6 +14,7 @@ type LandingViewProps = {
   onNewUser: () => void;
   windowWidth: number;
   windowHeight: number;
+  qrLogin: QrLoginState & { refresh: () => void };
 };
 
 export function LandingView({
@@ -19,6 +22,7 @@ export function LandingView({
   onNewUser,
   windowWidth,
   windowHeight,
+  qrLogin,
 }: LandingViewProps) {
   const isDesktop = windowWidth >= MOBILE_BREAKPOINT;
 
@@ -29,6 +33,7 @@ export function LandingView({
         onNewUser={onNewUser}
         windowWidth={windowWidth}
         windowHeight={windowHeight}
+        qrLogin={qrLogin}
       />
     );
   }
@@ -38,6 +43,7 @@ export function LandingView({
       onReturningUser={onReturningUser}
       onNewUser={onNewUser}
       windowHeight={windowHeight}
+      qrLogin={qrLogin}
     />
   );
 }
@@ -53,11 +59,13 @@ function DesktopLandingView({
   onNewUser,
   windowWidth,
   windowHeight,
+  qrLogin,
 }: {
   onReturningUser: () => void;
   onNewUser: () => void;
   windowWidth: number;
   windowHeight: number;
+  qrLogin: QrLoginState & { refresh: () => void };
 }) {
   const vw = windowWidth / 100; // 1vw in px
   const vh = windowHeight / 100; // 1vh in px
@@ -115,22 +123,13 @@ function DesktopLandingView({
             </Text>
           </Text>
 
-          <View
-            style={[
-              desktopStyles.qrBox,
-              {
-                width: qrBoxWidth,
-                borderWidth: qrBoxBorder,
-                borderRadius: qrBoxRadius,
-                padding: cx(10, 1.1 * vw, 16),
-              },
-            ]}>
-            <View style={desktopStyles.qrPlaceholder}>
-              <Text style={desktopStyles.qrPlaceholderIcon}>💬</Text>
-              <Text style={desktopStyles.qrPlaceholderText}>微信扫码</Text>
-            </View>
-            <Text style={desktopStyles.qrMeta}>请使用微信扫一扫登录</Text>
-          </View>
+          <WechatQrBox
+            qrUrl={qrLogin.qrUrl}
+            status={qrLogin.status}
+            expiresIn={qrLogin.expiresIn}
+            size={qrBoxWidth - qrBoxBorder * 2 - cx(20, 2.2 * vw, 32)}
+            onRefresh={qrLogin.refresh}
+          />
         </View>
       </View>
 
@@ -332,10 +331,12 @@ function MobileLandingView({
   onReturningUser,
   onNewUser,
   windowHeight,
+  qrLogin,
 }: {
   onReturningUser: () => void;
   onNewUser: () => void;
   windowHeight: number;
+  qrLogin: QrLoginState & { refresh: () => void };
 }) {
   return (
     <View style={[mobileStyles.container, { minHeight: windowHeight }]}>
@@ -348,13 +349,13 @@ function MobileLandingView({
             <Text style={mobileStyles.qrTitleSpan}>开始学习吧!</Text>
           </Text>
 
-          <View style={mobileStyles.qrBox}>
-            <View style={mobileStyles.qrPlaceholder}>
-              <Text style={mobileStyles.qrPlaceholderIcon}>💬</Text>
-              <Text style={mobileStyles.qrPlaceholderText}>微信扫码</Text>
-            </View>
-            <Text style={mobileStyles.qrMeta}>请使用微信扫一扫登录</Text>
-          </View>
+          <WechatQrBox
+            qrUrl={qrLogin.qrUrl}
+            status={qrLogin.status}
+            expiresIn={qrLogin.expiresIn}
+            size={180}
+            onRefresh={qrLogin.refresh}
+          />
         </View>
       </View>
 

@@ -1,4 +1,4 @@
-import { MAP_WIDTH } from '@/shared/courseHomeMap';
+import { MAP_SEGMENT_HEIGHT, MAP_WIDTH } from '@/shared/courseHomeMap';
 
 export type ClampSize = {
   min: number;
@@ -21,6 +21,15 @@ export function computeMapPixelHeight(
 ): number {
   const aspectHeight = (viewportWidth * mapHeight) / MAP_WIDTH;
   return Math.max(viewportHeight, aspectHeight);
+}
+
+export function computeBackgroundTileHeight(viewportWidth: number): number {
+  return (viewportWidth * MAP_SEGMENT_HEIGHT) / MAP_WIDTH;
+}
+
+export function computeBackgroundTileCount(viewportWidth: number, totalHeight: number): number {
+  const tileHeight = computeBackgroundTileHeight(viewportWidth);
+  return Math.max(1, Math.ceil(totalHeight / tileHeight));
 }
 
 export function computeNodeWidth(viewportWidth: number): number {

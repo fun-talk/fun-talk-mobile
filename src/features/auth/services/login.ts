@@ -139,3 +139,91 @@ export async function loginWithWechatCode(
 
   return auth;
 }
+
+/* ================================================================
+ *  WeChat QR Code Scan Login (web OAuth via /wechat/qrcode + /wechat/poll)
+ * ================================================================ */
+
+export type QrCodeData = {
+  qr_url: string;
+  state: string;
+  expires_in: number;
+};
+
+export type QrPollStatus = 'waiting' | 'scanned' | 'confirmed' | 'expired' | 'success';
+
+export type QrPollResult = {
+  status: QrPollStatus;
+  token?: string;
+  expires_in?: number;
+  user_info?: { openid?: string; username?: string; avatar?: string };
+};
+
+export async function fetchWechatQrCode(apiClient: ApiClient): Promise<QrCodeData> {
+  const response = await apiClient.get('/login/v1/wechat/qrcode');
+  const data = await parseJson<QrCodeData & { detail?: string }>(response);
+
+  if (!response.ok || !data.qr_url || !data.state) {
+    throw new LoginError(data.detail || '获取微信二维码失败');
+  }
+
+  return data;
+}
+
+export async function pollWechatQrLogin(
+  apiClient: ApiClient,
+  state: string,
+): Promise<QrPollResult> {
+  const response = await apiClient.get(`/login/v1/wechat/poll?state=${encodeURIComponent(state)}`);
+  return parseJson<QrPollResult>(response);
+}
+
+export async function loginWithQrPollResult(
+  apiClient: ApiClient,
+  pollResult: QrPollResult,
+  rememberMe: boolean,
+): Promise<FtAuthRecord> {
+  if (pollResult.status !== 'success' || !pollResult.token) {
+    throw new LoginError('扫码登录未完成');
+  }
+
+  const authedClient = withAccessToken(apiClient, pollResult.token);
+
+  let auth = buildFtAuthFromLoginResponse(
+    {
+      token: pollResult.token,
+      expires_in: pollResult.expires_in,
+      user_info: pollResult.user_info
+        ? {
+            openid: pollResult.user_info.openid,
+            username: pollResult.user_info.username,
+            avatar: pollResult.user_info.avatar,
+          }
+        : undefined,
+    },
+    rememberMe,
+  );
+
+  if (auth.userId) {
+    const registeredUser = await registerWechatUser(authedClient, auth.userId);
+    if (registeredUser) {
+      const username = registeredUser.name || auth.username || '';
+      auth = {
+        ...auth,
+        username,
+        name: username,
+        phone: registeredUser.phone || auth.phone,
+        logo: registeredUser.logo || auth.logo,
+        hasUsername: Boolean(username),
+      };
+    }
+  }
+
+  try {
+    auth = await checkSession(authedClient, auth);
+  } catch {
+    // keep mapped auth if check fails transiently.
+  }
+
+  return auth;
+}

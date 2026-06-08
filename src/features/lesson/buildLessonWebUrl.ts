@@ -1,5 +1,6 @@
 export type LessonRouteParams = {
   lesson_id?: string;
+  section_id?: string;
   course_number?: string;
   total_courses?: string;
   from?: string;
@@ -26,6 +27,11 @@ export function buildLessonWebDestination(params: LessonRouteParams): string {
   const lessonId = normalizeRouteParam(params.lesson_id)?.trim();
   if (lessonId) {
     search.set('lesson_id', lessonId);
+  }
+
+  const sectionId = normalizeRouteParam(params.section_id)?.trim();
+  if (sectionId) {
+    search.set('section_id', sectionId);
   }
 
   const from = normalizeRouteParam(params.from)?.trim();

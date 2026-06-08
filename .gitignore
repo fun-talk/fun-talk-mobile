@@ -45,4 +45,7 @@ example
 #env
 .env
 .env.local
+
+#bundle
+*.apk
 /fun-talk-web

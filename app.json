@@ -12,6 +12,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.anonymous.funtalkmobile",
       "associatedDomains": [
         "applinks:ai-fun-talk.com"
       ],
@@ -53,11 +54,18 @@
           }
         }
       ],
-      "expo-wechat-no-pay"
+      "expo-wechat-no-pay",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5db2c1d4-0128-4575-bf32-993e20e3164a"
+      }
     }
   }
 }

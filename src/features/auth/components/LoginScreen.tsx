@@ -16,6 +16,8 @@ import { getApiHost } from '@/lib/env';
 
 import { useAuth } from '../AuthProvider';
 import { loginImages } from '../assets/loginAssets';
+import { useWechatQrLogin } from '../hooks/useWechatQrLogin';
+import type { FtAuthRecord } from '@/lib/auth/types';
 import {
   LoginError,
   loginWithFrontpage,
@@ -37,9 +39,10 @@ export function LoginScreen() {
   const router = useRouter();
   const { apiClient, saveAuth } = useAuth();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const shortestSide = Math.min(windowWidth, windowHeight);
 
-  // Desktop logo: height clamp(36px, 4vw, 56px), centered at 56px from top
-  const isDesktopLayout = windowWidth >= 760;
+  // Treat only true tablet/desktop layouts as desktop so landscape phones keep the compact mobile card.
+  const isDesktopLayout = shortestSide >= 760;
   const logoHeight = isDesktopLayout
     ? Math.min(56, Math.max(36, windowWidth * 0.04))
     : 34;
@@ -189,6 +192,27 @@ export function LoginScreen() {
     });
   }, [apiClient, saveAuth, finishLogin]);
 
+  /* ---- QR scan login callbacks ---- */
+  const handleQrLoginSuccess = useCallback(
+    async (auth: FtAuthRecord) => {
+      await saveAuth(auth);
+      setStatusMessage('扫码登录成功，正在进入...');
+      setErrorMessage('');
+      router.replace(COURSES_ROUTE);
+    },
+    [saveAuth, router],
+  );
+
+  const handleQrLoginError = useCallback((error: string) => {
+    setErrorMessage(error);
+  }, []);
+
+  const qrLogin = useWechatQrLogin(apiClient, {
+    rememberMe,
+    onLoginSuccess: handleQrLoginSuccess,
+    onLoginError: handleQrLoginError,
+  });
+
   return (
     <KeyboardAvoidingView
       style={styles.root}
@@ -230,12 +254,14 @@ export function LoginScreen() {
                 onNewUser={handleNewUser}
                 windowWidth={windowWidth}
                 windowHeight={windowHeight}
+                qrLogin={qrLogin}
               />
             ) : (
               <LoginView
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
                 onHomePress={handleHomePress}
+                isDesktopLayout={isDesktopLayout}
                 isSubmitting={isSubmitting}
                 statusMessage={statusMessage}
                 errorMessage={errorMessage}

@@ -38,7 +38,6 @@ export function CourseHomeScreen() {
     isLoggingOut,
     totalCourses,
     mapHeight,
-    mapSegmentCount,
     mapPixelHeight,
     mapPixelWidth,
     completedSet,
@@ -105,7 +104,7 @@ export function CourseHomeScreen() {
         style={styles.scroll}
         contentContainerStyle={{
           minHeight: height,
-          paddingBottom: insets.bottom + 80,
+          paddingBottom: insets.bottom,
         }}
         showsVerticalScrollIndicator={false}
         bounces={false}
@@ -120,7 +119,6 @@ export function CourseHomeScreen() {
           <CourseMapBackground
             width={mapPixelWidth}
             height={mapPixelHeight}
-            segmentCount={mapSegmentCount}
           />
 
           <View

@@ -1,8 +1,5 @@
 import type { ImageSource } from 'expo-image';
-
-function localImage(moduleId: number): ImageSource {
-  return moduleId as unknown as ImageSource;
-}
+import { localImage } from '@/lib/assets/localImage';
 
 export const loginImages = {
   background: localImage(require('@/assets/images/login/background.png')),

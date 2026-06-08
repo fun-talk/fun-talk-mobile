@@ -7,7 +7,6 @@ import type { FtAuthRecord } from '@/lib/auth/types';
 import {
   buildCourseMapNodes,
   getCourseMapHeight,
-  getCourseMapSegmentCount,
   type CourseHomeLesson,
   type CourseMapNode,
 } from '@/shared/courseHomeMap';
@@ -81,7 +80,6 @@ export function useCourseHome(options: {
 
   const totalCourses = lessons.length;
   const mapHeight = getCourseMapHeight(totalCourses);
-  const mapSegmentCount = getCourseMapSegmentCount(totalCourses);
   const mapPixelHeight = computeMapPixelHeight(viewportWidth, viewportHeight, mapHeight);
 
   const completedSet = useMemo(
@@ -208,7 +206,6 @@ export function useCourseHome(options: {
     progress,
     totalCourses,
     mapHeight,
-    mapSegmentCount,
     mapPixelHeight,
     mapPixelWidth: viewportWidth,
     completedSet,

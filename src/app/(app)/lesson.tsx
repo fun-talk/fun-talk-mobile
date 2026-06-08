@@ -1,5 +1,5 @@
-import { LessonWebViewScreen } from '@/features/lesson/components/LessonWebViewScreen';
+import { LessonScreen } from '@/features/lesson/LessonScreen';
 
 export default function LessonRoute() {
-  return <LessonWebViewScreen />;
+  return <LessonScreen />;
 }
