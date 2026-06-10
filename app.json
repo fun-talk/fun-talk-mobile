@@ -14,11 +14,13 @@
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.anonymous.funtalkmobile",
       "associatedDomains": [
+        "applinks:ai-fun-talk.com",
         "applinks:ai-fun-talk.com"
       ],
       "infoPlist": {
         "NSMicrophoneUsageDescription": "FunTalk needs microphone access for speaking exercises in lessons.",
-        "NSCameraUsageDescription": "FunTalk may use the camera during interactive lessons."
+        "NSCameraUsageDescription": "FunTalk may use the camera during interactive lessons.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -28,13 +30,11 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.funtalkmobile"
     },
