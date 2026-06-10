@@ -14,3 +14,12 @@ Waiting on http://localhost:19003
 An update for expo is available: 56.0.5 → ~56.0.9
 8 other packages may need updating. Run npx expo install --check for details.
 Logs for your project will appear below.
+
+<--- Last few GCs --->
+
+[6732:0000022882825000] 231688376 ms: Scavenge (interleaved) 4088.5 (4092.2) -> 4087.0 (4096.5) MB, pooled: 0 MB, 12.46 / 0.00 ms  (average mu = 0.258, current mu = 0.219) allocation failure; 
+[6732:0000022882825000] 231693227 ms: Mark-Compact (reduce) 4093.1 (4099.0) -> 4087.6 (4091.2) MB, pooled: 0 MB, 3442.80 / 0.00 ms  (+ 479.6 ms in 95 steps since start of marking, biggest step 5.8 ms, walltime since start of marking 4243 ms) (average mu =
+FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 00007FF65C5D511C v8::base::CPU::has_sse42+24436
