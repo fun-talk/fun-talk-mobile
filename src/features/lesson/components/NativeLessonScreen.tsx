@@ -216,14 +216,6 @@ function NativeLessonLoadedScreen({
   onFallback: (error?: NativeLessonErrorView) => void;
 }) {
   const controller = useNativeLessonController(lesson);
-  const recording = useNativeLessonRecording({
-    vadConfig: { silenceTimeoutMs: 2000 },
-  });
-  const [mediaErrorText, setMediaErrorText] = useState('');
-  const [completionStatus, setCompletionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [completionErrorText, setCompletionErrorText] = useState('');
-  const lastFreeChatAutoStartTurnKeyRef = useRef<string | null>(null);
-  const lastFreeChatAutoSubmittedUriRef = useRef<string | null>(null);
   const realtime = useNativeLessonRealtimeSession({
     enabled: true,
     apiBaseUrl,
@@ -236,6 +228,19 @@ function NativeLessonLoadedScreen({
       lesson.assets.backgrounds.teaching ||
       lesson.assets.backgrounds.challengeLevel1,
   });
+  const recording = useNativeLessonRecording({
+    vadConfig: { silenceTimeoutMs: 2000 },
+    onAudioChunk: (chunk) => {
+      if (realtime.isConnected) {
+        realtime.sendAudioChunk(chunk);
+      }
+    },
+  });
+  const [mediaErrorText, setMediaErrorText] = useState('');
+  const [completionStatus, setCompletionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [completionErrorText, setCompletionErrorText] = useState('');
+  const lastFreeChatAutoStartTurnKeyRef = useRef<string | null>(null);
+  const lastFreeChatAutoSubmittedUriRef = useRef<string | null>(null);
   const runtimeError = useMemo<NativeLessonErrorView | null>(() => {
     if (realtime.errorText) {
       return classifyNativeLessonError('session', realtime.errorText);
@@ -259,7 +264,6 @@ function NativeLessonLoadedScreen({
   const submitRecordingState = recording.submit;
   const isRealtimeConnected = realtime.isConnected;
   const realtimeAudioStatus = realtime.audioStatus;
-  const sendRealtimeAudioChunk = realtime.sendAudioChunk;
   const isLessonComplete =
     controllerView.phase === 'end' ||
     controllerView.lifecycle === 'completed' ||
@@ -273,24 +277,15 @@ function NativeLessonLoadedScreen({
     [courseNumber, lessonId, totalCourses],
   );
   const submitRecording = useCallback(async () => {
-    let sentRecording = false;
-    if (recordingUri) {
-      try {
-        const response = await fetch(recordingUri);
-        sentRecording = sendRealtimeAudioChunk(await response.arrayBuffer());
-      } catch {
-        sentRecording = false;
-      }
-    }
+    const sentToRealtime = Boolean(recordingUri) && isRealtimeConnected;
     submitRecordingState();
-    if (!sentRecording && !isRealtimeConnected) {
+    if (!sentToRealtime && !isRealtimeConnected) {
       nextControllerStep();
     }
   }, [
     isRealtimeConnected,
     nextControllerStep,
     recordingUri,
-    sendRealtimeAudioChunk,
     submitRecordingState,
   ]);
 
@@ -425,6 +420,8 @@ function NativeLessonLoadedScreen({
         }
       }}
       recordingState={recording.state}
+      conversationHistory={realtime.conversationHistory}
+      liveUserTranscript={realtime.liveUserTranscript}
       onStartRecording={recording.start}
       onStopRecording={recording.stop}
       onCancelRecording={recording.cancel}

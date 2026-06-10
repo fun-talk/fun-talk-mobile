@@ -22,18 +22,20 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
   const [status, setStatus] = useState<PlaybackStatus>('idle');
   const [errorText, setErrorText] = useState('');
 
-  useEffect(() => {
-    void loadNativeExpoAv()
-      .then(({ Audio }) =>
-        Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        }),
-      )
-      .catch(() => undefined);
+  const ensurePlaybackAudioMode = useCallback(async () => {
+    const { Audio } = await loadNativeExpoAv();
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+    });
+    return Audio;
   }, []);
+
+  useEffect(() => {
+    void ensurePlaybackAudioMode().catch(() => undefined);
+  }, [ensurePlaybackAudioMode]);
 
   useEffect(() => {
     onPlaybackCompleteRef.current = onPlaybackComplete;
@@ -60,7 +62,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
     }
 
     try {
-      const { Audio } = await loadNativeExpoAv();
+      const Audio = await ensurePlaybackAudioMode();
       const { File, Paths } = await loadNativeExpoFileSystem();
       await soundRef.current?.unloadAsync();
       const wav = createPcm16WavBytes(pcm, {
@@ -100,7 +102,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
     }
 
     try {
-      const { Audio } = await loadNativeExpoAv();
+      const Audio = await ensurePlaybackAudioMode();
       await soundRef.current?.unloadAsync();
       const { sound } = await Audio.Sound.createAsync(
         { uri: normalizedUrl },
@@ -123,7 +125,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
       setErrorText(error instanceof Error ? error.message : 'Realtime voiceUrl 播放失败。');
       onPlaybackCompleteRef.current();
     }
-  }, []);
+  }, [ensurePlaybackAudioMode]);
 
   useEffect(
     () => () => {

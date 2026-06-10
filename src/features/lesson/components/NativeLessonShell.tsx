@@ -9,6 +9,7 @@ import type { NativeLessonControllerView } from '../nativeLessonController';
 import type { NativeLessonErrorView } from '../nativeLessonErrors';
 import type { RecordingControllerState } from '../recordingController';
 import { useNativeLessonScale } from '../hooks/useNativeLessonScale';
+import type { RealtimeConversationItem } from '../hooks/useNativeLessonRealtimeSession';
 import { CourseMediaArea } from './CourseMediaArea';
 import { FreeChatPanel } from './FreeChatPanel';
 import { RecordingPanel } from './RecordingPanel';
@@ -27,6 +28,8 @@ type NativeLessonShellProps = {
   onSubmitChoice: (optionId: string) => void;
   onSubmitText: (text: string) => void;
   recordingState: RecordingControllerState;
+  conversationHistory?: RealtimeConversationItem[];
+  liveUserTranscript?: string;
   onStartRecording: () => void;
   onStopRecording: () => void;
   onCancelRecording: () => void;
@@ -63,6 +66,8 @@ export function NativeLessonShell({
   onSubmitChoice,
   onSubmitText,
   recordingState,
+  conversationHistory = [],
+  liveUserTranscript = '',
   onStartRecording,
   onStopRecording,
   onCancelRecording,
@@ -121,6 +126,10 @@ export function NativeLessonShell({
     isFreeChatPhase ||
     controllerView.step?.responseMode === 'speech';
   const canSubmitText = draftAnswer.trim().length > 0;
+  const visibleConversationHistory = isFreeChatPhase
+    ? conversationHistory.slice(Math.max(0, conversationHistory.length - 8))
+    : [];
+  const normalizedLiveUserTranscript = liveUserTranscript.trim();
 
   useEffect(() => {
     setDraftAnswer('');
@@ -272,6 +281,83 @@ export function NativeLessonShell({
                   {displayText}
                 </Text>
               </View>
+
+              {isFreeChatPhase && visibleConversationHistory.length ? (
+                <ScrollView
+                  style={[
+                    styles.conversationList,
+                    {
+                      top: scaled(160, scale),
+                      left: scaled(130, scale),
+                      right: scaled(130, scale),
+                      bottom: scaled(120, scale),
+                    },
+                  ]}
+                  contentContainerStyle={{ paddingBottom: scaled(16, scale), gap: scaled(12, scale) }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {visibleConversationHistory.map((item) => (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.conversationBubble,
+                        item.role === 'assistant'
+                          ? styles.conversationBubbleAssistant
+                          : styles.conversationBubbleUser,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.conversationSpeaker,
+                          {
+                            fontSize: scaled(18, scale),
+                            marginBottom: scaled(6, scale),
+                          },
+                        ]}
+                      >
+                        {item.role === 'assistant' ? '欧波' : '我'}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.conversationText,
+                          { fontSize: scaled(24, scale), lineHeight: scaled(34, scale) },
+                        ]}
+                      >
+                        {item.text}
+                      </Text>
+                    </View>
+                  ))}
+                  {normalizedLiveUserTranscript ? (
+                    <View
+                      style={[
+                        styles.conversationBubble,
+                        styles.conversationBubbleUser,
+                        styles.conversationBubbleLive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.conversationSpeaker,
+                          {
+                            fontSize: scaled(18, scale),
+                            marginBottom: scaled(6, scale),
+                          },
+                        ]}
+                      >
+                        我（识别中）
+                      </Text>
+                      <Text
+                        style={[
+                          styles.conversationText,
+                          { fontSize: scaled(24, scale), lineHeight: scaled(34, scale) },
+                        ]}
+                      >
+                        {normalizedLiveUserTranscript}
+                      </Text>
+                    </View>
+                  ) : null}
+                </ScrollView>
+              ) : null}
 
               {choiceOptions.length ? (
                 <View
@@ -737,6 +823,39 @@ const styles = StyleSheet.create({
     color: '#7f1d1d',
     fontWeight: '800',
     textAlign: 'center',
+  },
+  conversationList: {
+    position: 'absolute',
+    zIndex: 12,
+  },
+  conversationBubble: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  conversationBubbleAssistant: {
+    alignSelf: 'flex-start',
+    maxWidth: '88%',
+    borderColor: '#f4d2a2',
+    backgroundColor: '#fff7e6',
+  },
+  conversationBubbleUser: {
+    alignSelf: 'flex-end',
+    maxWidth: '88%',
+    borderColor: '#93c5fd',
+    backgroundColor: '#eff6ff',
+  },
+  conversationBubbleLive: {
+    borderStyle: 'dashed',
+  },
+  conversationSpeaker: {
+    color: '#334155',
+    fontWeight: '800',
+  },
+  conversationText: {
+    color: '#1f2937',
+    fontWeight: '700',
   },
   avatar: {
     position: 'absolute',

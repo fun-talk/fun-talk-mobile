@@ -2,6 +2,31 @@
 
 This repository is the **Expo/React Native mobile client** for Fun Talk. It targets iOS, Android, and web using a single TypeScript codebase.
 
+## Relationship to Web & Backend
+
+This mobile app is a **client-side refactor of `fun-talk-web`**, not a greenfield product. The web client already runs end-to-end against `fun-talk-server`; mobile work should **reuse that contract and behavior**, not redefine it.
+
+### Default rule: do not change the server
+
+- **Avoid modifying `fun-talk-server` whenever possible.** Treat the backend as stable and already validated by the web app.
+- When mobile behavior diverges from web, **first compare with `fun-talk-web`**: API usage, request/response shapes, auth/session flow, env vars, and route/lesson entry patterns. Fix mobile to match web before assuming a backend bug.
+- Prefer mobile-side solutions: env/host rewriting (`src/lib/env.ts`, `devHost.ts`), WebView embedding of web lesson flows (`EXPO_PUBLIC_WEB_BASE_URL`), cookie/session sync, and shared pure logic in `src/shared`.
+- **Do not add mobile-only API endpoints, response fields, or auth shortcuts** unless product explicitly requires them and web will follow later.
+
+### When server changes are acceptable
+
+Only touch `fun-talk-server` if you can show that:
+
+1. **Web already depends on the same change**, or web is broken in the same way; or
+2. The gap is a **genuine cross-client bug** (security, data loss, incorrect shared contract)—not a mobile-only integration mistake.
+
+If a server change is unavoidable, keep it **minimal, backward-compatible, and documented** in the PR (why web did not suffice, impacted routes, and how web/mobile were both verified).
+
+### Reference implementation
+
+- **Behavior source of truth:** `fun-talk-web/` (routes under `src/app/`, `src/course/`, API client patterns, lesson/realtime flows).
+- **Backend:** `fun-talk-server/` — read for understanding; **write only as a last resort.**
+
 ## Technology Stack
 
 | Layer | Technology | Version |

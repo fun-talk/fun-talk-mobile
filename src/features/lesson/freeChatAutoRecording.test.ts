@@ -32,7 +32,7 @@ describe('freeChatAutoRecording', () => {
   it('derives a stable auto-start turn key for free-chat waiting_user turns', () => {
     assert.equal(
       getFreeChatAutoTurnKey(FREE_CHAT_VIEW),
-      'free_chat:waiting_user:12',
+      'free_chat:waiting_user:12:和欧波聊聊',
     );
   });
 
@@ -56,7 +56,7 @@ describe('freeChatAutoRecording', () => {
         realtimeConnected: true,
         audioStatus: 'idle',
         recordingStatus: 'submitted',
-        lastStartedTurnKey: 'free_chat:waiting_user:12',
+        lastStartedTurnKey: 'free_chat:waiting_user:12:和欧波聊聊',
       }),
       false,
     );

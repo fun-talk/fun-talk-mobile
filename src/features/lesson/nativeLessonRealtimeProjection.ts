@@ -132,7 +132,12 @@ export function applyRealtimeLessonEvent(
       errorText: '',
     };
   }
-  if (event.event === 'assistant_message' || event.event === 'assistant_speech_start') {
+  if (
+    event.event === 'assistant_message' ||
+    event.event === 'assistant_speech_start' ||
+    event.event === 'chat' ||
+    event.event === 'chat_ended'
+  ) {
     return {
       ...state,
       lastEvent: event,

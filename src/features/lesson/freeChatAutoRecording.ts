@@ -38,7 +38,8 @@ export function getFreeChatAutoTurnKey(
   }
 
   const stepId = controllerView.step?.step ?? controllerView.id;
-  return `${controllerView.phase}:${controllerView.lifecycle}:${stepId}`;
+  const turnText = controllerView.text.trim() || controllerView.screenText.trim() || '';
+  return `${controllerView.phase}:${controllerView.lifecycle}:${stepId}:${turnText}`;
 }
 
 export function shouldAutoStartFreeChatRecording({

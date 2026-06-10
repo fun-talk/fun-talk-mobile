@@ -16,6 +16,7 @@ type NativeRecordingStatus = {
 
 type UseNativeLessonRecordingOptions = {
   vadConfig?: Partial<SimpleVadConfig>;
+  onAudioChunk?: (chunk: ArrayBuffer) => void;
 };
 
 export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptions) {
@@ -64,7 +65,10 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
         playsInSilentModeIOS: true,
       });
       const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        {
+          ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+          isMeteringEnabled: true,
+        },
         (status: NativeRecordingStatus) => {
           if (status.isRecording) {
             dispatch({

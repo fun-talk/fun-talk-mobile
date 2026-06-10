@@ -125,4 +125,29 @@ describe('nativeLessonSessionProtocol', () => {
     assert.equal(event?.event, 'step_started');
     assert.equal(event?.step.voiceUrl, 'https://example.test/voice.mp3');
   });
+
+  it('normalizes chat/asr bridge events from realtime websocket', () => {
+    const chatEvent = normalizeRealtimeLessonEvent({
+      event: 'chat',
+      text: '诶，你猜一大熊猫宝宝刚出生时，跟你的拳头比，是更大还是更小？',
+      intent: 'continue',
+    });
+    const asrEvent = normalizeRealtimeLessonEvent({
+      event: 'asr',
+      text: '更小',
+      utterance_id: 7,
+    });
+    const asrEndedEvent = normalizeRealtimeLessonEvent({
+      event: 'asr_ended',
+      utterance_id: 7,
+    });
+
+    assert.equal(chatEvent?.event, 'chat');
+    assert.equal(chatEvent?.text, '诶，你猜一大熊猫宝宝刚出生时，跟你的拳头比，是更大还是更小？');
+    assert.equal(asrEvent?.event, 'asr');
+    assert.equal(asrEvent?.text, '更小');
+    assert.equal(asrEvent?.utteranceId, 7);
+    assert.equal(asrEndedEvent?.event, 'asr_ended');
+    assert.equal(asrEndedEvent?.utteranceId, 7);
+  });
 });

@@ -61,8 +61,15 @@ export type RealtimeLessonEvent =
       text: string;
       intent?: string;
     }
+  | {
+      event: 'chat' | 'chat_ended';
+      text: string;
+      intent?: string;
+    }
   | { event: 'assistant_speech_end' }
   | { event: 'tts_start' | 'tts_end' }
+  | { event: 'asr'; text: string; utteranceId?: number }
+  | { event: 'asr_ended'; utteranceId?: number }
   | { event: 'user_turn_opened'; stepId?: number; inputMode: string }
   | { event: 'user_transcript_partial' | 'user_transcript_final'; text: string }
   | {
@@ -323,11 +330,31 @@ export function normalizeRealtimeLessonEvent(payload: unknown): RealtimeLessonEv
       intent: asString(raw.intent).trim() || undefined,
     };
   }
+  if (event === 'chat' || event === 'chat_ended') {
+    return {
+      event,
+      text: asString(raw.text),
+      intent: asString(raw.intent).trim() || undefined,
+    };
+  }
   if (event === 'assistant_speech_end') {
     return { event };
   }
   if (event === 'tts_start' || event === 'tts_end') {
     return { event };
+  }
+  if (event === 'asr') {
+    return {
+      event,
+      text: asString(raw.text),
+      utteranceId: asNumber(raw.utterance_id || raw.utteranceId),
+    };
+  }
+  if (event === 'asr_ended') {
+    return {
+      event,
+      utteranceId: asNumber(raw.utterance_id || raw.utteranceId),
+    };
   }
   if (event === 'user_turn_opened') {
     return {

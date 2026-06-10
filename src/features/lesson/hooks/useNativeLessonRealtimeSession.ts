@@ -39,9 +39,36 @@ type NativeLessonRealtimeSessionOptions = {
 
 type RealtimeSessionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
+export type RealtimeConversationItem = {
+  id: string;
+  role: 'assistant' | 'user';
+  text: string;
+  source: 'voice_url' | 'assistant_event' | 'chat_event' | 'asr' | 'user_transcript';
+};
+
 const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY_MS = 800;
 const MAX_RECONNECT_DELAY_MS = 8000;
+const MAX_CONVERSATION_ITEMS = 40;
+
+function appendConversationItem(
+  current: RealtimeConversationItem[],
+  item: RealtimeConversationItem,
+): RealtimeConversationItem[] {
+  const normalized = item.text.trim();
+  if (!normalized) {
+    return current;
+  }
+  const last = current[current.length - 1];
+  if (last && last.role === item.role && last.text.trim() === normalized) {
+    return current;
+  }
+  const next = [...current, { ...item, text: normalized }];
+  if (next.length <= MAX_CONVERSATION_ITEMS) {
+    return next;
+  }
+  return next.slice(next.length - MAX_CONVERSATION_ITEMS);
+}
 
 function sendJson(socket: WebSocket | null, payload: unknown): boolean {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -64,11 +91,34 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const ttsReceivedAudioRef = useRef(false);
   const reconnectAttemptRef = useRef(0);
   const spokenStepIdsRef = useRef(new Set<number>());
+  const pendingTranscriptRef = useRef('');
+  const conversationSequenceRef = useRef(0);
   const [status, setStatus] = useState<RealtimeSessionStatus>('idle');
   const [projection, setProjection] = useState<RealtimeLessonProjectionState>(
     INITIAL_REALTIME_LESSON_PROJECTION_STATE,
   );
+  const [conversationHistory, setConversationHistory] = useState<RealtimeConversationItem[]>([]);
+  const [liveUserTranscript, setLiveUserTranscript] = useState('');
   const [errorText, setErrorText] = useState('');
+  const pushConversationItem = useCallback(
+    (role: RealtimeConversationItem['role'], text: string, source: RealtimeConversationItem['source']) => {
+      const normalized = text.trim();
+      if (!normalized) {
+        return;
+      }
+      conversationSequenceRef.current += 1;
+      const id = `realtime:${Date.now()}:${conversationSequenceRef.current}`;
+      setConversationHistory((current) =>
+        appendConversationItem(current, {
+          id,
+          role,
+          text: normalized,
+          source,
+        }),
+      );
+    },
+    [],
+  );
   const markAssistantPromptSpoken = useCallback(() => {
     const stepId = currentStepIdRef.current;
     if (typeof stepId !== 'number' || spokenStepIdsRef.current.has(stepId)) {
@@ -97,7 +147,11 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     ttsReceivedAudioRef.current = false;
     reconnectAttemptRef.current = 0;
     spokenStepIdsRef.current.clear();
+    pendingTranscriptRef.current = '';
+    conversationSequenceRef.current = 0;
     setProjection(INITIAL_REALTIME_LESSON_PROJECTION_STATE);
+    setConversationHistory([]);
+    setLiveUserTranscript('');
     setErrorText('');
     setStatus('idle');
     resetBuffer();
@@ -199,13 +253,50 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
                 : null;
             currentAssistantPromptRef.current = event.step.assistantPrompt;
             spokenStepIdsRef.current.delete(event.step.stepId);
+            if (event.step.phase === 'free_chat' && event.step.assistantPrompt.trim()) {
+              pushConversationItem(
+                'assistant',
+                event.step.assistantPrompt,
+                event.step.voiceUrl ? 'voice_url' : 'assistant_event',
+              );
+            }
             if (event.step.voiceUrl) {
               void playRemoteUrl(event.step.voiceUrl);
             }
           }
-          if (event.event === 'assistant_message' || event.event === 'assistant_speech_start') {
+          if (
+            event.event === 'assistant_message' ||
+            event.event === 'assistant_speech_start' ||
+            event.event === 'chat' ||
+            event.event === 'chat_ended'
+          ) {
             if (event.text.trim()) {
               currentAssistantPromptRef.current = event.text.trim();
+              pushConversationItem(
+                'assistant',
+                event.text,
+                event.event === 'chat' || event.event === 'chat_ended'
+                  ? 'chat_event'
+                  : 'assistant_event',
+              );
+            }
+          }
+          if (event.event === 'asr' || event.event === 'user_transcript_partial') {
+            const partial = event.text.trim();
+            pendingTranscriptRef.current = partial;
+            setLiveUserTranscript(partial);
+          }
+          if (event.event === 'user_transcript_final') {
+            pendingTranscriptRef.current = '';
+            setLiveUserTranscript('');
+            pushConversationItem('user', event.text, 'user_transcript');
+          }
+          if (event.event === 'asr_ended') {
+            const pending = pendingTranscriptRef.current.trim();
+            setLiveUserTranscript('');
+            if (pending) {
+              pushConversationItem('user', pending, 'asr');
+              pendingTranscriptRef.current = '';
             }
           }
           if (event.event === 'tts_start') {
@@ -274,6 +365,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     markAssistantPromptSpoken,
     playBufferedPcm,
     playRemoteUrl,
+    pushConversationItem,
     pushPcmChunk,
     resetBuffer,
   ]);
@@ -315,6 +407,19 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     return true;
   }, []);
 
+  const appendLocalUserTranscript = useCallback(
+    (text: string) => {
+      const normalized = text.trim();
+      if (!normalized) {
+        return;
+      }
+      pendingTranscriptRef.current = '';
+      setLiveUserTranscript('');
+      pushConversationItem('user', normalized, 'user_transcript');
+    },
+    [pushConversationItem],
+  );
+
   const reset = useCallback(() => {
     closeSocket();
     clearSessionState();
@@ -334,6 +439,8 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     audioStatus,
     audioErrorText,
     projection,
+    conversationHistory,
+    liveUserTranscript,
     realtimeView,
     isConnected: status === 'connected',
     connect,
@@ -345,5 +452,6 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     sendAssistantPromptSpoken,
     requestDebugNextStep,
     sendAudioChunk,
+    appendLocalUserTranscript,
   };
 }
