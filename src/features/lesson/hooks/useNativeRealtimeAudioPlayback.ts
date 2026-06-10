@@ -5,7 +5,7 @@ import {
   createPcm16WavBytes,
 } from '../nativeRealtimeAudio';
 import { loadNativeExpoAv } from '../nativeExpoAv';
-import { loadNativeExpoFileSystem, loadNativeExpoSpeech } from '../nativeExpoModules';
+import { loadNativeExpoFileSystem } from '../nativeExpoModules';
 
 const REALTIME_TTS_SAMPLE_RATE = 24_000;
 
@@ -125,50 +125,9 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
     }
   }, []);
 
-  const speakTextFallback = useCallback(async (text: string) => {
-    const normalizedText = text.trim();
-    if (!normalizedText) {
-      onPlaybackCompleteRef.current();
-      return;
-    }
-
-    try {
-      await soundRef.current?.unloadAsync();
-      soundRef.current = null;
-      const Speech = await loadNativeExpoSpeech();
-      Speech.stop();
-      setStatus('playing');
-      setErrorText('');
-      Speech.speak(normalizedText, {
-        language: 'zh-CN',
-        rate: 0.92,
-        onDone: () => {
-          setStatus('idle');
-          onPlaybackCompleteRef.current();
-        },
-        onStopped: () => {
-          setStatus('idle');
-          onPlaybackCompleteRef.current();
-        },
-        onError: () => {
-          setStatus('error');
-          setErrorText('Native TTS 播放失败。');
-          onPlaybackCompleteRef.current();
-        },
-      });
-    } catch (error) {
-      setStatus('error');
-      setErrorText(error instanceof Error ? error.message : 'Native TTS 播放失败。');
-      onPlaybackCompleteRef.current();
-    }
-  }, []);
-
   useEffect(
     () => () => {
       chunksRef.current = [];
-      void loadNativeExpoSpeech()
-        .then((Speech) => Speech.stop())
-        .catch(() => undefined);
       void soundRef.current?.unloadAsync();
       soundRef.current = null;
     },
@@ -181,7 +140,6 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
     pushPcmChunk,
     playBufferedPcm,
     playRemoteUrl,
-    speakTextFallback,
     resetBuffer,
   };
 }

@@ -25,7 +25,6 @@ import type {
   NativeLessonControllerView,
   NativeLessonPhase,
 } from '../nativeLessonController';
-import { shouldUseServerOnlyTts } from '../nativeLessonTtsPolicy';
 import { useNativeRealtimeAudioPlayback } from './useNativeRealtimeAudioPlayback';
 
 type NativeLessonRealtimeSessionOptions = {
@@ -57,7 +56,6 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const closedByUserRef = useRef(false);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ttsFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const localTtsFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const forceFreshSessionRef = useRef(false);
   const currentStepIdRef = useRef<number | null>(null);
@@ -86,7 +84,6 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     pushPcmChunk,
     playBufferedPcm,
     playRemoteUrl,
-    speakTextFallback,
     resetBuffer,
     status: audioStatus,
     errorText: audioErrorText,
@@ -124,10 +121,6 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     if (ttsFallbackTimerRef.current) {
       clearTimeout(ttsFallbackTimerRef.current);
       ttsFallbackTimerRef.current = null;
-    }
-    if (localTtsFallbackTimerRef.current) {
-      clearTimeout(localTtsFallbackTimerRef.current);
-      localTtsFallbackTimerRef.current = null;
     }
     socketRef.current?.close();
     socketRef.current = null;
@@ -171,10 +164,6 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
           const wireFrame = unpackRealtimeWireFrame(message.data);
           if (wireFrame?.kind === 'audio') {
             ttsReceivedAudioRef.current = true;
-            if (localTtsFallbackTimerRef.current) {
-              clearTimeout(localTtsFallbackTimerRef.current);
-              localTtsFallbackTimerRef.current = null;
-            }
             pushPcmChunk(wireFrame.payload);
             return;
           }
@@ -223,22 +212,11 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
             if (ttsFallbackTimerRef.current) {
               clearTimeout(ttsFallbackTimerRef.current);
             }
-            if (localTtsFallbackTimerRef.current) {
-              clearTimeout(localTtsFallbackTimerRef.current);
-            }
             ttsReceivedAudioRef.current = false;
             ttsFallbackTimerRef.current = setTimeout(() => {
               ttsFallbackTimerRef.current = null;
               markAssistantPromptSpoken();
             }, 20000);
-            if (!shouldUseServerOnlyTts(currentStepPhaseRef.current)) {
-              localTtsFallbackTimerRef.current = setTimeout(() => {
-                localTtsFallbackTimerRef.current = null;
-                if (!ttsReceivedAudioRef.current) {
-                  void speakTextFallback(currentAssistantPromptRef.current);
-                }
-              }, 4500);
-            }
             resetBuffer();
             return;
           }
@@ -247,17 +225,11 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
               clearTimeout(ttsFallbackTimerRef.current);
               ttsFallbackTimerRef.current = null;
             }
-            if (localTtsFallbackTimerRef.current) {
-              clearTimeout(localTtsFallbackTimerRef.current);
-              localTtsFallbackTimerRef.current = null;
-            }
             if (ttsReceivedAudioRef.current) {
               await playBufferedPcm();
-            } else if (shouldUseServerOnlyTts(currentStepPhaseRef.current)) {
+            } else {
               setErrorText('Server TTS 未返回音频，请重试。');
               markAssistantPromptSpoken();
-            } else {
-              await speakTextFallback(currentAssistantPromptRef.current);
             }
             return;
           }
@@ -304,7 +276,6 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     playRemoteUrl,
     pushPcmChunk,
     resetBuffer,
-    speakTextFallback,
   ]);
 
   useEffect(() => {
