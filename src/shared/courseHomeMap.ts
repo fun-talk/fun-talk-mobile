@@ -83,7 +83,9 @@ export function buildCourseMapNodes(
     const lesson = lessons[index];
     return {
       number,
-      lessonId: String(number),
+      // Keep the displayed course number sequential, but route using the
+      // backend lesson id so deleted lessons cannot be reopened by position.
+      lessonId: String(lesson?.id ?? number),
       title: lesson?.title || `课程 ${number}`,
       x: position.x,
       y: position.y,

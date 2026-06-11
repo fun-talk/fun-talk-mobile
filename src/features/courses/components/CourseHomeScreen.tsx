@@ -257,11 +257,6 @@ const styles = StyleSheet.create({
   fox: {
     position: 'absolute',
     zIndex: 5,
-    shadowColor: '#164011',
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 4,
   },
   continue: {
     position: 'absolute',
