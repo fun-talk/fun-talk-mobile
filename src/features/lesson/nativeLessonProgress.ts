@@ -5,6 +5,7 @@ import {
   saveCourseHomeCourseCompleted,
   type CourseProgress,
 } from '@/shared/courseHomeProgress';
+import { writeCourseHomeFoxMove } from '@/shared/courseHomeFoxMove';
 
 export type NativeLessonCompletionParams = {
   lessonId?: string;
@@ -51,6 +52,14 @@ export async function completeNativeLessonProgress(
   if (!payload) {
     throw new Error('native lesson completion params are incomplete');
   }
-  return saveCourseHomeCourseCompleted(payload, apiClient, storage);
+  const progress = await saveCourseHomeCourseCompleted(payload, apiClient, storage);
+  await writeCourseHomeFoxMove(
+    {
+      fromCourseNumber: payload.courseNumber,
+      toCourseNumber: progress.currentCourseNumber,
+    },
+    payload.totalCourses,
+    storage,
+  );
+  return progress;
 }
-

@@ -11,6 +11,14 @@ export type WebViewAuthUpdate =
   | { kind: 'logout' }
   | { kind: 'update_user'; patch: Partial<FtAuthRecord> };
 
+export type WebViewCourseProgressUpdate = {
+  kind: 'course_progress_completed';
+  courseNumber: number;
+  totalCourses: number;
+  currentCourseNumber: number;
+  completedCourseNumbers: number[];
+};
+
 export function parseWebViewBridgeMessage(raw: string): WebViewBridgeMessage | null {
   try {
     const parsed = JSON.parse(raw) as WebViewBridgeMessage;
@@ -87,4 +95,44 @@ export function resolveWebViewAuthUpdate(
     default:
       return null;
   }
+}
+
+export function resolveWebViewCourseProgressUpdate(
+  message: WebViewBridgeMessage,
+): WebViewCourseProgressUpdate | null {
+  if (message.messageType !== 21) {
+    return null;
+  }
+  const payload = parsePayloadObject(message.payload);
+  if (!payload) {
+    return null;
+  }
+
+  const courseNumber = Number(payload.courseNumber);
+  const totalCourses = Number(payload.totalCourses);
+  const currentCourseNumber = Number(payload.currentCourseNumber);
+  const completedCourseNumbers = Array.isArray(payload.completedCourseNumbers)
+    ? payload.completedCourseNumbers
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value >= 1)
+    : [];
+
+  if (
+    !Number.isInteger(courseNumber) ||
+    !Number.isInteger(totalCourses) ||
+    !Number.isInteger(currentCourseNumber) ||
+    courseNumber < 1 ||
+    totalCourses < 1 ||
+    currentCourseNumber < 1
+  ) {
+    return null;
+  }
+
+  return {
+    kind: 'course_progress_completed',
+    courseNumber,
+    totalCourses,
+    currentCourseNumber,
+    completedCourseNumbers,
+  };
 }

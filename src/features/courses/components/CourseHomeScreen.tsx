@@ -3,8 +3,16 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
+import Animated, {
+  Easing,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { useAuth } from '@/features/auth';
 import { MAP_WIDTH } from '@/shared/courseHomeMap';
@@ -48,6 +56,8 @@ export function CourseHomeScreen() {
     handleContinue,
     handleLogout,
     refreshCourseHome,
+    pendingFoxMove,
+    clearPendingFoxMove,
   } = useCourseHome({
     apiClient,
     auth,
@@ -85,6 +95,94 @@ export function CourseHomeScreen() {
   const tipWidth = computeTipWidth(width);
   const tipFontSize = clampByViewport({ min: 12, vw: 0.01, max: 20 }, width);
   const foxWidth = computeFoxWidth(width);
+  const foxLeft = useSharedValue(0);
+  const foxTop = useSharedValue(0);
+  const foxScale = useSharedValue(1);
+
+  const resolveFoxLayout = useCallback(
+    (course: { x: number; y: number }) => ({
+      left: (course.x / MAP_WIDTH) * mapPixelWidth - foxWidth / 2,
+      top: ((course.y - 185) / mapHeight) * mapPixelHeight - foxWidth / 2,
+    }),
+    [foxWidth, mapHeight, mapPixelHeight, mapPixelWidth],
+  );
+
+  const currentFoxLayout = useMemo(
+    () => (currentCourse ? resolveFoxLayout(currentCourse) : null),
+    [currentCourse, resolveFoxLayout],
+  );
+
+  useEffect(() => {
+    if (!currentFoxLayout || !currentCourse) {
+      return;
+    }
+
+    const fromCourse = pendingFoxMove
+      ? courseNodes.find((course) => course.number === pendingFoxMove.fromCourseNumber)
+      : null;
+    const canAnimateMove =
+      pendingFoxMove &&
+      pendingFoxMove.toCourseNumber === currentCourse.number &&
+      fromCourse;
+
+    if (!canAnimateMove) {
+      foxLeft.value = currentFoxLayout.left;
+      foxTop.value = currentFoxLayout.top;
+      foxScale.value = 1;
+      if (pendingFoxMove) {
+        clearPendingFoxMove();
+      }
+      return;
+    }
+
+    const fromFoxLayout = resolveFoxLayout(fromCourse);
+    foxLeft.value = fromFoxLayout.left;
+    foxTop.value = fromFoxLayout.top;
+    foxScale.value = 1;
+
+    const frameId = requestAnimationFrame(() => {
+      foxLeft.value = withTiming(currentFoxLayout.left, {
+        duration: 950,
+        easing: Easing.inOut(Easing.cubic),
+      });
+      foxTop.value = withTiming(
+        currentFoxLayout.top,
+        {
+          duration: 950,
+          easing: Easing.inOut(Easing.cubic),
+        },
+        (finished) => {
+          if (finished) {
+            runOnJS(clearPendingFoxMove)();
+          }
+        },
+      );
+      foxScale.value = withSequence(
+        withTiming(1.08, { duration: 240, easing: Easing.out(Easing.quad) }),
+        withTiming(1, { duration: 710, easing: Easing.inOut(Easing.quad) }),
+      );
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [
+    clearPendingFoxMove,
+    courseNodes,
+    currentCourse,
+    currentFoxLayout,
+    foxLeft,
+    foxScale,
+    foxTop,
+    pendingFoxMove,
+    resolveFoxLayout,
+  ]);
+
+  const foxAnimatedStyle = useAnimatedStyle(() => ({
+    left: foxLeft.value,
+    top: foxTop.value,
+    transform: [{ scale: foxScale.value }],
+  }));
 
   if (isLoadingLessons && totalCourses === 0 && !lessonLoadFailed) {
     return (
@@ -166,21 +264,23 @@ export function CourseHomeScreen() {
           })}
 
           {currentCourse ? (
-            <Image
-              source={courseHomeImages.fox}
+            <Animated.View
+              pointerEvents="none"
               style={[
                 styles.fox,
+                foxAnimatedStyle,
                 {
                   width: foxWidth,
                   height: foxWidth * 1.1,
-                  left:
-                    (currentCourse.x / MAP_WIDTH) * mapPixelWidth - foxWidth / 2,
-                  top:
-                    ((currentCourse.y - 185) / mapHeight) * mapPixelHeight - foxWidth / 2,
                 },
               ]}
-              contentFit="contain"
-            />
+            >
+              <Image
+                source={courseHomeImages.fox}
+                style={styles.foxImage}
+                contentFit="contain"
+              />
+            </Animated.View>
           ) : null}
         </View>
       </ScrollView>
@@ -257,6 +357,10 @@ const styles = StyleSheet.create({
   fox: {
     position: 'absolute',
     zIndex: 5,
+  },
+  foxImage: {
+    width: '100%',
+    height: '100%',
   },
   continue: {
     position: 'absolute',

@@ -15,6 +15,10 @@ import {
   readCourseProgress,
   type CourseProgress,
 } from '@/shared/courseHomeProgress';
+import {
+  consumeCourseHomeFoxMove,
+  type CourseHomeFoxMove,
+} from '@/shared/courseHomeFoxMove';
 import { resolveCourseLessonEntryPath } from '@/shared/courseOpeningSceneEntry';
 import { getWebBaseUrl } from '@/lib/env';
 
@@ -49,6 +53,7 @@ export function useCourseHome(options: {
     completedCourseNumbers: [],
     currentCourseNumber: 1,
   });
+  const [pendingFoxMove, setPendingFoxMove] = useState<CourseHomeFoxMove | null>(null);
 
   const scrollRef = useRef<import('react-native').ScrollView | null>(null);
 
@@ -60,11 +65,23 @@ export function useCourseHome(options: {
       setLessonLoadFailed(false);
       const total = items.length;
       const localProgress = await readCourseProgress(total);
+      const storedFoxMove = total > 0 ? await consumeCourseHomeFoxMove(total) : null;
       setProgress(localProgress);
+      setPendingFoxMove(storedFoxMove);
       if (total > 0) {
         try {
           const serverProgress = await fetchCourseHomeProgress(total, apiClient);
           setProgress(serverProgress);
+          if (
+            !storedFoxMove &&
+            serverProgress.currentCourseNumber === localProgress.currentCourseNumber + 1 &&
+            serverProgress.completedCourseNumbers.includes(localProgress.currentCourseNumber)
+          ) {
+            setPendingFoxMove({
+              fromCourseNumber: localProgress.currentCourseNumber,
+              toCourseNumber: serverProgress.currentCourseNumber,
+            });
+          }
         } catch (error) {
           console.warn('load course home progress failed:', error);
         }
@@ -216,5 +233,7 @@ export function useCourseHome(options: {
     handleContinue,
     handleLogout,
     refreshCourseHome,
+    pendingFoxMove,
+    clearPendingFoxMove: () => setPendingFoxMove(null),
   };
 }
