@@ -126,10 +126,10 @@ export function NativeLessonShell({
     isFreeChatPhase ||
     controllerView.step?.responseMode === 'speech';
   const canSubmitText = draftAnswer.trim().length > 0;
-  const visibleConversationHistory = isFreeChatPhase
-    ? conversationHistory.slice(Math.max(0, conversationHistory.length - 8))
-    : [];
+  const visibleConversationHistory = conversationHistory.slice(Math.max(0, conversationHistory.length - 8));
   const normalizedLiveUserTranscript = liveUserTranscript.trim();
+  const shouldShowConversationHistory =
+    visibleConversationHistory.length > 0 || normalizedLiveUserTranscript.length > 0;
 
   useEffect(() => {
     setDraftAnswer('');
@@ -282,7 +282,7 @@ export function NativeLessonShell({
                 </Text>
               </View>
 
-              {isFreeChatPhase && visibleConversationHistory.length ? (
+              {shouldShowConversationHistory ? (
                 <ScrollView
                   style={[
                     styles.conversationList,
