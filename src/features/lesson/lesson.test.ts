@@ -13,6 +13,7 @@ import {
 } from './lessonMode.ts';
 import {
   parseWebViewBridgeMessage,
+  resolveWebViewCourseProgressUpdate,
   resolveWebViewAuthUpdate,
 } from './webViewMessages.ts';
 
@@ -131,5 +132,28 @@ describe('webViewMessages', () => {
       assert.equal(update.patch.username, '小明');
       assert.equal(update.patch.hasUsername, true);
     }
+  });
+
+  it('maps course completion progress into a native bridge update', () => {
+    const message = parseWebViewBridgeMessage(
+      JSON.stringify({
+        version: 1,
+        messageType: 21,
+        payload: JSON.stringify({
+          courseNumber: 4,
+          totalCourses: 23,
+          currentCourseNumber: 5,
+          completedCourseNumbers: [1, 2, 4],
+        }),
+      }),
+    );
+    assert.ok(message);
+    assert.deepEqual(resolveWebViewCourseProgressUpdate(message!), {
+      kind: 'course_progress_completed',
+      courseNumber: 4,
+      totalCourses: 23,
+      currentCourseNumber: 5,
+      completedCourseNumbers: [1, 2, 4],
+    });
   });
 });

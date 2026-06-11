@@ -30,8 +30,11 @@ import { syncWebViewAuthCookies } from '../syncWebViewCookies';
 import { buildWebViewBootstrapScript } from '../webViewBootstrap';
 import {
   parseWebViewBridgeMessage,
+  resolveWebViewCourseProgressUpdate,
   resolveWebViewAuthUpdate,
 } from '../webViewMessages';
+import { writeCourseProgress } from '@/shared/courseHomeProgress';
+import { writeCourseHomeFoxMove } from '@/shared/courseHomeFoxMove';
 
 const COURSES_ROUTE = '/(app)/courses' as Href;
 const LOGIN_ROUTE = '/(auth)/login' as Href;
@@ -121,27 +124,43 @@ export function LessonWebViewScreen() {
       }
 
       const update = resolveWebViewAuthUpdate(message, auth);
-      if (!update) {
-        return;
-      }
-
-      if (update.kind === 'logout') {
-        await logout();
-        router.replace(LOGIN_ROUTE);
-        return;
-      }
-
-      if (update.kind === 'login') {
-        await saveAuth(update.auth);
-        return;
-      }
-
-      if (update.kind === 'update_user') {
-        if (!auth) {
+      if (update) {
+        if (update.kind === 'logout') {
+          await logout();
+          router.replace(LOGIN_ROUTE);
           return;
         }
-        await saveAuth(mergeAuthRecord(auth, update.patch));
+
+        if (update.kind === 'login') {
+          await saveAuth(update.auth);
+          return;
+        }
+
+        if (update.kind === 'update_user') {
+          if (!auth) {
+            return;
+          }
+          await saveAuth(mergeAuthRecord(auth, update.patch));
+        }
+        return;
       }
+
+      const progressUpdate = resolveWebViewCourseProgressUpdate(message);
+      if (!progressUpdate) {
+        return;
+      }
+
+      await writeCourseProgress({
+        completedCourseNumbers: progressUpdate.completedCourseNumbers,
+        currentCourseNumber: progressUpdate.currentCourseNumber,
+      });
+      await writeCourseHomeFoxMove(
+        {
+          fromCourseNumber: progressUpdate.courseNumber,
+          toCourseNumber: progressUpdate.currentCourseNumber,
+        },
+        progressUpdate.totalCourses,
+      );
     },
     [auth, logout, router, saveAuth],
   );
