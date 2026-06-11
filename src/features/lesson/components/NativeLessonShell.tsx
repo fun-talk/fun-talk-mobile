@@ -173,7 +173,7 @@ export function NativeLessonShell({
             {controllerView.backgroundImageUrl ? (
               <Image
                 source={{ uri: controllerView.backgroundImageUrl }}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
                 cachePolicy="memory-disk"
                 contentFit="cover"
                 recyclingKey={controllerView.backgroundImageUrl}
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#111827',
   },
   backgroundDim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(15,23,42,0.34)',
   },
   fox: {
@@ -876,7 +876,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   pauseOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 20,
     alignItems: 'center',
     justifyContent: 'center',

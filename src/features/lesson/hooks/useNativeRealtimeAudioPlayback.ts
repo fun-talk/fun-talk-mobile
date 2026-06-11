@@ -1,10 +1,10 @@
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   concatAudioChunks,
   createPcm16WavBytes,
 } from '../nativeRealtimeAudio';
-import { loadNativeExpoAv } from '../nativeExpoAv';
 import { loadNativeExpoFileSystem } from '../nativeExpoModules';
 
 const REALTIME_TTS_SAMPLE_RATE = 24_000;
@@ -13,25 +13,48 @@ type PlaybackStatus = 'idle' | 'buffering' | 'playing' | 'error';
 
 export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
   const chunksRef = useRef<Uint8Array[]>([]);
-  const soundRef = useRef<{
-    unloadAsync: () => Promise<unknown>;
-    setOnPlaybackStatusUpdate: (callback: (status: { isLoaded: boolean; didJustFinish?: boolean }) => void) => void;
-  } | null>(null);
+  const playerRef = useRef<AudioPlayer | null>(null);
+  const playerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const sequenceRef = useRef(0);
   const onPlaybackCompleteRef = useRef(onPlaybackComplete);
   const [status, setStatus] = useState<PlaybackStatus>('idle');
   const [errorText, setErrorText] = useState('');
 
-  const ensurePlaybackAudioMode = useCallback(async () => {
-    const { Audio } = await loadNativeExpoAv();
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-    });
-    return Audio;
+  const releasePlayer = useCallback(() => {
+    playerSubscriptionRef.current?.remove();
+    playerSubscriptionRef.current = null;
+    playerRef.current?.remove();
+    playerRef.current = null;
   }, []);
+
+  const ensurePlaybackAudioMode = useCallback(async () => {
+    await setAudioModeAsync({
+      allowsRecording: false,
+      playsInSilentMode: true,
+      interruptionMode: 'duckOthers',
+      shouldPlayInBackground: false,
+    });
+  }, []);
+
+  const startPlayer = useCallback(
+    async (source: string) => {
+      await ensurePlaybackAudioMode();
+      releasePlayer();
+
+      const player = createAudioPlayer(source, { downloadFirst: true });
+      playerRef.current = player;
+      playerSubscriptionRef.current = player.addListener('playbackStatusUpdate', (playbackStatus) => {
+        if (playbackStatus.didJustFinish) {
+          setStatus('idle');
+          onPlaybackCompleteRef.current();
+          releasePlayer();
+        }
+      });
+      player.play();
+      setStatus('playing');
+    },
+    [ensurePlaybackAudioMode, releasePlayer],
+  );
 
   useEffect(() => {
     void ensurePlaybackAudioMode().catch(() => undefined);
@@ -62,9 +85,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
     }
 
     try {
-      const Audio = await ensurePlaybackAudioMode();
       const { File, Paths } = await loadNativeExpoFileSystem();
-      await soundRef.current?.unloadAsync();
       const wav = createPcm16WavBytes(pcm, {
         sampleRate: REALTIME_TTS_SAMPLE_RATE,
         channels: 1,
@@ -75,65 +96,38 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
       );
       sequenceRef.current += 1;
       file.write(wav);
-      const { sound } = await Audio.Sound.createAsync({ uri: file.uri }, { shouldPlay: true });
-      soundRef.current = sound;
-      setStatus('playing');
-      sound.setOnPlaybackStatusUpdate((playbackStatus) => {
-        if (playbackStatus.isLoaded && playbackStatus.didJustFinish) {
-          setStatus('idle');
-          onPlaybackCompleteRef.current();
-          void sound.unloadAsync();
-          if (soundRef.current === sound) {
-            soundRef.current = null;
-          }
-        }
-      });
+      await startPlayer(file.uri);
     } catch (error) {
       setStatus('error');
       setErrorText(error instanceof Error ? error.message : 'Realtime audio 播放失败。');
     }
-  }, []);
+  }, [startPlayer]);
 
-  const playRemoteUrl = useCallback(async (url: string) => {
-    const normalizedUrl = url.trim();
-    if (!normalizedUrl) {
-      onPlaybackCompleteRef.current();
-      return;
-    }
+  const playRemoteUrl = useCallback(
+    async (url: string) => {
+      const normalizedUrl = url.trim();
+      if (!normalizedUrl) {
+        onPlaybackCompleteRef.current();
+        return;
+      }
 
-    try {
-      const Audio = await ensurePlaybackAudioMode();
-      await soundRef.current?.unloadAsync();
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: normalizedUrl },
-        { shouldPlay: true },
-      );
-      soundRef.current = sound;
-      setStatus('playing');
-      sound.setOnPlaybackStatusUpdate((playbackStatus) => {
-        if (playbackStatus.isLoaded && playbackStatus.didJustFinish) {
-          setStatus('idle');
-          onPlaybackCompleteRef.current();
-          void sound.unloadAsync();
-          if (soundRef.current === sound) {
-            soundRef.current = null;
-          }
-        }
-      });
-    } catch (error) {
-      setStatus('error');
-      setErrorText(error instanceof Error ? error.message : 'Realtime voiceUrl 播放失败。');
-      onPlaybackCompleteRef.current();
-    }
-  }, [ensurePlaybackAudioMode]);
+      try {
+        await startPlayer(normalizedUrl);
+      } catch (error) {
+        setStatus('error');
+        setErrorText(error instanceof Error ? error.message : 'Realtime voiceUrl 播放失败。');
+        onPlaybackCompleteRef.current();
+      }
+    },
+    [startPlayer],
+  );
 
   useEffect(
     () => () => {
       chunksRef.current = [];
-      void soundRef.current?.unloadAsync();
-      soundRef.current = null;
+      releasePlayer();
     },
-    [],
+    [releasePlayer],
   );
 
   return {

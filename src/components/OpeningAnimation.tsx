@@ -95,11 +95,11 @@ const styles = StyleSheet.create({
     elevation: 30,
   },
   bgBase: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#FF8C42',
   },
   bgGlow: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#FFD166',
     opacity: 0.45,
     // Radial glow effect via large blurred circle would need native,

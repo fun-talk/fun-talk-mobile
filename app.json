@@ -14,7 +14,6 @@
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.anonymous.funtalkmobile",
       "associatedDomains": [
-        "applinks:ai-fun-talk.com",
         "applinks:ai-fun-talk.com"
       ],
       "infoPlist": {
@@ -55,7 +54,21 @@
         }
       ],
       "expo-wechat-no-pay",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "FunTalk needs microphone access for speaking exercises in lessons.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false
+        }
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-secure-store",
+      "expo-status-bar",
+      "expo-web-browser",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

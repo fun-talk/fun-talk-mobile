@@ -27,3 +27,14 @@ declare module '*.svg' {
   const value: number;
   export default value;
 }
+
+declare module 'react-native/Libraries/Image/resolveAssetSource' {
+  interface ResolvedAssetSource {
+    uri: string;
+    width: number;
+    height: number;
+    scale: number;
+  }
+  function resolveAssetSource(source: number): ResolvedAssetSource;
+  export default resolveAssetSource;
+}

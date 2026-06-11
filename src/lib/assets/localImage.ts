@@ -1,6 +1,6 @@
-import { Image as RNImage } from 'react-native';
+import resolveAssetSource from 'react-native/Libraries/Image/resolveAssetSource';
 import type { ImageSource } from 'expo-image';
 
 export function localImage(moduleId: number): ImageSource {
-  return RNImage.resolveAssetSource(moduleId) as unknown as ImageSource;
+  return resolveAssetSource(moduleId) as unknown as ImageSource;
 }
