@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { getCourseButtonImageSource, courseHomeImages } from '../assets/courseHomeAssets';
+import { getCourseButtonImageSource } from '../assets/courseHomeAssets';
 import { clampByViewport } from '../layout/courseHomeLayout';
 import { MAP_WIDTH, type CourseMapNode } from '@/shared/courseHomeMap';
 
@@ -67,9 +67,6 @@ export function CourseNode({
       >
         {course.number}
       </Text>
-      {completed ? (
-        <Image source={courseHomeImages.stars} style={styles.stars} contentFit="contain" />
-      ) : null}
     </Pressable>
   );
 }
@@ -109,12 +106,5 @@ const styles = StyleSheet.create({
   },
   numberLocked: {
     textShadowColor: 'rgba(84, 92, 104, 0.42)',
-  },
-  stars: {
-    position: 'absolute',
-    left: '14%',
-    bottom: '18%',
-    width: '72%',
-    aspectRatio: 3,
   },
 });

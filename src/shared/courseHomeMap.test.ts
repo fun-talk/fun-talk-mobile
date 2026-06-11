@@ -32,12 +32,12 @@ describe('courseHomeMap', () => {
     assert.equal(getCourseMapHeight(24), MAP_SEGMENT_HEIGHT * 2);
   });
 
-  it('builds sequential course nodes with lesson ids matching course numbers', () => {
+  it('builds sequential course nodes while preserving backend lesson ids', () => {
     assert.deepEqual(
       buildCourseMapNodes(
         [
           { id: 1, status: 1, title: '第一课' },
-          { id: 2, status: 1, title: '第二课' },
+          { id: 4, status: 1, title: '第二课' },
         ],
         2,
       ).map((node) => ({
@@ -47,7 +47,7 @@ describe('courseHomeMap', () => {
       })),
       [
         { number: 1, lessonId: '1', title: '第一课' },
-        { number: 2, lessonId: '2', title: '第二课' },
+        { number: 2, lessonId: '4', title: '第二课' },
       ],
     );
   });
