@@ -25,6 +25,7 @@ import type {
   NativeLessonControllerView,
   NativeLessonPhase,
 } from '../nativeLessonController';
+import { fetchFoxTtsFileUri } from '../nativeFoxTts';
 import { useNativeRealtimeAudioPlayback } from './useNativeRealtimeAudioPlayback';
 
 type NativeLessonRealtimeSessionOptions = {
@@ -35,6 +36,8 @@ type NativeLessonRealtimeSessionOptions = {
   sectionId?: string;
   title: string;
   backgroundImageUrl?: string;
+  defaultSpeaker?: string;
+  onCaptureTurnEnded?: () => void;
 };
 
 type RealtimeSessionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -138,6 +141,43 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     status: audioStatus,
     errorText: audioErrorText,
   } = audioPlayback;
+  const onCaptureTurnEndedRef = useRef(options.onCaptureTurnEnded);
+
+  useEffect(() => {
+    onCaptureTurnEndedRef.current = options.onCaptureTurnEnded;
+  }, [options.onCaptureTurnEnded]);
+
+  const playLessonAssistantSpeech = useCallback(
+    async (text: string, shouldMarkPromptSpoken: boolean) => {
+      const normalizedText = text.trim();
+      if (!normalizedText) {
+        if (shouldMarkPromptSpoken) {
+          markAssistantPromptSpoken();
+        }
+        return;
+      }
+
+      const onComplete = shouldMarkPromptSpoken ? markAssistantPromptSpoken : undefined;
+      try {
+        const uri = await fetchFoxTtsFileUri(options.apiBaseUrl, options.token, normalizedText, {
+          voiceType: options.defaultSpeaker,
+        });
+        await playRemoteUrl(uri, onComplete);
+      } catch (error) {
+        setErrorText(error instanceof Error ? error.message : 'Fox TTS 合成失败。');
+        if (shouldMarkPromptSpoken) {
+          markAssistantPromptSpoken();
+        }
+      }
+    },
+    [
+      markAssistantPromptSpoken,
+      options.apiBaseUrl,
+      options.defaultSpeaker,
+      options.token,
+      playRemoteUrl,
+    ],
+  );
 
   const clearSessionState = useCallback(() => {
     sessionIdRef.current = null;
@@ -261,7 +301,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
               );
             }
             if (event.step.voiceUrl) {
-              void playRemoteUrl(event.step.voiceUrl);
+              void playRemoteUrl(event.step.voiceUrl, markAssistantPromptSpoken);
             }
           }
           if (
@@ -281,6 +321,15 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
               );
             }
           }
+          if (event.event === 'chat_ended') {
+            const finalLessonText =
+              event.text.trim() || currentAssistantPromptRef.current.trim();
+            const stepId = currentStepIdRef.current;
+            if (finalLessonText && typeof stepId === 'number') {
+              const shouldMarkPromptSpoken = !spokenStepIdsRef.current.has(stepId);
+              await playLessonAssistantSpeech(finalLessonText, shouldMarkPromptSpoken);
+            }
+          }
           if (event.event === 'asr' || event.event === 'user_transcript_partial') {
             const partial = event.text.trim();
             pendingTranscriptRef.current = partial;
@@ -298,17 +347,14 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
               pushConversationItem('user', pending, 'asr');
               pendingTranscriptRef.current = '';
             }
+            onCaptureTurnEndedRef.current?.();
           }
           if (event.event === 'tts_start') {
             if (ttsFallbackTimerRef.current) {
               clearTimeout(ttsFallbackTimerRef.current);
+              ttsFallbackTimerRef.current = null;
             }
             ttsReceivedAudioRef.current = false;
-            ttsFallbackTimerRef.current = setTimeout(() => {
-              ttsFallbackTimerRef.current = null;
-              markAssistantPromptSpoken();
-            }, 20000);
-            resetBuffer();
             return;
           }
           if (event.event === 'tts_end') {
@@ -364,6 +410,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     options.token,
     markAssistantPromptSpoken,
     playBufferedPcm,
+    playLessonAssistantSpeech,
     playRemoteUrl,
     pushConversationItem,
     pushPcmChunk,
@@ -403,7 +450,8 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       return false;
     }
-    socket.send(chunk);
+    const bytes = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+    socket.send(bytes);
     return true;
   }, []);
 

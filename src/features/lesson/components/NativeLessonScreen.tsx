@@ -216,6 +216,16 @@ function NativeLessonLoadedScreen({
   onFallback: (error?: NativeLessonErrorView) => void;
 }) {
   const controller = useNativeLessonController(lesson);
+  const sendAudioChunkRef = useRef<(chunk: Uint8Array) => boolean>(() => false);
+  const isRealtimeConnectedRef = useRef(false);
+  const recording = useNativeLessonRecording({
+    vadConfig: { silenceTimeoutMs: 2000 },
+    onAudioChunk: (chunk) => {
+      if (isRealtimeConnectedRef.current) {
+        sendAudioChunkRef.current(chunk);
+      }
+    },
+  });
   const realtime = useNativeLessonRealtimeSession({
     enabled: true,
     apiBaseUrl,
@@ -223,19 +233,18 @@ function NativeLessonLoadedScreen({
     lessonId,
     sectionId,
     title: lesson.metadata.title,
+    defaultSpeaker: lesson.metadata.defaultSpeaker,
     backgroundImageUrl:
       lesson.assets.backgrounds.story ||
       lesson.assets.backgrounds.teaching ||
       lesson.assets.backgrounds.challengeLevel1,
+    onCaptureTurnEnded: recording.acknowledgeSubmit,
   });
-  const recording = useNativeLessonRecording({
-    vadConfig: { silenceTimeoutMs: 2000 },
-    onAudioChunk: (chunk) => {
-      if (realtime.isConnected) {
-        realtime.sendAudioChunk(chunk);
-      }
-    },
-  });
+
+  useEffect(() => {
+    sendAudioChunkRef.current = realtime.sendAudioChunk;
+    isRealtimeConnectedRef.current = realtime.isConnected;
+  }, [realtime.isConnected, realtime.sendAudioChunk]);
   const [mediaErrorText, setMediaErrorText] = useState('');
   const [completionStatus, setCompletionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [completionErrorText, setCompletionErrorText] = useState('');

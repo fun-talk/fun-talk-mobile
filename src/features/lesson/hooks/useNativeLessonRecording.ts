@@ -14,7 +14,7 @@ import type { SimpleVadConfig } from '../simpleVad';
 
 type UseNativeLessonRecordingOptions = {
   vadConfig?: Partial<SimpleVadConfig>;
-  onAudioChunk?: (chunk: ArrayBuffer) => void;
+  onAudioChunk?: (chunk: Uint8Array) => void;
 };
 
 const STREAM_CHUNK_BYTES = 640;
@@ -74,7 +74,7 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
       let offset = 0;
       while (offset + STREAM_CHUNK_BYTES <= merged.length) {
         const chunk = merged.slice(offset, offset + STREAM_CHUNK_BYTES);
-        callback(chunk.buffer);
+        callback(chunk);
         offset += STREAM_CHUNK_BYTES;
       }
       streamBufferRef.current = merged.slice(offset);
@@ -88,7 +88,7 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
     if (!callback || !leftover.length) {
       return;
     }
-    callback(leftover.buffer);
+    callback(leftover);
   }, []);
 
   const stop = useCallback(async () => {
@@ -167,6 +167,10 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
     dispatch({ type: 'submit' });
   }, []);
 
+  const acknowledgeSubmit = useCallback(() => {
+    dispatch({ type: 'acknowledge_submit' });
+  }, []);
+
   useEffect(() => {
     if (state.shouldStopRecording) {
       stop();
@@ -198,5 +202,6 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
     stop,
     cancel,
     submit,
+    acknowledgeSubmit,
   };
 }

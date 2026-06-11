@@ -132,6 +132,15 @@ export function applyRealtimeLessonEvent(
       errorText: '',
     };
   }
+  if (event.event === 'user_turn_opened') {
+    return {
+      ...state,
+      lastEvent: event,
+      currentLifecycle: 'waiting_user',
+      answer: undefined,
+      errorText: '',
+    };
+  }
   if (
     event.event === 'assistant_message' ||
     event.event === 'assistant_speech_start' ||

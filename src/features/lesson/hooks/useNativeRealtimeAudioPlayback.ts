@@ -37,7 +37,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
   }, []);
 
   const startPlayer = useCallback(
-    async (source: string) => {
+    async (source: string, onComplete?: () => void) => {
       await ensurePlaybackAudioMode();
       releasePlayer();
 
@@ -46,7 +46,11 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
       playerSubscriptionRef.current = player.addListener('playbackStatusUpdate', (playbackStatus) => {
         if (playbackStatus.didJustFinish) {
           setStatus('idle');
-          onPlaybackCompleteRef.current();
+          if (onComplete) {
+            onComplete();
+          } else {
+            onPlaybackCompleteRef.current();
+          }
           releasePlayer();
         }
       });
@@ -75,12 +79,16 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
     setStatus((current) => (current === 'playing' ? current : 'buffering'));
   }, []);
 
-  const playBufferedPcm = useCallback(async () => {
+  const playBufferedPcm = useCallback(async (onComplete?: () => void) => {
     const pcm = concatAudioChunks(chunksRef.current);
     chunksRef.current = [];
     if (!pcm.byteLength) {
       setStatus('idle');
-      onPlaybackCompleteRef.current();
+      if (onComplete) {
+        onComplete();
+      } else {
+        onPlaybackCompleteRef.current();
+      }
       return;
     }
 
@@ -96,27 +104,40 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
       );
       sequenceRef.current += 1;
       file.write(wav);
-      await startPlayer(file.uri);
+      await startPlayer(file.uri, onComplete);
     } catch (error) {
       setStatus('error');
       setErrorText(error instanceof Error ? error.message : 'Realtime audio 播放失败。');
+      if (onComplete) {
+        onComplete();
+      } else {
+        onPlaybackCompleteRef.current();
+      }
     }
   }, [startPlayer]);
 
   const playRemoteUrl = useCallback(
-    async (url: string) => {
+    async (url: string, onComplete?: () => void) => {
       const normalizedUrl = url.trim();
       if (!normalizedUrl) {
-        onPlaybackCompleteRef.current();
+        if (onComplete) {
+          onComplete();
+        } else {
+          onPlaybackCompleteRef.current();
+        }
         return;
       }
 
       try {
-        await startPlayer(normalizedUrl);
+        await startPlayer(normalizedUrl, onComplete);
       } catch (error) {
         setStatus('error');
         setErrorText(error instanceof Error ? error.message : 'Realtime voiceUrl 播放失败。');
-        onPlaybackCompleteRef.current();
+        if (onComplete) {
+          onComplete();
+        } else {
+          onPlaybackCompleteRef.current();
+        }
       }
     },
     [startPlayer],

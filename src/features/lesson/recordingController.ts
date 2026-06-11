@@ -35,6 +35,7 @@ export type RecordingControllerAction =
   | { type: 'metering'; metering: number | null | undefined; elapsedMs: number }
   | { type: 'stop'; uri: string | null; durationMs: number }
   | { type: 'submit' }
+  | { type: 'acknowledge_submit' }
   | { type: 'cancel' }
   | { type: 'error'; message: string };
 
@@ -118,6 +119,17 @@ export function reduceRecordingController(
       return {
         ...state,
         status: 'submitted',
+        errorText: null,
+      };
+    case 'acknowledge_submit':
+      return {
+        ...state,
+        status: 'idle',
+        recordingUri: null,
+        durationMs: 0,
+        metering: null,
+        hasSpeech: false,
+        shouldStopRecording: false,
         errorText: null,
       };
     case 'cancel':

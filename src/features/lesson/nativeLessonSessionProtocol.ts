@@ -183,7 +183,7 @@ export function buildInitSessionCommand(options: InitSessionCommandOptions) {
     speaking_style: '活泼、鼓励式、儿童友好',
     speaker: 'zh_female_vv_jupiter_bigtts',
     tts_speed: 1,
-    use_frontend_tts: false,
+    use_frontend_tts: true,
     use_lesson_runtime: true,
     skip_opening_message: true,
     ...(options.lessonId ? { lesson_id: options.lessonId } : {}),

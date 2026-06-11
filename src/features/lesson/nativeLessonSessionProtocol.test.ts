@@ -51,6 +51,7 @@ describe('nativeLessonSessionProtocol', () => {
 
     assert.equal(init.type, 'init');
     assert.equal(init.use_lesson_runtime, true);
+    assert.equal(init.use_frontend_tts, true);
     assert.equal(init.lesson_id, '414');
     assert.equal(init.section_id, 9);
     assert.equal(init.resume_session_id, 'old-session');

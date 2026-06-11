@@ -106,6 +106,38 @@ describe('nativeLessonRealtimeProjection', () => {
     assert.equal(view?.media?.url, 'https://example.com/intro.mp4');
   });
 
+  it('opens the user turn when the server emits user_turn_opened', () => {
+    const state = applyRealtimeLessonEvent(
+      {
+        ...initialState,
+        currentLifecycle: 'assistant_turn',
+        currentStep: {
+          stepId: 12,
+          phase: 'free_chat',
+          assistantPrompt: '和欧波聊聊',
+          inputMode: 'speech',
+          advancePolicy: 'wait_user',
+          expectedPhrases: [],
+          choiceOptions: [],
+          screenText: '和欧波聊聊',
+          screenTextFallback: '和欧波聊聊',
+          successReply: '',
+          retryText: '',
+        },
+      },
+      {
+        event: 'user_turn_opened',
+        stepId: 12,
+        inputMode: 'speech',
+      },
+    );
+    const view = getRealtimeControllerView(state, { title: 'Lesson' });
+
+    assert.equal(state.currentLifecycle, 'waiting_user');
+    assert.equal(view?.lifecycle, 'waiting_user');
+    assert.equal(view?.phase, 'free_chat');
+  });
+
   it('marks session ready, completed, and errors', () => {
     let state = applyRealtimeLessonEvent(initialState, {
       event: 'session_ready',
