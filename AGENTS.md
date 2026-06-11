@@ -203,7 +203,7 @@ Tests are co-located with source files:
 
 ### Android (`android/`)
 
-- **Application ID:** `com.anonymous.funtalkmobile`
+- **Application ID:** `com.funtalk`
 - **Architecture filter:** `arm64-v8a` only (`reactNativeArchitectures=arm64-v8a`)
 - **New Architecture:** enabled (`newArchEnabled=true`)
 - **Hermes:** enabled (`hermesEnabled=true`)

@@ -36,7 +36,7 @@
       ],
 
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.funtalkmobile"
+      "package": "com.funtalk"
     },
     "web": {
       "output": "static",
