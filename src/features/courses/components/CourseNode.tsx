@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { getCourseButtonImageSource } from '../assets/courseHomeAssets';
 import { clampByViewport } from '../layout/courseHomeLayout';
@@ -30,6 +30,8 @@ export function CourseNode({
 }: CourseNodeProps) {
   const nodeWidth = Math.max(62, mapWidth * 0.0662);
   const numberSize = clampByViewport({ min: 20, vw: 0.031, max: 62 }, viewportWidth);
+  const numberWrapTop = nodeWidth * 0.06;
+  const numberWrapHeight = nodeWidth * 0.5;
 
   const centerX = (course.x / MAP_WIDTH) * mapWidth;
   const centerY = (course.y / mapHeight) * mapPixelHeight;
@@ -44,6 +46,7 @@ export function CourseNode({
         styles.node,
         {
           width: nodeWidth,
+          height: nodeWidth,
           left: centerX - nodeWidth / 2,
           top: centerY - nodeWidth / 2,
           zIndex: current ? 4 : 2,
@@ -58,15 +61,23 @@ export function CourseNode({
         style={styles.nodeImage}
         contentFit="contain"
       />
-      <Text
+      <View
+        pointerEvents="none"
         style={[
-          styles.number,
-          { fontSize: numberSize },
-          completed ? styles.numberCompleted : styles.numberLocked,
+          styles.numberWrap,
+          { top: numberWrapTop, height: numberWrapHeight },
         ]}
       >
-        {course.number}
-      </Text>
+        <Text
+          style={[
+            styles.number,
+            { fontSize: numberSize, lineHeight: numberSize },
+            completed ? styles.numberCompleted : styles.numberLocked,
+          ]}
+        >
+          {course.number}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -88,17 +99,20 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
   },
-  number: {
+  numberWrap: {
     position: 'absolute',
     left: 0,
     right: 0,
-    top: '21%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  number: {
     color: '#ffffff',
     fontWeight: '900',
-    lineHeight: undefined,
+    includeFontPadding: false,
     textAlign: 'center',
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 4 },
+    textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 8,
   },
   numberCompleted: {
