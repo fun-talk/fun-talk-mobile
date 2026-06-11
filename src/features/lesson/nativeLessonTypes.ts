@@ -24,6 +24,7 @@ export type NativeLessonStep = {
   promptText: string;
   screenText: string;
   mediaCueId?: string;
+  voiceUrl?: string;
   responseMode?: string;
   correctOptionId?: string;
   expectedPhrases?: string[];

@@ -118,6 +118,7 @@ describe('nativeLessonLoader', () => {
             '2': {
               step: 2,
               promptText: 'Say ready.',
+              voiceUrl: 'https://example.com/ready.mp3',
               responseMode: 'speech',
               expectedText: 'ready',
               successReply: '说对啦！',
@@ -133,6 +134,7 @@ describe('nativeLessonLoader', () => {
     assert.equal(choiceStep?.options[0]?.imageUrl, 'https://example.com/globe.png');
     assert.equal(choiceStep?.retryText, '再看看封蜡。');
     assert.deepEqual(speechStep?.expectedPhrases, ['ready']);
+    assert.equal(speechStep?.voiceUrl, 'https://example.com/ready.mp3');
     assert.equal(speechStep?.successReply, '说对啦！');
   });
 

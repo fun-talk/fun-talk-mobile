@@ -82,6 +82,7 @@ function stepFromRealtime(step: RealtimeLessonStepPayload | null): NativeLessonS
     promptText: step.assistantPrompt,
     screenText: step.screenText || step.screenTextFallback,
     mediaCueId: step.mediaCue?.cueId,
+    voiceUrl: step.voiceUrl,
     responseMode: step.inputMode === 'choice' ? 'choice' : step.inputMode === 'speech' ? 'speech' : undefined,
     correctOptionId: step.correctOptionId,
     expectedPhrases: step.expectedPhrases,

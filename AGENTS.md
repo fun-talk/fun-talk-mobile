@@ -124,13 +124,19 @@ Install dependencies:
 npm install
 ```
 
-Run the dev server (always on port `19002`):
+Run the dev server for the native development build on port `8081`:
 
 ```bash
-npm run start      # Expo dev server
-npm run ios        # Expo dev server + iOS simulator
-npm run android    # Expo dev server + Android emulator
-npm run web        # Expo dev server + web
+npm run start      # Expo dev-client Metro server
+npm run ios        # Expo dev-client Metro server + iOS simulator
+npm run android    # Expo dev-client Metro server + Android launch
+npm run web        # Expo web on port 19003
+```
+
+For a physical Android device connected over USB, mirror the Metro port before launching the app:
+
+```bash
+adb reverse tcp:8081 tcp:8081
 ```
 
 Code quality:

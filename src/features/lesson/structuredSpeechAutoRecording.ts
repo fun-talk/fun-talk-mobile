@@ -1,12 +1,12 @@
 import type { NativeLessonControllerView } from './nativeLessonController';
 import type { RecordingControllerStatus } from './recordingController';
 
-type FreeChatAudioStatus = 'idle' | 'buffering' | 'playing' | 'error';
+type StructuredSpeechAudioStatus = 'idle' | 'buffering' | 'playing' | 'error';
 
 type AutoStartOptions = {
   controllerView: NativeLessonControllerView;
   realtimeConnected: boolean;
-  audioStatus: FreeChatAudioStatus;
+  audioStatus: StructuredSpeechAudioStatus;
   assistantPlaybackPending: boolean;
   recordingStatus: RecordingControllerStatus;
   lastStartedTurnKey: string | null;
@@ -27,23 +27,34 @@ const AUTO_STARTABLE_RECORDING_STATUSES = new Set<RecordingControllerStatus>([
   'error',
 ]);
 
-export function getFreeChatAutoTurnKey(
+function isStructuredSpeechTurn(controllerView: NativeLessonControllerView | null): boolean {
+  if (!controllerView || controllerView.lifecycle !== 'waiting_user') {
+    return false;
+  }
+
+  return (
+    controllerView.phase === 'free_chat' ||
+    controllerView.step?.responseMode === 'speech'
+  );
+}
+
+export function getStructuredSpeechAutoTurnKey(
   controllerView: NativeLessonControllerView | null,
 ): string | null {
-  if (
-    !controllerView ||
-    controllerView.phase !== 'free_chat' ||
-    controllerView.lifecycle !== 'waiting_user'
-  ) {
+  if (!controllerView || !isStructuredSpeechTurn(controllerView)) {
     return null;
   }
 
   const stepId = controllerView.step?.step ?? controllerView.id;
-  const turnText = controllerView.text.trim() || controllerView.screenText.trim() || '';
+  const turnText =
+    controllerView.step?.screenText.trim() ||
+    controllerView.screenText.trim() ||
+    controllerView.text.trim() ||
+    '';
   return `${controllerView.phase}:${controllerView.lifecycle}:${stepId}:${turnText}`;
 }
 
-export function shouldAutoStartFreeChatRecording({
+export function shouldAutoStartStructuredSpeechRecording({
   controllerView,
   realtimeConnected,
   audioStatus,
@@ -51,7 +62,7 @@ export function shouldAutoStartFreeChatRecording({
   recordingStatus,
   lastStartedTurnKey,
 }: AutoStartOptions): boolean {
-  const turnKey = getFreeChatAutoTurnKey(controllerView);
+  const turnKey = getStructuredSpeechAutoTurnKey(controllerView);
   if (!turnKey) {
     return false;
   }
@@ -64,14 +75,14 @@ export function shouldAutoStartFreeChatRecording({
   return turnKey !== lastStartedTurnKey;
 }
 
-export function shouldAutoSubmitFreeChatRecording({
+export function shouldAutoSubmitStructuredSpeechRecording({
   controllerView,
   recordingStatus,
   recordingUri,
   lastSubmittedRecordingUri,
 }: AutoSubmitOptions): boolean {
   return (
-    controllerView.phase === 'free_chat' &&
+    isStructuredSpeechTurn(controllerView) &&
     recordingStatus === 'recorded' &&
     Boolean(recordingUri) &&
     recordingUri !== lastSubmittedRecordingUri

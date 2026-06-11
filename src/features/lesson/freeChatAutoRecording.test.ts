@@ -42,10 +42,25 @@ describe('freeChatAutoRecording', () => {
         controllerView: FREE_CHAT_VIEW,
         realtimeConnected: true,
         audioStatus: 'idle',
+        assistantPlaybackPending: false,
         recordingStatus: 'idle',
         lastStartedTurnKey: null,
       }),
       true,
+    );
+  });
+
+  it('waits until the assistant playback has fully finished before auto starting', () => {
+    assert.equal(
+      shouldAutoStartFreeChatRecording({
+        controllerView: FREE_CHAT_VIEW,
+        realtimeConnected: true,
+        audioStatus: 'idle',
+        assistantPlaybackPending: true,
+        recordingStatus: 'idle',
+        lastStartedTurnKey: null,
+      }),
+      false,
     );
   });
 
@@ -55,6 +70,7 @@ describe('freeChatAutoRecording', () => {
         controllerView: FREE_CHAT_VIEW,
         realtimeConnected: true,
         audioStatus: 'idle',
+        assistantPlaybackPending: false,
         recordingStatus: 'submitted',
         lastStartedTurnKey: 'free_chat:waiting_user:12:和欧波聊聊',
       }),

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useReducer } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { AppState } from 'react-native';
 import {
   requestRecordingPermissionsAsync,
@@ -10,6 +10,7 @@ import {
   createRecordingControllerState,
   reduceRecordingController,
 } from '../recordingController';
+import { isIgnorableAudioStreamStopError } from '../audioStreamStopError';
 import type { SimpleVadConfig } from '../simpleVad';
 
 type UseNativeLessonRecordingOptions = {
@@ -46,7 +47,9 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
     options?.vadConfig,
     createRecordingControllerState,
   );
-  onAudioChunkRef.current = options?.onAudioChunk;
+  useEffect(() => {
+    onAudioChunkRef.current = options?.onAudioChunk;
+  }, [options?.onAudioChunk]);
 
   const { stream } = useAudioStream({
     sampleRate: 16_000,
@@ -91,13 +94,23 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
     callback(leftover);
   }, []);
 
+  const stopStreamSafely = useCallback(() => {
+    try {
+      stream.stop();
+    } catch (error) {
+      if (!isIgnorableAudioStreamStopError(error)) {
+        throw error;
+      }
+    }
+  }, [stream]);
+
   const stop = useCallback(async () => {
     if (!isCapturingRef.current) {
       return;
     }
     isCapturingRef.current = false;
     try {
-      stream.stop();
+      stopStreamSafely();
       flushBufferedAudio();
       await setAudioModeAsync({
         allowsRecording: false,
@@ -116,7 +129,7 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
         message: error instanceof Error ? error.message : '录音停止失败。',
       });
     }
-  }, [flushBufferedAudio, stream]);
+  }, [flushBufferedAudio, stopStreamSafely]);
 
   const start = useCallback(async () => {
     try {
@@ -149,7 +162,7 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
   const cancel = useCallback(async () => {
     try {
       isCapturingRef.current = false;
-      stream.stop();
+      stopStreamSafely();
       streamBufferRef.current = new Uint8Array(0);
       await setAudioModeAsync({
         allowsRecording: false,
@@ -161,7 +174,7 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
       // no-op
     }
     dispatch({ type: 'cancel' });
-  }, [stream]);
+  }, [stopStreamSafely]);
 
   const submit = useCallback(() => {
     dispatch({ type: 'submit' });
@@ -180,10 +193,14 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
   useEffect(
     () => () => {
       isCapturingRef.current = false;
-      stream.stop();
+      try {
+        stopStreamSafely();
+      } catch {
+        // Ignore teardown failures from already released shared objects.
+      }
       streamBufferRef.current = new Uint8Array(0);
     },
-    [stream],
+    [stopStreamSafely],
   );
 
   useEffect(() => {

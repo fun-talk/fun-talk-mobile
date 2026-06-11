@@ -120,6 +120,7 @@ function normalizeSteps(rawSteps: unknown): Record<number, NativeLessonStep> {
       promptText: asString(step.promptText),
       screenText: asString(step.screenText || step.screenTextFallback),
       mediaCueId: asString(step.mediaCueId).trim() || undefined,
+      voiceUrl: asString(step.voiceUrl || step.audioUrl).trim() || undefined,
       responseMode: asString(step.responseMode).trim() || undefined,
       correctOptionId: asString(step.correctOptionId).trim() || undefined,
       expectedPhrases: normalizeExpectedPhrases(step),

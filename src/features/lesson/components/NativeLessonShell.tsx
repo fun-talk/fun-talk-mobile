@@ -11,8 +11,8 @@ import type { RecordingControllerState } from '../recordingController';
 import { useNativeLessonScale } from '../hooks/useNativeLessonScale';
 import type { RealtimeConversationItem } from '../hooks/useNativeLessonRealtimeSession';
 import { CourseMediaArea } from './CourseMediaArea';
+import { FollowReadPromptPanel } from './FollowReadPromptPanel';
 import { FreeChatPanel } from './FreeChatPanel';
-import { RecordingPanel } from './RecordingPanel';
 
 type NativeLessonShellProps = {
   lesson: NativeLessonDefinition;
@@ -30,10 +30,7 @@ type NativeLessonShellProps = {
   recordingState: RecordingControllerState;
   conversationHistory?: RealtimeConversationItem[];
   liveUserTranscript?: string;
-  onStartRecording: () => void;
-  onStopRecording: () => void;
-  onCancelRecording: () => void;
-  onSubmitRecording: () => void;
+  onReplaySpeechPrompt?: () => void;
   onMediaComplete: () => void;
   onMediaError?: (message: string) => void;
   onPauseToggle: () => void;
@@ -68,10 +65,7 @@ export function NativeLessonShell({
   recordingState,
   conversationHistory = [],
   liveUserTranscript = '',
-  onStartRecording,
-  onStopRecording,
-  onCancelRecording,
-  onSubmitRecording,
+  onReplaySpeechPrompt,
   onMediaComplete,
   onMediaError,
   onPauseToggle,
@@ -117,19 +111,43 @@ export function NativeLessonShell({
     (controllerView.phase === 'end' ? '课程完成' : controllerView.title);
   const choiceOptions = controllerView.step?.options ?? [];
   const isFreeChatPhase = controllerView.phase === 'free_chat';
+  const isSpeechStep = controllerView.step?.responseMode === 'speech';
   const expectsTextAnswer =
     !isFreeChatPhase &&
     !choiceOptions.length &&
-    (Boolean(controllerView.step?.expectedPhrases?.length) ||
-      controllerView.step?.responseMode === 'speech');
+    !isSpeechStep &&
+    Boolean(controllerView.step?.expectedPhrases?.length);
   const expectsRecording =
     isFreeChatPhase ||
-    controllerView.step?.responseMode === 'speech';
+    isSpeechStep;
   const canSubmitText = draftAnswer.trim().length > 0;
   const visibleConversationHistory = conversationHistory.slice(Math.max(0, conversationHistory.length - 8));
   const normalizedLiveUserTranscript = liveUserTranscript.trim();
+  const speechPromptTargetText =
+    controllerView.step?.screenText.trim() ||
+    controllerView.screenText.trim() ||
+    controllerView.text.trim();
+  const speechInstructionText = (() => {
+    if (!isSpeechStep) {
+      return '';
+    }
+    if (/_+/.test(speechPromptTargetText)) {
+      return '请填空,用英语说出完整的句子';
+    }
+    if (controllerView.phase === 'teaching' || controllerView.step?.expectedPhrases?.length) {
+      return '请大声跟读';
+    }
+    return '请用英语回答';
+  })();
+  const showFollowReadPromptPanel = isSpeechStep && !isFreeChatPhase;
+  const fallbackAssistantText =
+    showFollowReadPromptPanel && visibleConversationHistory.length === 0 && !normalizedLiveUserTranscript.length
+      ? displayText.trim()
+      : '';
   const shouldShowConversationHistory =
-    visibleConversationHistory.length > 0 || normalizedLiveUserTranscript.length > 0;
+    visibleConversationHistory.length > 0 ||
+    normalizedLiveUserTranscript.length > 0 ||
+    fallbackAssistantText.length > 0;
 
   useEffect(() => {
     setDraftAnswer('');
@@ -251,6 +269,33 @@ export function NativeLessonShell({
               </View>
             ) : null}
 
+            {showFollowReadPromptPanel ? (
+              <View
+                style={[
+                  styles.followReadPanelWrap,
+                  {
+                    left: scaled(1393, scale),
+                    top: scaled(780, scale),
+                    width: scaled(1052, scale),
+                    minHeight: scaled(247, scale),
+                    borderRadius: scaled(38, scale),
+                  },
+                ]}
+              >
+                <FollowReadPromptPanel
+                  state={recordingState}
+                  scale={scale}
+                  instructionText={speechInstructionText}
+                  targetText={speechPromptTargetText}
+                  hasPromptAudio={
+                    Boolean(onReplaySpeechPrompt) &&
+                    (Boolean(controllerView.step?.voiceUrl?.trim()) || Boolean(controllerView.text.trim()))
+                  }
+                  onReplayPrompt={onReplaySpeechPrompt}
+                />
+              </View>
+            ) : null}
+
             <View
               style={[
                 styles.speechCard,
@@ -263,24 +308,26 @@ export function NativeLessonShell({
                 },
               ]}
             >
-              <View
-                style={[
-                  styles.hintBubble,
-                  {
-                    top: scaled(34, scale),
-                    left: scaled(150, scale),
-                    right: scaled(150, scale),
-                    minHeight: scaled(110, scale),
-                    borderRadius: scaled(20, scale),
-                    paddingHorizontal: scaled(34, scale),
-                    paddingVertical: scaled(18, scale),
-                  },
-                ]}
-              >
-                <Text style={[styles.hintText, { fontSize: scaled(30, scale), lineHeight: scaled(42, scale) }]}>
-                  {displayText}
-                </Text>
-              </View>
+              {!showFollowReadPromptPanel ? (
+                <View
+                  style={[
+                    styles.hintBubble,
+                    {
+                      top: scaled(34, scale),
+                      left: scaled(150, scale),
+                      right: scaled(150, scale),
+                      minHeight: scaled(110, scale),
+                      borderRadius: scaled(20, scale),
+                      paddingHorizontal: scaled(34, scale),
+                      paddingVertical: scaled(18, scale),
+                    },
+                  ]}
+                >
+                  <Text style={[styles.hintText, { fontSize: scaled(30, scale), lineHeight: scaled(42, scale) }]}>
+                    {displayText}
+                  </Text>
+                </View>
+              ) : null}
 
               {shouldShowConversationHistory ? (
                 <ScrollView
@@ -327,6 +374,34 @@ export function NativeLessonShell({
                       </Text>
                     </View>
                   ))}
+                  {fallbackAssistantText ? (
+                    <View
+                      style={[
+                        styles.conversationBubble,
+                        styles.conversationBubbleAssistant,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.conversationSpeaker,
+                          {
+                            fontSize: scaled(18, scale),
+                            marginBottom: scaled(6, scale),
+                          },
+                        ]}
+                      >
+                        欧波
+                      </Text>
+                      <Text
+                        style={[
+                          styles.conversationText,
+                          { fontSize: scaled(24, scale), lineHeight: scaled(34, scale) },
+                        ]}
+                      >
+                        {fallbackAssistantText}
+                      </Text>
+                    </View>
+                  ) : null}
                   {normalizedLiveUserTranscript ? (
                     <View
                       style={[
@@ -485,28 +560,6 @@ export function NativeLessonShell({
                       提交
                     </Text>
                   </Pressable>
-                </View>
-              ) : null}
-
-              {expectsRecording && !isFreeChatPhase ? (
-                <View
-                  style={[
-                    styles.recordingPanelWrap,
-                    {
-                      top: scaled(168, scale),
-                      left: scaled(210, scale),
-                      right: scaled(210, scale),
-                    },
-                  ]}
-                >
-                  <RecordingPanel
-                    state={recordingState}
-                    isFreeChat={false}
-                    onStart={onStartRecording}
-                    onStop={onStopRecording}
-                    onCancel={onCancelRecording}
-                    onSubmit={onSubmitRecording}
-                  />
                 </View>
               ) : null}
 
@@ -799,10 +852,11 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '900',
   },
-  recordingPanelWrap: {
-    position: 'absolute',
-  },
   freeChatPanelWrap: {
+    position: 'absolute',
+    zIndex: 30,
+  },
+  followReadPanelWrap: {
     position: 'absolute',
     zIndex: 30,
   },

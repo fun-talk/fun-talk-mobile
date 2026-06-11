@@ -26,10 +26,10 @@ import { useNativeLessonMediaPreload } from '../hooks/useNativeLessonMediaPreloa
 import { useNativeLessonRecording } from '../hooks/useNativeLessonRecording';
 import { useNativeLessonRealtimeSession } from '../hooks/useNativeLessonRealtimeSession';
 import {
-  getFreeChatAutoTurnKey,
-  shouldAutoStartFreeChatRecording,
-  shouldAutoSubmitFreeChatRecording,
-} from '../freeChatAutoRecording';
+  getStructuredSpeechAutoTurnKey,
+  shouldAutoStartStructuredSpeechRecording,
+  shouldAutoSubmitStructuredSpeechRecording,
+} from '../structuredSpeechAutoRecording';
 
 const LOGIN_ROUTE = '/(auth)/login' as Href;
 
@@ -248,8 +248,8 @@ function NativeLessonLoadedScreen({
   const [mediaErrorText, setMediaErrorText] = useState('');
   const [completionStatus, setCompletionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [completionErrorText, setCompletionErrorText] = useState('');
-  const lastFreeChatAutoStartTurnKeyRef = useRef<string | null>(null);
-  const lastFreeChatAutoSubmittedUriRef = useRef<string | null>(null);
+  const lastStructuredAutoStartTurnKeyRef = useRef<string | null>(null);
+  const lastStructuredAutoSubmittedUriRef = useRef<string | null>(null);
   const runtimeError = useMemo<NativeLessonErrorView | null>(() => {
     if (realtime.errorText) {
       return classifyNativeLessonError('session', realtime.errorText);
@@ -273,6 +273,7 @@ function NativeLessonLoadedScreen({
   const submitRecordingState = recording.submit;
   const isRealtimeConnected = realtime.isConnected;
   const realtimeAudioStatus = realtime.audioStatus;
+  const assistantPlaybackPending = realtime.assistantPlaybackPending;
   const isLessonComplete =
     controllerView.phase === 'end' ||
     controllerView.lifecycle === 'completed' ||
@@ -324,47 +325,49 @@ function NativeLessonLoadedScreen({
       recordingStatus === 'cancelled' ||
       recordingStatus === 'idle'
     ) {
-      lastFreeChatAutoSubmittedUriRef.current = null;
+      lastStructuredAutoSubmittedUriRef.current = null;
     }
   }, [recordingStatus]);
 
   useEffect(() => {
-    const autoTurnKey = getFreeChatAutoTurnKey(controllerView);
+    const autoTurnKey = getStructuredSpeechAutoTurnKey(controllerView);
     if (
-      !shouldAutoStartFreeChatRecording({
+      !shouldAutoStartStructuredSpeechRecording({
         controllerView,
         realtimeConnected: isRealtimeConnected,
         audioStatus: realtimeAudioStatus,
+        assistantPlaybackPending,
         recordingStatus,
-        lastStartedTurnKey: lastFreeChatAutoStartTurnKeyRef.current,
+        lastStartedTurnKey: lastStructuredAutoStartTurnKeyRef.current,
       })
     ) {
       return;
     }
 
-    lastFreeChatAutoStartTurnKeyRef.current = autoTurnKey;
+    lastStructuredAutoStartTurnKeyRef.current = autoTurnKey;
     void startRecording();
   }, [
     controllerView,
     isRealtimeConnected,
     realtimeAudioStatus,
+    assistantPlaybackPending,
     recordingStatus,
     startRecording,
   ]);
 
   useEffect(() => {
     if (
-      !shouldAutoSubmitFreeChatRecording({
+      !shouldAutoSubmitStructuredSpeechRecording({
         controllerView,
         recordingStatus,
         recordingUri,
-        lastSubmittedRecordingUri: lastFreeChatAutoSubmittedUriRef.current,
+        lastSubmittedRecordingUri: lastStructuredAutoSubmittedUriRef.current,
       })
     ) {
       return;
     }
 
-    lastFreeChatAutoSubmittedUriRef.current = recordingUri;
+    lastStructuredAutoSubmittedUriRef.current = recordingUri;
     void submitRecording();
   }, [
     controllerView,
@@ -431,10 +434,7 @@ function NativeLessonLoadedScreen({
       recordingState={recording.state}
       conversationHistory={realtime.conversationHistory}
       liveUserTranscript={realtime.liveUserTranscript}
-      onStartRecording={recording.start}
-      onStopRecording={recording.stop}
-      onCancelRecording={recording.cancel}
-      onSubmitRecording={submitRecording}
+      onReplaySpeechPrompt={realtime.replayCurrentStepPrompt}
       onMediaComplete={() => {
         setMediaErrorText('');
         const cueId = controllerView.step?.mediaCueId;

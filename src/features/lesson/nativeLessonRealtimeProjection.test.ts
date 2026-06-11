@@ -58,6 +58,7 @@ describe('nativeLessonRealtimeProjection', () => {
         assistantPrompt: 'Say ready.',
         inputMode: 'speech',
         advancePolicy: 'wait_user',
+        voiceUrl: 'https://example.com/ready.mp3',
         screenText: 'I am ___.',
         expectedPhrases: ['ready'],
         choiceOptions: [],
@@ -73,6 +74,7 @@ describe('nativeLessonRealtimeProjection', () => {
     const view = getRealtimeControllerView(state, { title: 'Lesson' });
     assert.equal(view?.text, 'Say ready.');
     assert.equal(view?.step?.responseMode, 'speech');
+    assert.equal(view?.step?.voiceUrl, 'https://example.com/ready.mp3');
     assert.equal(view?.answer?.correct, false);
     assert.equal(view?.answer?.feedbackText, '再试一次。');
   });
