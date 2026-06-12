@@ -28,9 +28,17 @@ type NativeLessonShellProps = {
   onSubmitChoice: (optionId: string) => void;
   onSubmitText: (text: string) => void;
   recordingState: RecordingControllerState;
+  assistantPlaybackPending?: boolean;
   conversationHistory?: RealtimeConversationItem[];
   liveUserTranscript?: string;
   onReplaySpeechPrompt?: () => void;
+  developerAudioSmoke?: {
+    status: 'idle' | 'running' | 'passed' | 'failed';
+    message: string;
+    frameCount: number;
+    pcmBytes: number;
+  } | null;
+  onRunDeveloperAudioSmoke?: () => void;
   onMediaComplete: () => void;
   onMediaError?: (message: string) => void;
   onPauseToggle: () => void;
@@ -63,9 +71,12 @@ export function NativeLessonShell({
   onSubmitChoice,
   onSubmitText,
   recordingState,
+  assistantPlaybackPending = false,
   conversationHistory = [],
   liveUserTranscript = '',
   onReplaySpeechPrompt,
+  developerAudioSmoke,
+  onRunDeveloperAudioSmoke,
   onMediaComplete,
   onMediaError,
   onPauseToggle,
@@ -249,6 +260,63 @@ export function NativeLessonShell({
               </View>
             </View>
 
+            {developerAudioSmoke && onRunDeveloperAudioSmoke ? (
+              <View
+                style={[
+                  styles.developerSmokeCard,
+                  {
+                    left: scaled(92, scale),
+                    top: scaled(206, scale),
+                    width: scaled(560, scale),
+                    borderRadius: scaled(22, scale),
+                    padding: scaled(22, scale),
+                    gap: scaled(14, scale),
+                  },
+                ]}
+              >
+                <Text style={[styles.developerSmokeKicker, { fontSize: scaled(18, scale) }]}>
+                  DEV AUDIO SMOKE
+                </Text>
+                <Text
+                  style={[
+                    styles.developerSmokeStatus,
+                    { fontSize: scaled(24, scale), lineHeight: scaled(32, scale) },
+                  ]}
+                >
+                  {`status: ${developerAudioSmoke.status}`}
+                </Text>
+                <Text
+                  style={[
+                    styles.developerSmokeMessage,
+                    { fontSize: scaled(20, scale), lineHeight: scaled(28, scale) },
+                  ]}
+                >
+                  {developerAudioSmoke.message}
+                </Text>
+                <Text
+                  style={[
+                    styles.developerSmokeMeta,
+                    { fontSize: scaled(18, scale), lineHeight: scaled(26, scale) },
+                  ]}
+                >
+                  {`frames ${developerAudioSmoke.frameCount} · pcm ${developerAudioSmoke.pcmBytes} bytes`}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={developerAudioSmoke.status === 'running'}
+                  onPress={onRunDeveloperAudioSmoke}
+                  style={[
+                    styles.developerSmokeButton,
+                    developerAudioSmoke.status === 'running' && styles.disabledButton,
+                  ]}
+                >
+                  <Text style={[styles.developerSmokeButtonText, { fontSize: scaled(18, scale) }]}>
+                    回放打包音频帧
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             {isFreeChatPhase ? (
               <View
                 style={[
@@ -263,6 +331,7 @@ export function NativeLessonShell({
                 ]}
               >
                 <FreeChatPanel
+                  assistantPlaybackPending={assistantPlaybackPending}
                   state={recordingState}
                   scale={scale}
                 />
@@ -904,6 +973,44 @@ const styles = StyleSheet.create({
   },
   conversationBubbleLive: {
     borderStyle: 'dashed',
+  },
+  developerSmokeCard: {
+    position: 'absolute',
+    zIndex: 16,
+    backgroundColor: 'rgba(8, 47, 73, 0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(125, 211, 252, 0.45)',
+    shadowColor: '#020617',
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  developerSmokeKicker: {
+    color: '#67e8f9',
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  developerSmokeStatus: {
+    color: '#f8fafc',
+    fontWeight: '800',
+  },
+  developerSmokeMessage: {
+    color: '#dbeafe',
+    fontWeight: '600',
+  },
+  developerSmokeMeta: {
+    color: '#bae6fd',
+  },
+  developerSmokeButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    backgroundColor: '#22c55e',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  developerSmokeButtonText: {
+    color: '#052e16',
+    fontWeight: '900',
   },
   conversationSpeaker: {
     color: '#334155',

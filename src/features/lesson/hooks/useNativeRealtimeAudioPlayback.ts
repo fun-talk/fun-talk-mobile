@@ -56,6 +56,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
       });
       player.play();
       setStatus('playing');
+      return true;
     },
     [ensurePlaybackAudioMode, releasePlayer],
   );
@@ -89,7 +90,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
       } else {
         onPlaybackCompleteRef.current();
       }
-      return;
+      return true;
     }
 
     try {
@@ -104,7 +105,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
       );
       sequenceRef.current += 1;
       file.write(wav);
-      await startPlayer(file.uri, onComplete);
+      return await startPlayer(file.uri, onComplete);
     } catch (error) {
       setStatus('error');
       setErrorText(error instanceof Error ? error.message : 'Realtime audio 播放失败。');
@@ -113,6 +114,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
       } else {
         onPlaybackCompleteRef.current();
       }
+      return false;
     }
   }, [startPlayer]);
 
@@ -125,11 +127,11 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
         } else {
           onPlaybackCompleteRef.current();
         }
-        return;
+        return true;
       }
 
       try {
-        await startPlayer(normalizedUrl, onComplete);
+        return await startPlayer(normalizedUrl, onComplete);
       } catch (error) {
         setStatus('error');
         setErrorText(error instanceof Error ? error.message : 'Realtime voiceUrl 播放失败。');
@@ -138,6 +140,7 @@ export function useNativeRealtimeAudioPlayback(onPlaybackComplete: () => void) {
         } else {
           onPlaybackCompleteRef.current();
         }
+        return false;
       }
     },
     [startPlayer],

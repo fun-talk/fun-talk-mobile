@@ -2,8 +2,8 @@ export type RealtimeWireFrame =
   | { kind: 'json'; payload: Record<string, unknown> }
   | { kind: 'audio'; payload: Uint8Array };
 
-const MSG_TYPE_JSON = 0;
-const MSG_TYPE_AUDIO = 1;
+export const MSG_TYPE_JSON = 0;
+export const MSG_TYPE_AUDIO = 1;
 
 function toUint8Array(data: unknown): Uint8Array | null {
   if (data instanceof ArrayBuffer) {
@@ -43,6 +43,26 @@ export function unpackRealtimeWireFrame(data: unknown): RealtimeWireFrame | null
     return { kind: 'audio', payload };
   }
   return null;
+}
+
+export function packRealtimeWireFrame(type: number, payload: Uint8Array): ArrayBuffer {
+  const frame = new Uint8Array(5 + payload.length);
+  const view = new DataView(frame.buffer);
+  view.setUint8(0, type);
+  view.setUint32(1, payload.length, false);
+  frame.set(payload, 5);
+  return frame.buffer;
+}
+
+export function packRealtimeJsonFrame(payload: Record<string, unknown>): ArrayBuffer {
+  return packRealtimeWireFrame(
+    MSG_TYPE_JSON,
+    new TextEncoder().encode(JSON.stringify(payload)),
+  );
+}
+
+export function packRealtimeAudioFrame(payload: Uint8Array): ArrayBuffer {
+  return packRealtimeWireFrame(MSG_TYPE_AUDIO, payload);
 }
 
 export function concatAudioChunks(chunks: Uint8Array[]): Uint8Array {
@@ -105,4 +125,3 @@ export function bytesToBase64(bytes: Uint8Array): string {
   }
   return output;
 }
-

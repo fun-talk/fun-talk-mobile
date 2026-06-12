@@ -4,22 +4,14 @@ import { describe, it } from 'node:test';
 import {
   concatAudioChunks,
   createPcm16WavBytes,
+  packRealtimeAudioFrame,
+  packRealtimeJsonFrame,
   unpackRealtimeWireFrame,
 } from './nativeRealtimeAudio.ts';
 
-function packFrame(type: number, payload: Uint8Array): ArrayBuffer {
-  const frame = new Uint8Array(5 + payload.length);
-  const view = new DataView(frame.buffer);
-  view.setUint8(0, type);
-  view.setUint32(1, payload.length, false);
-  frame.set(payload, 5);
-  return frame.buffer;
-}
-
 describe('nativeRealtimeAudio', () => {
   it('unpacks server JSON wire frames', () => {
-    const payload = new TextEncoder().encode(JSON.stringify({ event: 'tts_end' }));
-    const frame = unpackRealtimeWireFrame(packFrame(0, payload));
+    const frame = unpackRealtimeWireFrame(packRealtimeJsonFrame({ event: 'tts_end' }));
 
     assert.equal(frame?.kind, 'json');
     assert.deepEqual(frame?.payload, { event: 'tts_end' });
@@ -27,7 +19,7 @@ describe('nativeRealtimeAudio', () => {
 
   it('unpacks server PCM audio wire frames', () => {
     const pcm = new Uint8Array([1, 0, 2, 0]);
-    const frame = unpackRealtimeWireFrame(packFrame(1, pcm));
+    const frame = unpackRealtimeWireFrame(packRealtimeAudioFrame(pcm));
 
     assert.equal(frame?.kind, 'audio');
     assert.deepEqual([...(frame?.payload ?? [])], [1, 0, 2, 0]);
@@ -50,4 +42,3 @@ describe('nativeRealtimeAudio', () => {
     assert.equal(view.getUint32(40, true), 4);
   });
 });
-

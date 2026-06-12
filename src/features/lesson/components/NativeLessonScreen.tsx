@@ -217,10 +217,11 @@ function NativeLessonLoadedScreen({
   const realtimeEnabled = true;
   const sendAudioChunkRef = useRef<(chunk: Uint8Array) => boolean>(() => false);
   const isRealtimeConnectedRef = useRef(false);
+  const canSendAudioChunkRef = useRef(false);
   const recording = useNativeLessonRecording({
     vadConfig: { silenceTimeoutMs: 2000 },
     onAudioChunk: (chunk) => {
-      if (isRealtimeConnectedRef.current) {
+      if (isRealtimeConnectedRef.current && canSendAudioChunkRef.current) {
         sendAudioChunkRef.current(chunk);
       }
     },
@@ -269,10 +270,19 @@ function NativeLessonLoadedScreen({
   const recordingUri = recording.state.recordingUri;
   const startRecording = recording.start;
   const cancelRecording = recording.cancel;
+  const acknowledgeRecordingSubmit = recording.acknowledgeSubmit;
   const submitRecordingState = recording.submit;
   const isRealtimeConnected = realtime.isConnected;
   const realtimeAudioStatus = realtime.audioStatus;
   const assistantPlaybackPending = realtime.assistantPlaybackPending;
+  const canSendAudioChunks =
+    isRealtimeConnected &&
+    !assistantPlaybackPending &&
+    controllerView?.lifecycle === 'waiting_user' &&
+    (recordingStatus === 'recording' || recordingStatus === 'auto_stopping');
+  useEffect(() => {
+    canSendAudioChunkRef.current = canSendAudioChunks;
+  }, [canSendAudioChunks]);
   const isLessonComplete =
     controllerView?.phase === 'end' ||
     controllerView?.lifecycle === 'completed' ||
@@ -318,6 +328,41 @@ function NativeLessonLoadedScreen({
       lastStructuredAutoSubmittedUriRef.current = null;
     }
   }, [recordingStatus]);
+
+  useEffect(() => {
+    if (!controllerView) {
+      return;
+    }
+    if (recordingStatus !== 'submitted') {
+      return;
+    }
+    if (controllerView.lifecycle === 'waiting_user') {
+      return;
+    }
+
+    acknowledgeRecordingSubmit();
+  }, [acknowledgeRecordingSubmit, controllerView, recordingStatus]);
+
+  useEffect(() => {
+    if (!controllerView) {
+      lastStructuredAutoStartTurnKeyRef.current = null;
+      return;
+    }
+
+    const isStructuredSpeechWaitingTurn =
+      controllerView.lifecycle === 'waiting_user' &&
+      (controllerView.phase === 'free_chat' || controllerView.step?.responseMode === 'speech');
+
+    if (!isStructuredSpeechWaitingTurn) {
+      lastStructuredAutoStartTurnKeyRef.current = null;
+    }
+  }, [controllerView]);
+
+  useEffect(() => {
+    if (assistantPlaybackPending) {
+      lastStructuredAutoStartTurnKeyRef.current = null;
+    }
+  }, [assistantPlaybackPending]);
 
   useEffect(() => {
     if (!controllerView) {
@@ -429,6 +474,9 @@ function NativeLessonLoadedScreen({
       audioStatus: realtimeAudioStatus,
       assistantPlaybackPending,
     });
+    if (closeReason === 'assistant_playback_pending') {
+      lastStructuredAutoStartTurnKeyRef.current = null;
+    }
     void cancelRecording();
   }, [
     assistantPlaybackPending,
@@ -536,11 +584,14 @@ function NativeLessonLoadedScreen({
         }
       }}
       recordingState={recording.state}
+      assistantPlaybackPending={assistantPlaybackPending}
       conversationHistory={realtime.conversationHistory}
       liveUserTranscript={realtime.liveUserTranscript}
       onReplaySpeechPrompt={() => {
         void realtime.replayCurrentStepPrompt();
       }}
+      developerAudioSmoke={realtime.developerAudioSmoke}
+      onRunDeveloperAudioSmoke={realtime.runDeveloperAudioSmokeTest}
       onMediaComplete={() => {
         setMediaErrorText('');
         const cueId = controllerView.step?.mediaCueId;

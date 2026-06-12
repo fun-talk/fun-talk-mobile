@@ -4,6 +4,10 @@ import { getDeviceID } from '@/lib/device/deviceId';
 
 import { unpackRealtimeWireFrame } from '../nativeRealtimeAudio';
 import {
+  buildDeveloperRealtimeAudioSmokeFrames,
+  handlePackedRealtimeTtsFrame,
+} from '../nativeLessonRealtimeAudioSmoke';
+import {
   INITIAL_REALTIME_LESSON_PROJECTION_STATE,
   applyRealtimeLessonEvent,
   getRealtimeControllerView,
@@ -25,6 +29,7 @@ import { resolveStepPromptPlaybackPlan } from '../nativeLessonPromptPlayback';
 import { shouldPlayChatEndedSpeech } from '../chatEndedPlayback';
 import { shouldAdvanceFreeChatStepOnClose } from '../freeChatStepAdvance';
 import { shouldAdvanceSpeechStepAfterMaxRetries } from '../speechStepAdvance';
+import { createAssistantPlaybackCompletionHandler } from '../assistantPlaybackCompletion';
 import type {
   NativeLessonControllerView,
   NativeLessonPhase,
@@ -45,6 +50,14 @@ type NativeLessonRealtimeSessionOptions = {
 };
 
 type RealtimeSessionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
+type DeveloperAudioSmokeStatus = 'idle' | 'running' | 'passed' | 'failed';
+
+export type DeveloperAudioSmokeView = {
+  status: DeveloperAudioSmokeStatus;
+  message: string;
+  frameCount: number;
+  pcmBytes: number;
+};
 
 export type RealtimeConversationItem = {
   id: string;
@@ -109,6 +122,11 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const wrongSpeechAttemptCountsRef = useRef(new Map<number, number>());
   const pendingAdvanceAfterRetryStepIdRef = useRef<number | null>(null);
   const conversationSequenceRef = useRef(0);
+  const developerSmokeRunRef = useRef<{
+    frameCount: number;
+    pcmBytes: number;
+    awaitingPlaybackCompletion: boolean;
+  } | null>(null);
   const [status, setStatus] = useState<RealtimeSessionStatus>(options.enabled ? 'connecting' : 'idle');
   const [projection, setProjection] = useState<RealtimeLessonProjectionState>(
     INITIAL_REALTIME_LESSON_PROJECTION_STATE,
@@ -117,6 +135,12 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const [liveUserTranscript, setLiveUserTranscript] = useState('');
   const [errorText, setErrorText] = useState('');
   const [assistantPlaybackPending, setAssistantPlaybackPending] = useState(false);
+  const [developerAudioSmoke, setDeveloperAudioSmoke] = useState<DeveloperAudioSmokeView>({
+    status: 'idle',
+    message: '等待运行',
+    frameCount: 0,
+    pcmBytes: 0,
+  });
   const pushConversationItem = useCallback(
     (role: RealtimeConversationItem['role'], text: string, source: RealtimeConversationItem['source']) => {
       const normalized = text.trim();
@@ -133,6 +157,19 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
           source,
         }),
       );
+    },
+    [],
+  );
+  const finishDeveloperAudioSmoke = useCallback(
+    (statusValue: DeveloperAudioSmokeStatus, message: string) => {
+      const activeRun = developerSmokeRunRef.current;
+      setDeveloperAudioSmoke({
+        status: statusValue,
+        message,
+        frameCount: activeRun?.frameCount ?? 0,
+        pcmBytes: activeRun?.pcmBytes ?? 0,
+      });
+      developerSmokeRunRef.current = null;
     },
     [],
   );
@@ -156,6 +193,9 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     sendJson(socketRef.current, buildAssistantPromptSpokenCommand(stepId));
   }, []);
   const audioPlayback = useNativeRealtimeAudioPlayback(() => {
+    if (developerSmokeRunRef.current?.awaitingPlaybackCompletion) {
+      finishDeveloperAudioSmoke('passed', 'PCM 已经走通 native 播放完成回调。');
+    }
     markAssistantPromptSpoken();
   });
   const {
@@ -182,7 +222,11 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
         return;
       }
 
-      const onComplete = shouldMarkPromptSpoken ? markAssistantPromptSpoken : undefined;
+      const onComplete = createAssistantPlaybackCompletionHandler({
+        shouldMarkPromptSpoken,
+        onMarkPromptSpoken: markAssistantPromptSpoken,
+        onPlaybackFinished: () => setAssistantPlaybackPending(false),
+      });
       try {
         logRealtimeLessonEvent('play_lesson_assistant_speech_start', {
           stepId: currentStepIdRef.current,
@@ -285,11 +329,18 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     wrongSpeechAttemptCountsRef.current.clear();
     pendingAdvanceAfterRetryStepIdRef.current = null;
     conversationSequenceRef.current = 0;
+    developerSmokeRunRef.current = null;
     setProjection(INITIAL_REALTIME_LESSON_PROJECTION_STATE);
     setConversationHistory([]);
     setLiveUserTranscript('');
     setErrorText('');
     setAssistantPlaybackPending(false);
+    setDeveloperAudioSmoke({
+      status: 'idle',
+      message: '等待运行',
+      frameCount: 0,
+      pcmBytes: 0,
+    });
     setStatus('idle');
     resetBuffer();
   }, [resetBuffer]);
@@ -317,7 +368,64 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     socketRef.current = null;
   }, []);
 
-  const connect = useCallback(async () => {
+  const handleTtsStart = useCallback(() => {
+    if (ttsFallbackTimerRef.current) {
+      clearTimeout(ttsFallbackTimerRef.current);
+      ttsFallbackTimerRef.current = null;
+    }
+    resetBuffer();
+    ttsReceivedAudioRef.current = false;
+    if (currentStepPhaseRef.current === 'free_chat' || developerSmokeRunRef.current) {
+      setAssistantPlaybackPending(true);
+    }
+  }, [resetBuffer]);
+
+  const handleTtsEnd = useCallback(async () => {
+    if (ttsFallbackTimerRef.current) {
+      clearTimeout(ttsFallbackTimerRef.current);
+      ttsFallbackTimerRef.current = null;
+    }
+    if (!ttsReceivedAudioRef.current) {
+      setErrorText('Server TTS 未返回音频，请重试。');
+      if (developerSmokeRunRef.current) {
+        finishDeveloperAudioSmoke('failed', '收到 tts_end 但没有 PCM 音频帧。');
+      }
+      markAssistantPromptSpoken();
+      return false;
+    }
+
+    if (developerSmokeRunRef.current) {
+      developerSmokeRunRef.current.awaitingPlaybackCompletion = true;
+      setDeveloperAudioSmoke((current) => ({
+        ...current,
+        message: 'PCM 已送入 native 播放器，等待完成回调...',
+      }));
+    }
+    const started = await playBufferedPcm();
+    if (!started) {
+      if (developerSmokeRunRef.current) {
+        finishDeveloperAudioSmoke('failed', 'Native 播放启动失败，请查看 audio error。');
+      }
+      return false;
+    }
+    return true;
+  }, [finishDeveloperAudioSmoke, markAssistantPromptSpoken, playBufferedPcm]);
+
+  const handlePackedTtsFrame = useCallback(
+    async (data: unknown) => {
+      return handlePackedRealtimeTtsFrame(data, {
+        onTtsStart: handleTtsStart,
+        onPcmChunk: (chunk) => {
+          ttsReceivedAudioRef.current = true;
+          pushPcmChunk(chunk);
+        },
+        onTtsEnd: handleTtsEnd,
+      });
+    },
+    [handleTtsEnd, handleTtsStart, pushPcmChunk],
+  );
+
+  const connect = useCallback(async function connectSession() {
     if (!options.enabled || !options.token) {
       return;
     }
@@ -357,16 +465,12 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
 
       socket.onmessage = (message) => {
         void (async () => {
-          const wireFrame = unpackRealtimeWireFrame(message.data);
-          if (wireFrame?.kind === 'audio') {
-            ttsReceivedAudioRef.current = true;
-            pushPcmChunk(wireFrame.payload);
+          const packedTtsResult = await handlePackedTtsFrame(message.data);
+          if (packedTtsResult.handled) {
             return;
           }
           const decoded =
-            wireFrame?.kind === 'json'
-              ? wireFrame.payload
-              : await decodeRealtimeLessonMessage(message.data);
+            packedTtsResult.jsonPayload ?? (await decodeRealtimeLessonMessage(message.data));
           const event = normalizeRealtimeLessonEvent(decoded);
           if (!event) {
             return;
@@ -466,9 +570,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
               shouldPlayChatEndedSpeech({ currentLifecycle: currentLifecycleRef.current })
             ) {
               const shouldMarkPromptSpoken = !spokenStepIdsRef.current.has(stepId);
-              if (shouldMarkPromptSpoken) {
-                setAssistantPlaybackPending(true);
-              }
+              setAssistantPlaybackPending(true);
               await playLessonAssistantSpeech(finalLessonText, shouldMarkPromptSpoken);
             }
             if (pendingAdvanceAfterRetryStepIdRef.current === stepId) {
@@ -544,30 +646,6 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
             }
             onCaptureTurnEndedRef.current?.();
           }
-          if (event.event === 'tts_start') {
-            if (ttsFallbackTimerRef.current) {
-              clearTimeout(ttsFallbackTimerRef.current);
-              ttsFallbackTimerRef.current = null;
-            }
-            ttsReceivedAudioRef.current = false;
-            if (currentStepPhaseRef.current === 'free_chat') {
-              setAssistantPlaybackPending(true);
-            }
-            return;
-          }
-          if (event.event === 'tts_end') {
-            if (ttsFallbackTimerRef.current) {
-              clearTimeout(ttsFallbackTimerRef.current);
-              ttsFallbackTimerRef.current = null;
-            }
-            if (ttsReceivedAudioRef.current) {
-              await playBufferedPcm();
-            } else {
-              setErrorText('Server TTS 未返回音频，请重试。');
-              markAssistantPromptSpoken();
-            }
-            return;
-          }
           setProjection((current) => applyRealtimeLessonEvent(current, event));
         })();
       };
@@ -602,7 +680,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
           );
           reconnectAttemptRef.current += 1;
           reconnectTimerRef.current = setTimeout(() => {
-            void connect();
+            void connectSession();
           }, delay);
         }
       };
@@ -616,13 +694,10 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     options.lessonId,
     options.sectionId,
     options.token,
-    markAssistantPromptSpoken,
-    playBufferedPcm,
     playCurrentStepPrompt,
     playLessonAssistantSpeech,
     pushConversationItem,
-    pushPcmChunk,
-    resetBuffer,
+    handlePackedTtsFrame,
   ]);
 
   useEffect(() => {
@@ -693,6 +768,49 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     void playCurrentStepPrompt(false);
   }, [playCurrentStepPrompt]);
 
+  const runDeveloperAudioSmokeTest = useCallback(() => {
+    if (!__DEV__) {
+      return;
+    }
+
+    const frames = buildDeveloperRealtimeAudioSmokeFrames();
+    const pcmBytes = frames.reduce((sum, frame) => {
+      const unpacked = unpackRealtimeWireFrame(frame);
+      return unpacked?.kind === 'audio' ? sum + unpacked.payload.byteLength : sum;
+    }, 0);
+    developerSmokeRunRef.current = {
+      frameCount: frames.length,
+      pcmBytes,
+      awaitingPlaybackCompletion: false,
+    };
+    setDeveloperAudioSmoke({
+      status: 'running',
+      message: '正在回放打包好的 tts_start / PCM / tts_end 帧...',
+      frameCount: frames.length,
+      pcmBytes,
+    });
+    setErrorText('');
+
+    void (async () => {
+      for (const frame of frames) {
+        const result = await handlePackedTtsFrame(frame);
+        if (!result.handled) {
+          finishDeveloperAudioSmoke('failed', '开发烟雾测试遇到了无法识别的帧。');
+          return;
+        }
+      }
+      if (developerSmokeRunRef.current && !developerSmokeRunRef.current.awaitingPlaybackCompletion) {
+        finishDeveloperAudioSmoke('passed', '音频帧已处理完成。');
+      }
+    })().catch((error) => {
+      setErrorText(error instanceof Error ? error.message : '开发烟雾测试失败。');
+      finishDeveloperAudioSmoke(
+        'failed',
+        error instanceof Error ? error.message : '开发烟雾测试失败。',
+      );
+    });
+  }, [finishDeveloperAudioSmoke, handlePackedTtsFrame]);
+
   return {
     status,
     errorText: errorText || projection.errorText,
@@ -715,5 +833,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     sendAudioChunk,
     appendLocalUserTranscript,
     replayCurrentStepPrompt,
+    developerAudioSmoke: __DEV__ ? developerAudioSmoke : null,
+    runDeveloperAudioSmokeTest,
   };
 }

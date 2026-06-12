@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { AppState } from 'react-native';
 import {
+  getRecordingPermissionsAsync,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioStream,
@@ -50,6 +51,18 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
   useEffect(() => {
     onAudioChunkRef.current = options?.onAudioChunk;
   }, [options?.onAudioChunk]);
+
+  useEffect(() => {
+    void getRecordingPermissionsAsync()
+      .then((permission) => {
+        if (permission.granted) {
+          dispatch({ type: 'permission_granted' });
+        }
+      })
+      .catch(() => {
+        // Ignore warm-up permission read failures; start() will retry explicitly.
+      });
+  }, []);
 
   const { stream } = useAudioStream({
     sampleRate: 16_000,
@@ -133,7 +146,14 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
 
   const start = useCallback(async () => {
     try {
-      const permission = await requestRecordingPermissionsAsync();
+      const permission = state.hasPermission
+        ? { granted: true }
+        : await getRecordingPermissionsAsync().then(async (currentPermission) => {
+            if (currentPermission.granted) {
+              return currentPermission;
+            }
+            return await requestRecordingPermissionsAsync();
+          });
       if (!permission.granted) {
         dispatch({ type: 'permission_denied' });
         return;
@@ -157,7 +177,7 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
         message: error instanceof Error ? error.message : '录音启动失败。',
       });
     }
-  }, [stream]);
+  }, [state.hasPermission, stream]);
 
   const cancel = useCallback(async () => {
     try {
