@@ -109,7 +109,7 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const wrongSpeechAttemptCountsRef = useRef(new Map<number, number>());
   const pendingAdvanceAfterRetryStepIdRef = useRef<number | null>(null);
   const conversationSequenceRef = useRef(0);
-  const [status, setStatus] = useState<RealtimeSessionStatus>('idle');
+  const [status, setStatus] = useState<RealtimeSessionStatus>(options.enabled ? 'connecting' : 'idle');
   const [projection, setProjection] = useState<RealtimeLessonProjectionState>(
     INITIAL_REALTIME_LESSON_PROJECTION_STATE,
   );

@@ -19,9 +19,8 @@ import {
   getNativeLessonRequestFromParams,
 } from '../nativeLessonLoader';
 import { completeNativeLessonProgress } from '../nativeLessonProgress';
-import type { NativeLessonDefinition, NativeLessonStep } from '../nativeLessonTypes';
+import type { NativeLessonDefinition } from '../nativeLessonTypes';
 import { NativeLessonShell } from './NativeLessonShell';
-import { useNativeLessonController } from '../hooks/useNativeLessonController';
 import { useNativeLessonMediaPreload } from '../hooks/useNativeLessonMediaPreload';
 import { useNativeLessonRecording } from '../hooks/useNativeLessonRecording';
 import { useNativeLessonRealtimeSession } from '../hooks/useNativeLessonRealtimeSession';
@@ -31,27 +30,7 @@ import {
   shouldAutoStartStructuredSpeechRecording,
   shouldAutoSubmitStructuredSpeechRecording,
 } from '../structuredSpeechAutoRecording';
-import {
-  resolveControllerItemPromptPlaybackPlans,
-  resolveStepAnswerFeedbackPlaybackPlan,
-  type StepPromptPlaybackPlan,
-} from '../nativeLessonPromptPlayback';
-import { fetchFoxTtsFileUri } from '../nativeFoxTts';
-import { useNativeRealtimeAudioPlayback } from '../hooks/useNativeRealtimeAudioPlayback';
-
 const LOGIN_ROUTE = '/(auth)/login' as Href;
-
-function normalizeAnswerText(text: string): string {
-  return text.trim().toLowerCase();
-}
-
-function textMatchesExpected(text: string, expectedPhrases: string[] | undefined): boolean {
-  const normalized = normalizeAnswerText(text);
-  return Boolean(
-    normalized &&
-      expectedPhrases?.some((phrase) => normalized.includes(normalizeAnswerText(phrase))),
-  );
-}
 
 export function NativeLessonScreen() {
   const params = useLocalSearchParams<LessonModeRouteParams>();
@@ -235,12 +214,9 @@ function NativeLessonLoadedScreen({
   onExit: () => void;
   onFallback: (error?: NativeLessonErrorView) => void;
 }) {
-  const controller = useNativeLessonController(lesson);
-  const feedbackAudioPlayback = useNativeRealtimeAudioPlayback(() => undefined);
-  const promptAudioPlayback = useNativeRealtimeAudioPlayback(() => undefined);
+  const realtimeEnabled = true;
   const sendAudioChunkRef = useRef<(chunk: Uint8Array) => boolean>(() => false);
   const isRealtimeConnectedRef = useRef(false);
-  const lastLocalPromptItemIdRef = useRef<string | null>(null);
   const recording = useNativeLessonRecording({
     vadConfig: { silenceTimeoutMs: 2000 },
     onAudioChunk: (chunk) => {
@@ -250,7 +226,7 @@ function NativeLessonLoadedScreen({
     },
   });
   const realtime = useNativeLessonRealtimeSession({
-    enabled: true,
+    enabled: realtimeEnabled,
     apiBaseUrl,
     token,
     lessonId,
@@ -288,8 +264,7 @@ function NativeLessonLoadedScreen({
     }
     return null;
   }, [mediaErrorText, recording.state.errorText, recording.state.status, realtime.audioErrorText, realtime.errorText]);
-  const controllerView = realtime.realtimeView ?? controller.view;
-  const nextControllerStep = controller.next;
+  const controllerView = realtime.realtimeView;
   const recordingStatus = recording.state.status;
   const recordingUri = recording.state.recordingUri;
   const startRecording = recording.start;
@@ -299,8 +274,8 @@ function NativeLessonLoadedScreen({
   const realtimeAudioStatus = realtime.audioStatus;
   const assistantPlaybackPending = realtime.assistantPlaybackPending;
   const isLessonComplete =
-    controllerView.phase === 'end' ||
-    controllerView.lifecycle === 'completed' ||
+    controllerView?.phase === 'end' ||
+    controllerView?.lifecycle === 'completed' ||
     realtime.projection.completed;
   const completionParams = useMemo(
     () => ({
@@ -310,77 +285,9 @@ function NativeLessonLoadedScreen({
     }),
     [courseNumber, lessonId, totalCourses],
   );
-  const playLocalAnswerFeedback = useCallback(
-    async (step: NativeLessonStep, correct: boolean) => {
-      const playbackPlan = resolveStepAnswerFeedbackPlaybackPlan(step, correct);
-      if (playbackPlan.kind === 'mark_spoken') {
-        return;
-      }
-      if (playbackPlan.kind === 'remote_url') {
-        await feedbackAudioPlayback.playRemoteUrl(playbackPlan.voiceUrl);
-        return;
-      }
-      try {
-        const ttsUri = await fetchFoxTtsFileUri(apiBaseUrl, token, playbackPlan.text, {
-          voiceType: lesson.metadata.defaultSpeaker,
-        });
-        await feedbackAudioPlayback.playRemoteUrl(ttsUri);
-      } catch (error) {
-        console.warn(
-          'local_answer_feedback_playback_failed',
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    },
-    [
-      apiBaseUrl,
-      feedbackAudioPlayback.playRemoteUrl,
-      lesson.metadata.defaultSpeaker,
-      token,
-    ],
-  );
-  const playLocalPromptPlans = useCallback(
-    async (plans: StepPromptPlaybackPlan[]) => {
-      for (const playbackPlan of plans) {
-        if (playbackPlan.kind === 'mark_spoken') {
-          continue;
-        }
-        if (playbackPlan.kind === 'remote_url') {
-          await promptAudioPlayback.playRemoteUrl(playbackPlan.voiceUrl);
-          continue;
-        }
-        try {
-          const ttsUri = await fetchFoxTtsFileUri(apiBaseUrl, token, playbackPlan.text, {
-            voiceType: lesson.metadata.defaultSpeaker,
-          });
-          await promptAudioPlayback.playRemoteUrl(ttsUri);
-        } catch (error) {
-          console.warn(
-            'local_prompt_playback_failed',
-            error instanceof Error ? error.message : String(error),
-          );
-        }
-      }
-    },
-    [
-      apiBaseUrl,
-      lesson.metadata.defaultSpeaker,
-      promptAudioPlayback.playRemoteUrl,
-      token,
-    ],
-  );
   const submitRecording = useCallback(async () => {
-    const sentToRealtime = Boolean(recordingUri) && isRealtimeConnected;
     submitRecordingState();
-    if (!sentToRealtime && !isRealtimeConnected) {
-      nextControllerStep();
-    }
-  }, [
-    isRealtimeConnected,
-    nextControllerStep,
-    recordingUri,
-    submitRecordingState,
-  ]);
+  }, [submitRecordingState]);
 
   const saveCompletion = useCallback(async () => {
     setCompletionStatus('saving');
@@ -413,6 +320,9 @@ function NativeLessonLoadedScreen({
   }, [recordingStatus]);
 
   useEffect(() => {
+    if (!controllerView) {
+      return;
+    }
     const autoTurnKey = getStructuredSpeechAutoTurnKey(controllerView);
     const shouldAutoStart = shouldAutoStartStructuredSpeechRecording({
       controllerView,
@@ -458,6 +368,9 @@ function NativeLessonLoadedScreen({
   ]);
 
   useEffect(() => {
+    if (!controllerView) {
+      return;
+    }
     const shouldAutoSubmit = shouldAutoSubmitStructuredSpeechRecording({
       controllerView,
       recordingStatus,
@@ -526,34 +439,34 @@ function NativeLessonLoadedScreen({
     recordingStatus,
   ]);
 
-  useNativeLessonMediaPreload(controller.preloadUris);
+  useNativeLessonMediaPreload([]);
 
-  useEffect(() => {
-    if (realtime.realtimeView) {
-      lastLocalPromptItemIdRef.current = null;
-      return;
-    }
-    if (controller.view.isPaused || controller.view.lifecycle !== 'assistant_turn') {
-      return;
-    }
-
-    const itemId = controller.view.id;
-    if (lastLocalPromptItemIdRef.current === itemId) {
-      return;
-    }
-    lastLocalPromptItemIdRef.current = itemId;
-
-    const plans = resolveControllerItemPromptPlaybackPlans(controller.view);
-    if (plans.every((plan) => plan.kind === 'mark_spoken')) {
-      return;
-    }
-
-    void playLocalPromptPlans(plans);
-  }, [
-    controller.view,
-    playLocalPromptPlans,
-    realtime.realtimeView,
-  ]);
+  if (!controllerView) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color="#f8fafc" size="large" />
+        <Text style={styles.title}>正在连接课程</Text>
+        <Text style={styles.description}>
+          {runtimeError?.message || '等待 realtime lesson runtime 返回当前步骤...'}
+        </Text>
+        {runtimeError ? (
+          <View style={styles.actionRow}>
+            <Pressable
+              style={styles.primaryButton}
+              onPress={() => {
+                void realtime.connect();
+              }}
+            >
+              <Text style={styles.primaryButtonText}>重新连接</Text>
+            </Pressable>
+            <Pressable style={styles.primaryButton} onPress={onExit}>
+              <Text style={styles.primaryButtonText}>返回课程</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
 
   return (
     <NativeLessonShell
@@ -583,68 +496,68 @@ function NativeLessonLoadedScreen({
       }}
       onNext={() => {
         const stepId = controllerView.step?.step;
-        if (
-          realtime.realtimeView &&
-          (controllerView.lifecycle === 'waiting_user' || controllerView.phase === 'free_chat')
-        ) {
+        if (controllerView.lifecycle === 'waiting_user' || controllerView.phase === 'free_chat') {
           if (!realtime.requestDebugNextStep()) {
-            controller.next();
+            console.warn('native_lesson_realtime|next_step_request_failed', {
+              stepId,
+              phase: controllerView.phase,
+              lifecycle: controllerView.lifecycle,
+            });
           }
           return;
         }
-        if (!stepId || !realtime.sendAssistantPromptSpoken(stepId)) {
-          controller.next();
+        if (stepId && !realtime.sendAssistantPromptSpoken(stepId)) {
+          console.warn('native_lesson_realtime|assistant_prompt_spoken_failed', {
+            stepId,
+            phase: controllerView.phase,
+            lifecycle: controllerView.lifecycle,
+          });
         }
       }}
       onSubmitChoice={(optionId) => {
         const stepId = controllerView.step?.step;
         if (!stepId || !realtime.sendChoice(stepId, optionId)) {
-          const step = controllerView.step;
-          const selectedOptionId = optionId.trim().toLowerCase();
-          const correctOptionId = step?.correctOptionId?.trim().toLowerCase() ?? '';
-          const correct = Boolean(correctOptionId) && selectedOptionId === correctOptionId;
-          controller.submitChoice(optionId);
-          if (step?.options.length) {
-            void playLocalAnswerFeedback(step, correct);
-          }
+          console.warn('native_lesson_realtime|submit_choice_failed', {
+            stepId,
+            optionId,
+            phase: controllerView.phase,
+            lifecycle: controllerView.lifecycle,
+          });
         }
       }}
       onSubmitText={(text) => {
         const stepId = controllerView.step?.step;
         if (!realtime.sendText(text, stepId)) {
-          const step = controllerView.step;
-          const correct = textMatchesExpected(text, step?.expectedPhrases);
-          controller.submitText(text);
-          if (step) {
-            void playLocalAnswerFeedback(step, correct);
-          }
+          console.warn('native_lesson_realtime|submit_text_failed', {
+            stepId,
+            phase: controllerView.phase,
+            lifecycle: controllerView.lifecycle,
+          });
         }
       }}
       recordingState={recording.state}
       conversationHistory={realtime.conversationHistory}
       liveUserTranscript={realtime.liveUserTranscript}
       onReplaySpeechPrompt={() => {
-        if (realtime.realtimeView) {
-          void realtime.replayCurrentStepPrompt();
-          return;
-        }
-        void playLocalPromptPlans(resolveControllerItemPromptPlaybackPlans(controllerView));
+        void realtime.replayCurrentStepPrompt();
       }}
       onMediaComplete={() => {
         setMediaErrorText('');
         const cueId = controllerView.step?.mediaCueId;
         if (!realtime.sendMediaFinished(cueId)) {
-          controller.next();
+          console.warn('native_lesson_realtime|media_finished_failed', {
+            cueId,
+            phase: controllerView.phase,
+            lifecycle: controllerView.lifecycle,
+          });
         }
       }}
       onMediaError={setMediaErrorText}
-      onPauseToggle={controllerView.isPaused ? controller.resume : controller.pause}
+      onPauseToggle={() => undefined}
       onReset={() => {
         setMediaErrorText('');
         setCompletionStatus('idle');
         setCompletionErrorText('');
-        lastLocalPromptItemIdRef.current = null;
-        controller.reset();
         realtime.reset();
       }}
       onExit={onExit}
