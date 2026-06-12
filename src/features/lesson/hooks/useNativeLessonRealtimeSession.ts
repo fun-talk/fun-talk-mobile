@@ -22,6 +22,7 @@ import {
   normalizeRealtimeLessonEvent,
 } from '../nativeLessonSessionProtocol';
 import { resolveStepPromptPlaybackPlan } from '../nativeLessonPromptPlayback';
+import { shouldAdvanceFreeChatStepOnClose } from '../freeChatStepAdvance';
 import type {
   NativeLessonControllerView,
   NativeLessonPhase,
@@ -381,6 +382,9 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
                 setAssistantPlaybackPending(true);
               }
               await playLessonAssistantSpeech(finalLessonText, shouldMarkPromptSpoken);
+            }
+            if (shouldAdvanceFreeChatStepOnClose(event, currentStepPhaseRef.current)) {
+              sendJson(socketRef.current, buildRequestDebugNextStepCommand());
             }
           }
           if (event.event === 'asr' || event.event === 'user_transcript_partial') {
