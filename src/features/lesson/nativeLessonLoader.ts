@@ -5,6 +5,7 @@ import { NativeLessonUnsupportedError } from './nativeLessonErrors';
 import { assertNativeLessonSupported } from './nativeLessonSupport';
 import type { LessonModeRouteParams } from './lessonMode';
 import type {
+  NativeLessonBranchOnStageEnd,
   NativeLessonChallenge,
   NativeLessonChoiceOption,
   NativeLessonDefinition,
@@ -35,6 +36,10 @@ function asString(value: unknown, fallback = ''): string {
 
 function asNumber(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function asOptionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function asBoolean(value: unknown, fallback = false): boolean {
@@ -99,6 +104,43 @@ function normalizeExpectedPhrases(step: Record<string, unknown>): string[] {
     .filter(Boolean);
 }
 
+function normalizeStepMedia(step: Record<string, unknown>): { type: string; url: string } | undefined {
+  const media = optionalRecord(step.media);
+  const type = asString(media.type).trim();
+  const url = asString(media.url).trim();
+  if (!type || !url) {
+    return undefined;
+  }
+  return { type, url };
+}
+
+function normalizeBranchOnStageEnd(
+  step: Record<string, unknown>,
+): NativeLessonBranchOnStageEnd | undefined {
+  const rawBranch = optionalRecord(step.branchOnStageEnd);
+  if (asString(rawBranch.scoreMetric).trim() !== 'phase_correct_count') {
+    return undefined;
+  }
+  const branches = Array.isArray(rawBranch.branches) ? rawBranch.branches : [];
+  const normalizedBranches = branches
+    .map((rawBranchItem) => optionalRecord(rawBranchItem))
+    .map((branchItem) => ({
+      condition: asString(branchItem.condition).trim(),
+      nextStep: asOptionalNumber(branchItem.nextStep),
+    }))
+    .filter(
+      (branchItem): branchItem is { condition: string; nextStep: number } =>
+        Boolean(branchItem.condition) && typeof branchItem.nextStep === 'number',
+    );
+  if (!normalizedBranches.length) {
+    return undefined;
+  }
+  return {
+    scoreMetric: 'phase_correct_count',
+    branches: normalizedBranches,
+  };
+}
+
 function normalizeSteps(rawSteps: unknown): Record<number, NativeLessonStep> {
   const source = Array.isArray(rawSteps)
     ? Object.fromEntries(rawSteps.map((step, index) => [String(index + 1), step]))
@@ -117,15 +159,20 @@ function normalizeSteps(rawSteps: unknown): Record<number, NativeLessonStep> {
 
     steps[stepNumber] = {
       step: stepNumber,
+      nextStep: asOptionalNumber(step.nextStep),
       promptText: asString(step.promptText),
       screenText: asString(step.screenText || step.screenTextFallback),
       mediaCueId: asString(step.mediaCueId).trim() || undefined,
+      media: normalizeStepMedia(step),
       voiceUrl: asString(step.voiceUrl || step.audioUrl).trim() || undefined,
+      successVoiceUrl: asString(step.successVoiceUrl).trim() || undefined,
+      retryVoiceUrl: asString(step.retryVoiceUrl).trim() || undefined,
       responseMode: asString(step.responseMode).trim() || undefined,
       correctOptionId: asString(step.correctOptionId).trim() || undefined,
       expectedPhrases: normalizeExpectedPhrases(step),
       successReply: asString(step.successReply).trim() || undefined,
       retryText: asString(step.retryText).trim() || undefined,
+      branchOnStageEnd: normalizeBranchOnStageEnd(step),
       options: normalizeChoiceOptions(step),
       autoAdvance: asBoolean(step.autoAdvance, false),
       raw: step,

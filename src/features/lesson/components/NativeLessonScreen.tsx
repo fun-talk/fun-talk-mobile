@@ -19,7 +19,7 @@ import {
   getNativeLessonRequestFromParams,
 } from '../nativeLessonLoader';
 import { completeNativeLessonProgress } from '../nativeLessonProgress';
-import type { NativeLessonDefinition } from '../nativeLessonTypes';
+import type { NativeLessonDefinition, NativeLessonStep } from '../nativeLessonTypes';
 import { NativeLessonShell } from './NativeLessonShell';
 import { useNativeLessonController } from '../hooks/useNativeLessonController';
 import { useNativeLessonMediaPreload } from '../hooks/useNativeLessonMediaPreload';
@@ -30,8 +30,27 @@ import {
   shouldAutoStartStructuredSpeechRecording,
   shouldAutoSubmitStructuredSpeechRecording,
 } from '../structuredSpeechAutoRecording';
+import {
+  resolveControllerItemPromptPlaybackPlans,
+  resolveStepAnswerFeedbackPlaybackPlan,
+  type StepPromptPlaybackPlan,
+} from '../nativeLessonPromptPlayback';
+import { fetchFoxTtsFileUri } from '../nativeFoxTts';
+import { useNativeRealtimeAudioPlayback } from '../hooks/useNativeRealtimeAudioPlayback';
 
 const LOGIN_ROUTE = '/(auth)/login' as Href;
+
+function normalizeAnswerText(text: string): string {
+  return text.trim().toLowerCase();
+}
+
+function textMatchesExpected(text: string, expectedPhrases: string[] | undefined): boolean {
+  const normalized = normalizeAnswerText(text);
+  return Boolean(
+    normalized &&
+      expectedPhrases?.some((phrase) => normalized.includes(normalizeAnswerText(phrase))),
+  );
+}
 
 export function NativeLessonScreen() {
   const params = useLocalSearchParams<LessonModeRouteParams>();
@@ -216,8 +235,11 @@ function NativeLessonLoadedScreen({
   onFallback: (error?: NativeLessonErrorView) => void;
 }) {
   const controller = useNativeLessonController(lesson);
+  const feedbackAudioPlayback = useNativeRealtimeAudioPlayback(() => undefined);
+  const promptAudioPlayback = useNativeRealtimeAudioPlayback(() => undefined);
   const sendAudioChunkRef = useRef<(chunk: Uint8Array) => boolean>(() => false);
   const isRealtimeConnectedRef = useRef(false);
+  const lastLocalPromptItemIdRef = useRef<string | null>(null);
   const recording = useNativeLessonRecording({
     vadConfig: { silenceTimeoutMs: 2000 },
     onAudioChunk: (chunk) => {
@@ -285,6 +307,65 @@ function NativeLessonLoadedScreen({
       totalCourses,
     }),
     [courseNumber, lessonId, totalCourses],
+  );
+  const playLocalAnswerFeedback = useCallback(
+    async (step: NativeLessonStep, correct: boolean) => {
+      const playbackPlan = resolveStepAnswerFeedbackPlaybackPlan(step, correct);
+      if (playbackPlan.kind === 'mark_spoken') {
+        return;
+      }
+      if (playbackPlan.kind === 'remote_url') {
+        await feedbackAudioPlayback.playRemoteUrl(playbackPlan.voiceUrl);
+        return;
+      }
+      try {
+        const ttsUri = await fetchFoxTtsFileUri(apiBaseUrl, token, playbackPlan.text, {
+          voiceType: lesson.metadata.defaultSpeaker,
+        });
+        await feedbackAudioPlayback.playRemoteUrl(ttsUri);
+      } catch (error) {
+        console.warn(
+          'local_answer_feedback_playback_failed',
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    },
+    [
+      apiBaseUrl,
+      feedbackAudioPlayback.playRemoteUrl,
+      lesson.metadata.defaultSpeaker,
+      token,
+    ],
+  );
+  const playLocalPromptPlans = useCallback(
+    async (plans: StepPromptPlaybackPlan[]) => {
+      for (const playbackPlan of plans) {
+        if (playbackPlan.kind === 'mark_spoken') {
+          continue;
+        }
+        if (playbackPlan.kind === 'remote_url') {
+          await promptAudioPlayback.playRemoteUrl(playbackPlan.voiceUrl);
+          continue;
+        }
+        try {
+          const ttsUri = await fetchFoxTtsFileUri(apiBaseUrl, token, playbackPlan.text, {
+            voiceType: lesson.metadata.defaultSpeaker,
+          });
+          await promptAudioPlayback.playRemoteUrl(ttsUri);
+        } catch (error) {
+          console.warn(
+            'local_prompt_playback_failed',
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }
+    },
+    [
+      apiBaseUrl,
+      lesson.metadata.defaultSpeaker,
+      promptAudioPlayback.playRemoteUrl,
+      token,
+    ],
   );
   const submitRecording = useCallback(async () => {
     const sentToRealtime = Boolean(recordingUri) && isRealtimeConnected;
@@ -378,6 +459,33 @@ function NativeLessonLoadedScreen({
 
   useNativeLessonMediaPreload(controller.preloadUris);
 
+  useEffect(() => {
+    if (realtime.realtimeView) {
+      lastLocalPromptItemIdRef.current = null;
+      return;
+    }
+    if (controller.view.isPaused || controller.view.lifecycle !== 'assistant_turn') {
+      return;
+    }
+
+    const itemId = controller.view.id;
+    if (lastLocalPromptItemIdRef.current === itemId) {
+      return;
+    }
+    lastLocalPromptItemIdRef.current = itemId;
+
+    const plans = resolveControllerItemPromptPlaybackPlans(controller.view);
+    if (plans.every((plan) => plan.kind === 'mark_spoken')) {
+      return;
+    }
+
+    void playLocalPromptPlans(plans);
+  }, [
+    controller.view,
+    playLocalPromptPlans,
+    realtime.realtimeView,
+  ]);
+
   return (
     <NativeLessonShell
       lesson={lesson}
@@ -422,19 +530,37 @@ function NativeLessonLoadedScreen({
       onSubmitChoice={(optionId) => {
         const stepId = controllerView.step?.step;
         if (!stepId || !realtime.sendChoice(stepId, optionId)) {
+          const step = controllerView.step;
+          const selectedOptionId = optionId.trim().toLowerCase();
+          const correctOptionId = step?.correctOptionId?.trim().toLowerCase() ?? '';
+          const correct = Boolean(correctOptionId) && selectedOptionId === correctOptionId;
           controller.submitChoice(optionId);
+          if (step?.options.length) {
+            void playLocalAnswerFeedback(step, correct);
+          }
         }
       }}
       onSubmitText={(text) => {
         const stepId = controllerView.step?.step;
         if (!realtime.sendText(text, stepId)) {
+          const step = controllerView.step;
+          const correct = textMatchesExpected(text, step?.expectedPhrases);
           controller.submitText(text);
+          if (step) {
+            void playLocalAnswerFeedback(step, correct);
+          }
         }
       }}
       recordingState={recording.state}
       conversationHistory={realtime.conversationHistory}
       liveUserTranscript={realtime.liveUserTranscript}
-      onReplaySpeechPrompt={realtime.replayCurrentStepPrompt}
+      onReplaySpeechPrompt={() => {
+        if (realtime.realtimeView) {
+          void realtime.replayCurrentStepPrompt();
+          return;
+        }
+        void playLocalPromptPlans(resolveControllerItemPromptPlaybackPlans(controllerView));
+      }}
       onMediaComplete={() => {
         setMediaErrorText('');
         const cueId = controllerView.step?.mediaCueId;
@@ -448,6 +574,7 @@ function NativeLessonLoadedScreen({
         setMediaErrorText('');
         setCompletionStatus('idle');
         setCompletionErrorText('');
+        lastLocalPromptItemIdRef.current = null;
         controller.reset();
         realtime.reset();
       }}

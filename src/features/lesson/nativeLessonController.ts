@@ -17,6 +17,8 @@ export type NativeLessonControllerItem = {
   screenText: string;
   backgroundImageUrl: string;
   media: { type: string; url: string } | null;
+  voiceUrl?: string;
+  mediaDescriptionVoiceUrl?: string;
   step?: NativeLessonStep;
 };
 
@@ -39,6 +41,8 @@ export type NativeLessonAnswerState = {
 
 export type NativeLessonControllerState = {
   isPaused: boolean;
+  phaseCorrectCount: number;
+  currentStageKey?: string;
   snapshot: NativeLessonControllerSnapshot;
 };
 
@@ -93,6 +97,9 @@ function getStepMedia(
   lesson: NativeLessonDefinition,
   step: NativeLessonStep | null,
 ): { type: string; url: string } | null {
+  if (step?.media) {
+    return step.media;
+  }
   if (!step?.mediaCueId) {
     return null;
   }
@@ -107,6 +114,8 @@ function storyItems(lesson: NativeLessonDefinition): NativeLessonControllerItem[
   const segments = Array.isArray(story.segments) ? story.segments : [];
   return segments.map((segment, index) => {
     const raw = asRecord(segment);
+    const voiceUrl = asString(raw.voiceUrl);
+    const mediaDescriptionVoiceUrl = asString(raw.mediaDescriptionVoiceUrl);
     return {
       id: `story:${asString(raw.id) || index + 1}`,
       phase: 'story',
@@ -119,6 +128,8 @@ function storyItems(lesson: NativeLessonDefinition): NativeLessonControllerItem[
         lesson.assets.backgrounds.story ||
         '',
       media: mediaFromRawSegment(raw),
+      ...(voiceUrl ? { voiceUrl } : {}),
+      ...(mediaDescriptionVoiceUrl ? { mediaDescriptionVoiceUrl } : {}),
     };
   });
 }
@@ -132,6 +143,8 @@ function teachingItems(lesson: NativeLessonDefinition): NativeLessonControllerIt
   return segments.map((segment, index) => {
     const raw = asRecord(segment);
     const freeChatQuestion = freeChatQuestionFromRaw(raw);
+    const voiceUrl = asString(raw.voiceUrl);
+    const mediaDescriptionVoiceUrl = asString(raw.mediaDescriptionVoiceUrl);
     if (asString(raw.kind) === 'free_chat' && freeChatQuestion) {
       return {
         id: `teaching:${asString(raw.id) || index + 1}:free_chat`,
@@ -145,6 +158,8 @@ function teachingItems(lesson: NativeLessonDefinition): NativeLessonControllerIt
           lesson.assets.backgrounds.teaching ||
           '',
         media: mediaFromRawSegment(raw),
+        ...(voiceUrl ? { voiceUrl } : {}),
+        ...(mediaDescriptionVoiceUrl ? { mediaDescriptionVoiceUrl } : {}),
         step: {
           step: index + 1,
           promptText: freeChatQuestion,
@@ -168,6 +183,8 @@ function teachingItems(lesson: NativeLessonDefinition): NativeLessonControllerIt
         lesson.assets.backgrounds.teaching ||
         '',
       media: mediaFromRawSegment(raw),
+      ...(voiceUrl ? { voiceUrl } : {}),
+      ...(mediaDescriptionVoiceUrl ? { mediaDescriptionVoiceUrl } : {}),
     };
   });
 }
@@ -249,6 +266,101 @@ function lifecycleForItem(item: NativeLessonControllerItem): NativeLessonLifecyc
   return 'assistant_turn';
 }
 
+function challengeKeyFromItemId(itemId: string): string | null {
+  const parts = itemId.split(':');
+  if (parts.length !== 3 || parts[0] !== 'challenge') {
+    return null;
+  }
+  return parts[1] || null;
+}
+
+function stageKeyForItem(item: NativeLessonControllerItem | undefined): string | null {
+  if (!item?.step || item.phase !== 'challenge') {
+    return null;
+  }
+  const challengeKey = challengeKeyFromItemId(item.id);
+  if (!challengeKey) {
+    return null;
+  }
+  const raw = asRecord(item.step.raw);
+  const phaseTitle = asString(raw.phaseTitle) || 'default';
+  return `${challengeKey}:${phaseTitle}`;
+}
+
+function evaluateBranchCondition(condition: string, score: number): boolean {
+  const conditionMatch = condition.match(/^score\s*(==|>=)\s*(\d+)$/);
+  if (!conditionMatch) {
+    return false;
+  }
+  const [, operator, valueText] = conditionMatch;
+  const value = Number.parseInt(valueText, 10);
+  if (!Number.isFinite(value)) {
+    return false;
+  }
+  if (operator === '==') {
+    return score === value;
+  }
+  if (operator === '>=') {
+    return score >= value;
+  }
+  return false;
+}
+
+function resolveBranchNextIndex(
+  items: NativeLessonControllerItem[],
+  current: NativeLessonControllerItem | undefined,
+  phaseCorrectCount: number,
+): number | null {
+  const branchOnStageEnd = current?.step?.branchOnStageEnd;
+  if (!current || !branchOnStageEnd || branchOnStageEnd.scoreMetric !== 'phase_correct_count') {
+    return null;
+  }
+
+  const challengeKey = challengeKeyFromItemId(current.id);
+  if (!challengeKey) {
+    return null;
+  }
+
+  for (const branch of branchOnStageEnd.branches) {
+    if (!evaluateBranchCondition(branch.condition, phaseCorrectCount)) {
+      continue;
+    }
+    const targetId = `challenge:${challengeKey}:${branch.nextStep}`;
+    const targetIndex = items.findIndex((item) => item.id === targetId);
+    return targetIndex >= 0 ? targetIndex : null;
+  }
+
+  return null;
+}
+
+function resolveNextIndex(
+  items: NativeLessonControllerItem[],
+  currentIndex: number,
+  current: NativeLessonControllerItem | undefined,
+  phaseCorrectCount: number,
+): number {
+  const branchNextIndex = resolveBranchNextIndex(items, current, phaseCorrectCount);
+  if (branchNextIndex != null) {
+    return branchNextIndex;
+  }
+
+  if (!current?.step?.nextStep) {
+    return Math.min(currentIndex + 1, Math.max(items.length - 1, 0));
+  }
+
+  const challengeKey = challengeKeyFromItemId(current.id);
+  if (!challengeKey) {
+    return Math.min(currentIndex + 1, Math.max(items.length - 1, 0));
+  }
+
+  const targetId = `challenge:${challengeKey}:${current.step.nextStep}`;
+  const targetIndex = items.findIndex((item) => item.id === targetId);
+  if (targetIndex < 0) {
+    return Math.min(currentIndex + 1, Math.max(items.length - 1, 0));
+  }
+  return targetIndex;
+}
+
 export function createNativeLessonControllerState(
   lesson: NativeLessonDefinition,
 ): NativeLessonControllerState {
@@ -256,6 +368,8 @@ export function createNativeLessonControllerState(
   const first = items[0];
   return {
     isPaused: false,
+    phaseCorrectCount: 0,
+    currentStageKey: stageKeyForItem(first) || undefined,
     snapshot: {
       currentIndex: 0,
       totalItems: items.length,
@@ -273,15 +387,26 @@ function advanceNativeLessonController(
 ): NativeLessonControllerState {
   const items = buildNativeLessonControllerItems(lesson);
   const current = items[state.snapshot.currentIndex];
-  const nextIndex = Math.min(state.snapshot.currentIndex + 1, Math.max(items.length - 1, 0));
+  const nextIndex = resolveNextIndex(
+    items,
+    state.snapshot.currentIndex,
+    current,
+    state.phaseCorrectCount,
+  );
   const next = items[nextIndex];
   const completedItemIds =
     current && !state.snapshot.completedItemIds.includes(current.id)
       ? [...state.snapshot.completedItemIds, current.id]
       : state.snapshot.completedItemIds;
+  const nextStageKey = stageKeyForItem(next);
+  const stageChanged = state.currentStageKey !== nextStageKey;
+  const branchResolved = Boolean(current?.step?.branchOnStageEnd);
+  const phaseCorrectCount = branchResolved || stageChanged ? 0 : state.phaseCorrectCount;
 
   return {
     ...state,
+    phaseCorrectCount,
+    currentStageKey: nextStageKey || undefined,
     snapshot: {
       currentIndex: nextIndex,
       totalItems: items.length,
@@ -344,7 +469,10 @@ export function reduceNativeLessonController(
         selectedOptionId.toLowerCase() === step.correctOptionId.trim().toLowerCase(),
     );
     if (correct) {
-      return advanceNativeLessonController(lesson, state);
+      return advanceNativeLessonController(lesson, {
+        ...state,
+        phaseCorrectCount: state.phaseCorrectCount + 1,
+      });
     }
     return {
       ...state,
@@ -366,7 +494,10 @@ export function reduceNativeLessonController(
     }
     const correct = textMatchesExpected(action.text, step.expectedPhrases);
     if (correct) {
-      return advanceNativeLessonController(lesson, state);
+      return advanceNativeLessonController(lesson, {
+        ...state,
+        phaseCorrectCount: state.phaseCorrectCount + 1,
+      });
     }
     return {
       ...state,

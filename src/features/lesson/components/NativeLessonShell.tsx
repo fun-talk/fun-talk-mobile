@@ -289,7 +289,9 @@ export function NativeLessonShell({
                   targetText={speechPromptTargetText}
                   hasPromptAudio={
                     Boolean(onReplaySpeechPrompt) &&
-                    (Boolean(controllerView.step?.voiceUrl?.trim()) || Boolean(controllerView.text.trim()))
+                    (Boolean(controllerView.voiceUrl?.trim()) ||
+                      Boolean(controllerView.step?.voiceUrl?.trim()) ||
+                      Boolean(controllerView.text.trim()))
                   }
                   onReplayPrompt={onReplaySpeechPrompt}
                 />

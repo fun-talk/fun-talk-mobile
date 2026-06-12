@@ -46,6 +46,7 @@ const rawLesson = {
           screenText: 'A white duck',
           mediaCueId: 'duck',
           autoAdvance: true,
+          nextStep: 2,
         },
         '2': {
           step: 2,
@@ -87,6 +88,7 @@ describe('nativeLessonLoader', () => {
     assert.equal(lesson.summary.challengeCount, 1);
     assert.equal(lesson.summary.stepCount, 2);
     assert.equal(lesson.summary.firstStep?.promptText, 'Look at the duck.');
+    assert.equal(lesson.summary.firstStep?.nextStep, 2);
     assert.equal(lesson.challenges[0]?.steps[2]?.correctOptionId, 'A');
   });
 
@@ -103,6 +105,8 @@ describe('nativeLessonLoader', () => {
               promptText: 'Pick the globe seal.',
               responseMode: 'choice',
               correctOptionId: 'globe',
+              successVoiceUrl: 'https://example.com/globe-success.mp3',
+              retryVoiceUrl: 'https://example.com/globe-retry.mp3',
               retryText: '再看看封蜡。',
               question: {
                 options: [
@@ -122,6 +126,8 @@ describe('nativeLessonLoader', () => {
               responseMode: 'speech',
               expectedText: 'ready',
               successReply: '说对啦！',
+              successVoiceUrl: 'https://example.com/ready-success.mp3',
+              retryVoiceUrl: 'https://example.com/ready-retry.mp3',
             },
           },
         },
@@ -133,9 +139,45 @@ describe('nativeLessonLoader', () => {
     assert.equal(choiceStep?.options[0]?.id, 'globe');
     assert.equal(choiceStep?.options[0]?.imageUrl, 'https://example.com/globe.png');
     assert.equal(choiceStep?.retryText, '再看看封蜡。');
+    assert.equal(choiceStep?.successVoiceUrl, 'https://example.com/globe-success.mp3');
+    assert.equal(choiceStep?.retryVoiceUrl, 'https://example.com/globe-retry.mp3');
     assert.deepEqual(speechStep?.expectedPhrases, ['ready']);
     assert.equal(speechStep?.voiceUrl, 'https://example.com/ready.mp3');
     assert.equal(speechStep?.successReply, '说对啦！');
+    assert.equal(speechStep?.successVoiceUrl, 'https://example.com/ready-success.mp3');
+    assert.equal(speechStep?.retryVoiceUrl, 'https://example.com/ready-retry.mp3');
+  });
+
+  it('normalizes inline step media when transitionMedia is empty', () => {
+    const lesson = normalizeNativeLessonDefinition({
+      ...rawLesson,
+      assets: { transitionMedia: {} },
+      challenges: [
+        {
+          key: 'stage_inline_media',
+          title: '媒体关卡',
+          steps: {
+            '1': {
+              step: 1,
+              promptText: 'Watch and follow.',
+              screenText: 'Watch this',
+              media: {
+                type: 'video',
+                url: 'https://example.com/inline-step.mp4',
+              },
+              autoAdvance: true,
+            },
+          },
+        },
+      ],
+    });
+
+    const step = lesson.challenges[0]?.steps[1];
+    assert.deepEqual(step?.media, {
+      type: 'video',
+      url: 'https://example.com/inline-step.mp4',
+    });
+    assert.equal(step?.mediaCueId, undefined);
   });
 
   it('fetches and normalizes realtime lesson responses through the api client', async () => {

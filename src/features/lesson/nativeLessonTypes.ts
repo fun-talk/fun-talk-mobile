@@ -19,17 +19,27 @@ export type NativeLessonChoiceOption = {
   imageUrl?: string;
 };
 
+export type NativeLessonBranchOnStageEnd = {
+  scoreMetric: 'phase_correct_count';
+  branches: { condition: string; nextStep: number }[];
+};
+
 export type NativeLessonStep = {
   step: number;
+  nextStep?: number;
   promptText: string;
   screenText: string;
   mediaCueId?: string;
+  media?: { type: string; url: string };
   voiceUrl?: string;
+  successVoiceUrl?: string;
+  retryVoiceUrl?: string;
   responseMode?: string;
   correctOptionId?: string;
   expectedPhrases?: string[];
   successReply?: string;
   retryText?: string;
+  branchOnStageEnd?: NativeLessonBranchOnStageEnd;
   options: NativeLessonChoiceOption[];
   autoAdvance: boolean;
   raw: Record<string, unknown>;
