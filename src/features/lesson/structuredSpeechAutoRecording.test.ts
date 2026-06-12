@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  getStructuredSpeechRecordingCloseReason,
   getStructuredSpeechAutoTurnKey,
   shouldAutoStartStructuredSpeechRecording,
   shouldAutoSubmitStructuredSpeechRecording,
@@ -111,6 +112,48 @@ describe('structuredSpeechAutoRecording', () => {
         lastSubmittedRecordingUri: 'file:///tmp/follow-read.m4a',
       }),
       false,
+    );
+  });
+
+  it('forces the microphone closed once the lesson leaves the user speech turn', () => {
+    assert.equal(
+      getStructuredSpeechRecordingCloseReason({
+        controllerView: {
+          ...SPEECH_VIEW,
+          lifecycle: 'assistant_turn',
+        },
+        realtimeConnected: true,
+        audioStatus: 'idle',
+        assistantPlaybackPending: false,
+        recordingStatus: 'recording',
+      }),
+      'lifecycle_assistant_turn',
+    );
+  });
+
+  it('forces the microphone closed while assistant audio is active', () => {
+    assert.equal(
+      getStructuredSpeechRecordingCloseReason({
+        controllerView: SPEECH_VIEW,
+        realtimeConnected: true,
+        audioStatus: 'playing',
+        assistantPlaybackPending: false,
+        recordingStatus: 'recording',
+      }),
+      'audio_playing',
+    );
+  });
+
+  it('keeps the microphone open only during an active waiting_user speech turn', () => {
+    assert.equal(
+      getStructuredSpeechRecordingCloseReason({
+        controllerView: SPEECH_VIEW,
+        realtimeConnected: true,
+        audioStatus: 'idle',
+        assistantPlaybackPending: false,
+        recordingStatus: 'recording',
+      }),
+      null,
     );
   });
 });

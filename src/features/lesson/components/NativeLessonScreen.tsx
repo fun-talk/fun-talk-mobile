@@ -26,6 +26,7 @@ import { useNativeLessonMediaPreload } from '../hooks/useNativeLessonMediaPreloa
 import { useNativeLessonRecording } from '../hooks/useNativeLessonRecording';
 import { useNativeLessonRealtimeSession } from '../hooks/useNativeLessonRealtimeSession';
 import {
+  getStructuredSpeechRecordingCloseReason,
   getStructuredSpeechAutoTurnKey,
   shouldAutoStartStructuredSpeechRecording,
   shouldAutoSubmitStructuredSpeechRecording,
@@ -292,6 +293,7 @@ function NativeLessonLoadedScreen({
   const recordingStatus = recording.state.status;
   const recordingUri = recording.state.recordingUri;
   const startRecording = recording.start;
+  const cancelRecording = recording.cancel;
   const submitRecordingState = recording.submit;
   const isRealtimeConnected = realtime.isConnected;
   const realtimeAudioStatus = realtime.audioStatus;
@@ -412,20 +414,39 @@ function NativeLessonLoadedScreen({
 
   useEffect(() => {
     const autoTurnKey = getStructuredSpeechAutoTurnKey(controllerView);
+    const shouldAutoStart = shouldAutoStartStructuredSpeechRecording({
+      controllerView,
+      realtimeConnected: isRealtimeConnected,
+      audioStatus: realtimeAudioStatus,
+      assistantPlaybackPending,
+      recordingStatus,
+      lastStartedTurnKey: lastStructuredAutoStartTurnKeyRef.current,
+    });
+    console.warn('native_lesson_recording|auto_start_check', {
+      phase: controllerView.phase,
+      lifecycle: controllerView.lifecycle,
+      responseMode: controllerView.step?.responseMode,
+      autoTurnKey,
+      shouldAutoStart,
+      realtimeConnected: isRealtimeConnected,
+      audioStatus: realtimeAudioStatus,
+      assistantPlaybackPending,
+      recordingStatus,
+      lastStartedTurnKey: lastStructuredAutoStartTurnKeyRef.current,
+    });
     if (
-      !shouldAutoStartStructuredSpeechRecording({
-        controllerView,
-        realtimeConnected: isRealtimeConnected,
-        audioStatus: realtimeAudioStatus,
-        assistantPlaybackPending,
-        recordingStatus,
-        lastStartedTurnKey: lastStructuredAutoStartTurnKeyRef.current,
-      })
+      !shouldAutoStart
     ) {
       return;
     }
 
     lastStructuredAutoStartTurnKeyRef.current = autoTurnKey;
+    console.warn('native_lesson_recording|auto_start_triggered', {
+      phase: controllerView.phase,
+      lifecycle: controllerView.lifecycle,
+      responseMode: controllerView.step?.responseMode,
+      autoTurnKey,
+    });
     void startRecording();
   }, [
     controllerView,
@@ -437,24 +458,72 @@ function NativeLessonLoadedScreen({
   ]);
 
   useEffect(() => {
+    const shouldAutoSubmit = shouldAutoSubmitStructuredSpeechRecording({
+      controllerView,
+      recordingStatus,
+      recordingUri,
+      lastSubmittedRecordingUri: lastStructuredAutoSubmittedUriRef.current,
+    });
+    console.warn('native_lesson_recording|auto_submit_check', {
+      phase: controllerView.phase,
+      lifecycle: controllerView.lifecycle,
+      responseMode: controllerView.step?.responseMode,
+      recordingStatus,
+      recordingUri,
+      shouldAutoSubmit,
+      lastSubmittedRecordingUri: lastStructuredAutoSubmittedUriRef.current,
+    });
     if (
-      !shouldAutoSubmitStructuredSpeechRecording({
-        controllerView,
-        recordingStatus,
-        recordingUri,
-        lastSubmittedRecordingUri: lastStructuredAutoSubmittedUriRef.current,
-      })
+      !shouldAutoSubmit
     ) {
       return;
     }
 
     lastStructuredAutoSubmittedUriRef.current = recordingUri;
+    console.warn('native_lesson_recording|auto_submit_triggered', {
+      phase: controllerView.phase,
+      lifecycle: controllerView.lifecycle,
+      responseMode: controllerView.step?.responseMode,
+      recordingUri,
+    });
     void submitRecording();
   }, [
     controllerView,
     recordingStatus,
     recordingUri,
     submitRecording,
+  ]);
+
+  useEffect(() => {
+    const closeReason = getStructuredSpeechRecordingCloseReason({
+      controllerView,
+      realtimeConnected: isRealtimeConnected,
+      audioStatus: realtimeAudioStatus,
+      assistantPlaybackPending,
+      recordingStatus,
+    });
+    if (!closeReason) {
+      return;
+    }
+
+    console.warn('native_lesson_recording|force_close_triggered', {
+      reason: closeReason,
+      phase: controllerView?.phase,
+      lifecycle: controllerView?.lifecycle,
+      responseMode: controllerView?.step?.responseMode,
+      recordingStatus,
+      realtimeConnected: isRealtimeConnected,
+      audioStatus: realtimeAudioStatus,
+      assistantPlaybackPending,
+    });
+    void cancelRecording();
+  }, [
+    assistantPlaybackPending,
+    cancelRecording,
+    controllerView,
+    isRealtimeConnected,
+    realtimeAudioStatus,
+    recordingStatus,
   ]);
 
   useNativeLessonMediaPreload(controller.preloadUris);

@@ -22,7 +22,9 @@ import {
   normalizeRealtimeLessonEvent,
 } from '../nativeLessonSessionProtocol';
 import { resolveStepPromptPlaybackPlan } from '../nativeLessonPromptPlayback';
+import { shouldPlayChatEndedSpeech } from '../chatEndedPlayback';
 import { shouldAdvanceFreeChatStepOnClose } from '../freeChatStepAdvance';
+import { shouldAdvanceSpeechStepAfterMaxRetries } from '../speechStepAdvance';
 import type {
   NativeLessonControllerView,
   NativeLessonPhase,
@@ -55,6 +57,10 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY_MS = 800;
 const MAX_RECONNECT_DELAY_MS = 8000;
 const MAX_CONVERSATION_ITEMS = 40;
+
+function logRealtimeLessonEvent(label: string, payload: Record<string, unknown>) {
+  console.warn(`native_realtime_lesson|${label}`, payload);
+}
 
 function appendConversationItem(
   current: RealtimeConversationItem[],
@@ -92,12 +98,16 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const forceFreshSessionRef = useRef(false);
   const currentStepIdRef = useRef<number | null>(null);
   const currentStepPhaseRef = useRef<NativeLessonPhase | null>(null);
+  const currentStepInputModeRef = useRef<string | null>(null);
+  const currentLifecycleRef = useRef<string | null>(null);
   const currentStepVoiceUrlRef = useRef('');
   const currentAssistantPromptRef = useRef('');
   const ttsReceivedAudioRef = useRef(false);
   const reconnectAttemptRef = useRef(0);
   const spokenStepIdsRef = useRef(new Set<number>());
   const pendingTranscriptRef = useRef('');
+  const wrongSpeechAttemptCountsRef = useRef(new Map<number, number>());
+  const pendingAdvanceAfterRetryStepIdRef = useRef<number | null>(null);
   const conversationSequenceRef = useRef(0);
   const [status, setStatus] = useState<RealtimeSessionStatus>('idle');
   const [projection, setProjection] = useState<RealtimeLessonProjectionState>(
@@ -129,10 +139,20 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
   const markAssistantPromptSpoken = useCallback(() => {
     const stepId = currentStepIdRef.current;
     if (typeof stepId !== 'number' || spokenStepIdsRef.current.has(stepId)) {
+      logRealtimeLessonEvent('assistant_prompt_spoken_skipped', {
+        stepId,
+        alreadySpoken:
+          typeof stepId === 'number' ? spokenStepIdsRef.current.has(stepId) : false,
+      });
       return;
     }
     spokenStepIdsRef.current.add(stepId);
     setAssistantPlaybackPending(false);
+    logRealtimeLessonEvent('assistant_prompt_spoken', {
+      stepId,
+      phase: currentStepPhaseRef.current,
+      lifecycle: currentLifecycleRef.current,
+    });
     sendJson(socketRef.current, buildAssistantPromptSpokenCommand(stepId));
   }, []);
   const audioPlayback = useNativeRealtimeAudioPlayback(() => {
@@ -164,11 +184,22 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
 
       const onComplete = shouldMarkPromptSpoken ? markAssistantPromptSpoken : undefined;
       try {
+        logRealtimeLessonEvent('play_lesson_assistant_speech_start', {
+          stepId: currentStepIdRef.current,
+          phase: currentStepPhaseRef.current,
+          lifecycle: currentLifecycleRef.current,
+          shouldMarkPromptSpoken,
+          textPreview: normalizedText.slice(0, 80),
+        });
         const uri = await fetchFoxTtsFileUri(options.apiBaseUrl, options.token, normalizedText, {
           voiceType: options.defaultSpeaker,
         });
         await playRemoteUrl(uri, onComplete);
       } catch (error) {
+        logRealtimeLessonEvent('play_lesson_assistant_speech_error', {
+          stepId: currentStepIdRef.current,
+          message: error instanceof Error ? error.message : String(error),
+        });
         setErrorText(error instanceof Error ? error.message : 'Fox TTS 合成失败。');
         if (shouldMarkPromptSpoken) {
           markAssistantPromptSpoken();
@@ -197,6 +228,16 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
       });
 
       try {
+        logRealtimeLessonEvent('play_current_step_prompt', {
+          stepId,
+          phase: currentStepPhaseRef.current,
+          lifecycle: currentLifecycleRef.current,
+          markPromptSpoken,
+          shouldMarkPromptSpoken,
+          playbackKind: playbackPlan.kind,
+          hasVoiceUrl: Boolean(currentStepVoiceUrlRef.current),
+          textPreview: currentAssistantPromptRef.current.trim().slice(0, 80),
+        });
         if (playbackPlan.kind === 'remote_url') {
           if (shouldMarkPromptSpoken) {
             setAssistantPlaybackPending(true);
@@ -233,12 +274,16 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
     sessionIdRef.current = null;
     currentStepIdRef.current = null;
     currentStepPhaseRef.current = null;
+    currentStepInputModeRef.current = null;
+    currentLifecycleRef.current = null;
     currentStepVoiceUrlRef.current = '';
     currentAssistantPromptRef.current = '';
     ttsReceivedAudioRef.current = false;
     reconnectAttemptRef.current = 0;
     spokenStepIdsRef.current.clear();
     pendingTranscriptRef.current = '';
+    wrongSpeechAttemptCountsRef.current.clear();
+    pendingAdvanceAfterRetryStepIdRef.current = null;
     conversationSequenceRef.current = 0;
     setProjection(INITIAL_REALTIME_LESSON_PROJECTION_STATE);
     setConversationHistory([]);
@@ -291,6 +336,11 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
       socket.onopen = () => {
         reconnectAttemptRef.current = 0;
         setStatus('connected');
+        logRealtimeLessonEvent('socket_open', {
+          lessonId: options.lessonId,
+          sectionId: options.sectionId,
+          resumeSessionId: forceFreshSessionRef.current ? null : sessionIdRef.current,
+        });
         sendJson(
           socket,
           buildInitSessionCommand({
@@ -321,11 +371,41 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
           if (!event) {
             return;
           }
+          logRealtimeLessonEvent('event', {
+            event: event.event,
+            stepId:
+              event.event === 'step_started'
+                ? event.step.stepId
+                : 'stepId' in event
+                  ? event.stepId
+                  : currentStepIdRef.current,
+            phase:
+              event.event === 'lesson_state_snapshot'
+                ? event.phase
+                : event.event === 'step_started'
+                  ? event.step.phase
+                  : currentStepPhaseRef.current,
+            lifecycle:
+              event.event === 'lesson_state_snapshot'
+                ? event.lifecycle
+                : event.event === 'step_started'
+                  ? event.lifecycle
+                  : currentLifecycleRef.current,
+            inputMode:
+              event.event === 'lesson_state_snapshot'
+                ? event.inputMode
+                : event.event === 'step_started'
+                  ? event.step.inputMode
+                  : currentStepInputModeRef.current,
+            intent: 'intent' in event ? event.intent : undefined,
+            textPreview: 'text' in event ? event.text.trim().slice(0, 80) : undefined,
+          });
           if (event.event === 'session_ready' && event.sessionId) {
             sessionIdRef.current = event.sessionId;
           }
           if (event.event === 'lesson_state_snapshot' && event.currentStepId) {
             currentStepIdRef.current = event.currentStepId;
+            currentLifecycleRef.current = event.lifecycle;
             currentStepPhaseRef.current =
               event.phase === 'story' ||
               event.phase === 'teaching' ||
@@ -333,9 +413,11 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
               event.phase === 'free_chat'
                 ? event.phase
                 : currentStepPhaseRef.current;
+            currentStepInputModeRef.current = event.inputMode || currentStepInputModeRef.current;
           }
           if (event.event === 'step_started') {
             currentStepIdRef.current = event.step.stepId;
+            currentLifecycleRef.current = event.lifecycle;
             currentStepPhaseRef.current =
               event.step.phase === 'story' ||
               event.step.phase === 'teaching' ||
@@ -343,9 +425,11 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
               event.step.phase === 'free_chat'
                 ? event.step.phase
                 : null;
+            currentStepInputModeRef.current = event.step.inputMode || null;
             currentStepVoiceUrlRef.current = event.step.voiceUrl?.trim() || '';
             currentAssistantPromptRef.current = event.step.assistantPrompt;
             spokenStepIdsRef.current.delete(event.step.stepId);
+            pendingAdvanceAfterRetryStepIdRef.current = null;
             if (event.step.assistantPrompt.trim()) {
               pushConversationItem(
                 'assistant',
@@ -376,14 +460,33 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
             const finalLessonText =
               event.text.trim() || currentAssistantPromptRef.current.trim();
             const stepId = currentStepIdRef.current;
-            if (finalLessonText && typeof stepId === 'number') {
+            if (
+              finalLessonText &&
+              typeof stepId === 'number' &&
+              shouldPlayChatEndedSpeech({ currentLifecycle: currentLifecycleRef.current })
+            ) {
               const shouldMarkPromptSpoken = !spokenStepIdsRef.current.has(stepId);
               if (shouldMarkPromptSpoken) {
                 setAssistantPlaybackPending(true);
               }
               await playLessonAssistantSpeech(finalLessonText, shouldMarkPromptSpoken);
             }
+            if (pendingAdvanceAfterRetryStepIdRef.current === stepId) {
+              pendingAdvanceAfterRetryStepIdRef.current = null;
+              logRealtimeLessonEvent('advance_after_retry_threshold', {
+                stepId,
+                phase: currentStepPhaseRef.current,
+                lifecycle: currentLifecycleRef.current,
+              });
+              sendJson(socketRef.current, buildRequestDebugNextStepCommand());
+            }
             if (shouldAdvanceFreeChatStepOnClose(event, currentStepPhaseRef.current)) {
+              logRealtimeLessonEvent('advance_after_free_chat_close', {
+                stepId,
+                phase: currentStepPhaseRef.current,
+                lifecycle: currentLifecycleRef.current,
+                intent: event.intent,
+              });
               sendJson(socketRef.current, buildRequestDebugNextStepCommand());
             }
           }
@@ -396,6 +499,41 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
             pendingTranscriptRef.current = '';
             setLiveUserTranscript('');
             pushConversationItem('user', event.text, 'user_transcript');
+          }
+          if (event.event === 'answer_evaluated') {
+            if (event.correct) {
+              wrongSpeechAttemptCountsRef.current.delete(event.stepId);
+              logRealtimeLessonEvent('speech_answer_correct', {
+                stepId: event.stepId,
+              });
+            } else {
+              const wrongAttemptCount =
+                (wrongSpeechAttemptCountsRef.current.get(event.stepId) ?? 0) + 1;
+              wrongSpeechAttemptCountsRef.current.set(event.stepId, wrongAttemptCount);
+              logRealtimeLessonEvent('speech_answer_wrong', {
+                stepId: event.stepId,
+                wrongAttemptCount,
+                phase: currentStepPhaseRef.current,
+                inputMode: currentStepInputModeRef.current,
+              });
+              if (
+                shouldAdvanceSpeechStepAfterMaxRetries({
+                  currentStepPhase: currentStepPhaseRef.current,
+                  inputMode: currentStepInputModeRef.current,
+                  wrongAttemptCount,
+                })
+              ) {
+                pendingAdvanceAfterRetryStepIdRef.current = event.stepId;
+              }
+            }
+          }
+          if (event.event === 'user_turn_opened') {
+            currentLifecycleRef.current = 'waiting_user';
+            logRealtimeLessonEvent('user_turn_opened', {
+              stepId: event.stepId ?? currentStepIdRef.current,
+              phase: currentStepPhaseRef.current,
+              inputMode: event.inputMode,
+            });
           }
           if (event.event === 'asr_ended') {
             const pending = pendingTranscriptRef.current.trim();
@@ -435,11 +573,21 @@ export function useNativeLessonRealtimeSession(options: NativeLessonRealtimeSess
       };
 
       socket.onerror = () => {
+        logRealtimeLessonEvent('socket_error', {
+          lessonId: options.lessonId,
+          sectionId: options.sectionId,
+        });
         setStatus('error');
         setErrorText('Realtime session 连接失败。');
       };
 
       socket.onclose = () => {
+        logRealtimeLessonEvent('socket_close', {
+          lessonId: options.lessonId,
+          sectionId: options.sectionId,
+          reconnectAttempt: reconnectAttemptRef.current,
+          closedByUser: closedByUserRef.current,
+        });
         setStatus((current) => (current === 'error' ? 'error' : 'disconnected'));
         socketRef.current = null;
         if (!closedByUserRef.current && options.enabled) {

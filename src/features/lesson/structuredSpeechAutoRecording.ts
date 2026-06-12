@@ -19,12 +19,25 @@ type AutoSubmitOptions = {
   lastSubmittedRecordingUri: string | null;
 };
 
+type ForceCloseOptions = {
+  controllerView: NativeLessonControllerView | null;
+  realtimeConnected: boolean;
+  audioStatus: StructuredSpeechAudioStatus;
+  assistantPlaybackPending: boolean;
+  recordingStatus: RecordingControllerStatus;
+};
+
 const AUTO_STARTABLE_RECORDING_STATUSES = new Set<RecordingControllerStatus>([
   'idle',
   'recorded',
   'submitted',
   'cancelled',
   'error',
+]);
+
+const ACTIVE_RECORDING_STATUSES = new Set<RecordingControllerStatus>([
+  'recording',
+  'auto_stopping',
 ]);
 
 function isStructuredSpeechTurn(controllerView: NativeLessonControllerView | null): boolean {
@@ -87,4 +100,38 @@ export function shouldAutoSubmitStructuredSpeechRecording({
     Boolean(recordingUri) &&
     recordingUri !== lastSubmittedRecordingUri
   );
+}
+
+export function getStructuredSpeechRecordingCloseReason({
+  controllerView,
+  realtimeConnected,
+  audioStatus,
+  assistantPlaybackPending,
+  recordingStatus,
+}: ForceCloseOptions): string | null {
+  if (!ACTIVE_RECORDING_STATUSES.has(recordingStatus)) {
+    return null;
+  }
+  if (!controllerView) {
+    return 'missing_controller_view';
+  }
+  if (controllerView.isPaused) {
+    return 'lesson_paused';
+  }
+  if (!realtimeConnected) {
+    return 'realtime_disconnected';
+  }
+  if (controllerView.lifecycle !== 'waiting_user') {
+    return `lifecycle_${controllerView.lifecycle}`;
+  }
+  if (!isStructuredSpeechTurn(controllerView)) {
+    return 'non_speech_turn';
+  }
+  if (assistantPlaybackPending) {
+    return 'assistant_playback_pending';
+  }
+  if (audioStatus !== 'idle') {
+    return `audio_${audioStatus}`;
+  }
+  return null;
 }
