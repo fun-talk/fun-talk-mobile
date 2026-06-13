@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { courseHomeImages } from '@/features/courses/assets/courseHomeAssets';
@@ -116,10 +116,6 @@ export function NativeLessonShell({
       : completionStatus === 'error'
         ? `进度保存失败${completionErrorText ? ` · ${completionErrorText}` : ''}`
         : '';
-  const displayText =
-    controllerView.text ||
-    controllerView.screenText ||
-    (controllerView.phase === 'end' ? '课程完成' : controllerView.title);
   const choiceOptions = controllerView.step?.options ?? [];
   const isFreeChatPhase = controllerView.phase === 'free_chat';
   const isSpeechStep = controllerView.step?.responseMode === 'speech';
@@ -132,8 +128,24 @@ export function NativeLessonShell({
     isFreeChatPhase ||
     isSpeechStep;
   const canSubmitText = draftAnswer.trim().length > 0;
-  const visibleConversationHistory = conversationHistory.slice(Math.max(0, conversationHistory.length - 8));
   const normalizedLiveUserTranscript = liveUserTranscript.trim();
+  const transcriptScrollRef = useRef<ScrollView | null>(null);
+  const transcriptViewportHeightRef = useRef(0);
+  const transcriptContentHeightRef = useRef(0);
+  const scrollTranscriptToEnd = useCallback((animated = true) => {
+    requestAnimationFrame(() => {
+      transcriptScrollRef.current?.scrollToEnd({ animated });
+    });
+  }, []);
+  const handleTranscriptContentSizeChange = useCallback(
+    (_width: number, contentHeight: number) => {
+      transcriptContentHeightRef.current = contentHeight;
+      if (contentHeight > transcriptViewportHeightRef.current) {
+        scrollTranscriptToEnd(true);
+      }
+    },
+    [scrollTranscriptToEnd],
+  );
   const speechPromptTargetText =
     controllerView.step?.screenText.trim() ||
     controllerView.screenText.trim() ||
@@ -151,18 +163,17 @@ export function NativeLessonShell({
     return '请用英语回答';
   })();
   const showFollowReadPromptPanel = isSpeechStep && !isFreeChatPhase;
-  const fallbackAssistantText =
-    showFollowReadPromptPanel && visibleConversationHistory.length === 0 && !normalizedLiveUserTranscript.length
-      ? displayText.trim()
-      : '';
-  const shouldShowConversationHistory =
-    visibleConversationHistory.length > 0 ||
-    normalizedLiveUserTranscript.length > 0 ||
-    fallbackAssistantText.length > 0;
 
   useEffect(() => {
     setDraftAnswer('');
   }, [controllerView.id]);
+
+  useEffect(() => {
+    if (transcriptContentHeightRef.current <= transcriptViewportHeightRef.current) {
+      return;
+    }
+    scrollTranscriptToEnd(true);
+  }, [assistantPlaybackPending, conversationHistory, normalizedLiveUserTranscript, scrollTranscriptToEnd]);
 
   return (
     <View style={styles.root}>
@@ -379,131 +390,141 @@ export function NativeLessonShell({
                 },
               ]}
             >
-              {!showFollowReadPromptPanel ? (
-                <View
-                  style={[
-                    styles.hintBubble,
-                    {
-                      top: scaled(34, scale),
-                      left: scaled(150, scale),
-                      right: scaled(150, scale),
-                      minHeight: scaled(110, scale),
-                      borderRadius: scaled(20, scale),
-                      paddingHorizontal: scaled(34, scale),
-                      paddingVertical: scaled(18, scale),
-                    },
-                  ]}
-                >
-                  <Text style={[styles.hintText, { fontSize: scaled(30, scale), lineHeight: scaled(42, scale) }]}>
-                    {displayText}
-                  </Text>
-                </View>
-              ) : null}
-
-              {shouldShowConversationHistory ? (
-                <ScrollView
-                  style={[
-                    styles.conversationList,
-                    {
-                      top: scaled(160, scale),
-                      left: scaled(130, scale),
-                      right: scaled(130, scale),
-                      bottom: scaled(120, scale),
-                    },
-                  ]}
-                  contentContainerStyle={{ paddingBottom: scaled(16, scale), gap: scaled(12, scale) }}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {visibleConversationHistory.map((item) => (
+              <ScrollView
+                ref={transcriptScrollRef}
+                style={[
+                  styles.conversationList,
+                  {
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                  },
+                ]}
+                contentContainerStyle={{
+                  paddingHorizontal: scaled(150, scale),
+                  paddingTop: scaled(32, scale),
+                  paddingBottom: scaled(32, scale),
+                  gap: scaled(8, scale),
+                }}
+                showsVerticalScrollIndicator={false}
+                onLayout={(event) => {
+                  transcriptViewportHeightRef.current = event.nativeEvent.layout.height;
+                }}
+                onContentSizeChange={handleTranscriptContentSizeChange}
+              >
+                {conversationHistory.map((item) => (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.conversationRow,
+                      item.role === 'user'
+                        ? styles.conversationRowUser
+                        : styles.conversationRowAssistant,
+                    ]}
+                  >
                     <View
-                      key={item.id}
                       style={[
                         styles.conversationBubble,
-                        item.role === 'assistant'
-                          ? styles.conversationBubbleAssistant
-                          : styles.conversationBubbleUser,
+                        item.role === 'user'
+                          ? styles.conversationBubbleUser
+                          : styles.conversationBubbleAssistant,
+                        {
+                          borderRadius: scaled(16, scale),
+                          paddingHorizontal: scaled(16, scale),
+                          paddingVertical: scaled(12, scale),
+                          maxWidth: '92%',
+                        },
+                        item.role === 'user'
+                          ? { borderBottomRightRadius: scaled(6, scale) }
+                          : { borderBottomLeftRadius: scaled(6, scale) },
                       ]}
                     >
                       <Text
                         style={[
-                          styles.conversationSpeaker,
-                          {
-                            fontSize: scaled(18, scale),
-                            marginBottom: scaled(6, scale),
-                          },
-                        ]}
-                      >
-                        {item.role === 'assistant' ? '欧波' : '我'}
-                      </Text>
-                      <Text
-                        style={[
                           styles.conversationText,
-                          { fontSize: scaled(24, scale), lineHeight: scaled(34, scale) },
+                          item.role === 'user'
+                            ? styles.conversationTextUser
+                            : styles.conversationTextAssistant,
+                          {
+                            fontSize: scaled(20, scale),
+                            lineHeight: scaled(28, scale),
+                          },
                         ]}
                       >
                         {item.text}
                       </Text>
                     </View>
-                  ))}
-                  {fallbackAssistantText ? (
-                    <View
-                      style={[
-                        styles.conversationBubble,
-                        styles.conversationBubbleAssistant,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.conversationSpeaker,
-                          {
-                            fontSize: scaled(18, scale),
-                            marginBottom: scaled(6, scale),
-                          },
-                        ]}
-                      >
-                        欧波
-                      </Text>
-                      <Text
-                        style={[
-                          styles.conversationText,
-                          { fontSize: scaled(24, scale), lineHeight: scaled(34, scale) },
-                        ]}
-                      >
-                        {fallbackAssistantText}
-                      </Text>
-                    </View>
-                  ) : null}
-                  {normalizedLiveUserTranscript ? (
+                  </View>
+                ))}
+
+                {normalizedLiveUserTranscript ? (
+                  <View style={[styles.conversationRow, styles.conversationRowUser]}>
                     <View
                       style={[
                         styles.conversationBubble,
                         styles.conversationBubbleUser,
                         styles.conversationBubbleLive,
+                        {
+                          borderRadius: scaled(16, scale),
+                          borderBottomRightRadius: scaled(6, scale),
+                          paddingHorizontal: scaled(16, scale),
+                          paddingVertical: scaled(12, scale),
+                          maxWidth: '92%',
+                        },
                       ]}
                     >
                       <Text
                         style={[
-                          styles.conversationSpeaker,
-                          {
-                            fontSize: scaled(18, scale),
-                            marginBottom: scaled(6, scale),
-                          },
-                        ]}
-                      >
-                        我（识别中）
-                      </Text>
-                      <Text
-                        style={[
                           styles.conversationText,
-                          { fontSize: scaled(24, scale), lineHeight: scaled(34, scale) },
+                          styles.conversationTextUser,
+                          {
+                            fontSize: scaled(20, scale),
+                            lineHeight: scaled(28, scale),
+                          },
                         ]}
                       >
                         {normalizedLiveUserTranscript}
                       </Text>
                     </View>
-                  ) : null}
-                </ScrollView>
-              ) : null}
+                  </View>
+                ) : null}
+
+                {assistantPlaybackPending ? (
+                  <View style={[styles.conversationRow, styles.conversationRowAssistant]}>
+                    <View
+                      style={[
+                        styles.botSpeakingIndicator,
+                        {
+                          borderRadius: scaled(12, scale),
+                          paddingHorizontal: scaled(8, scale),
+                          paddingVertical: scaled(6, scale),
+                          gap: scaled(4, scale),
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.botSpeakingDot,
+                          { width: scaled(6, scale), height: scaled(6, scale) },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.botSpeakingDot,
+                          { width: scaled(6, scale), height: scaled(6, scale) },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.botSpeakingDot,
+                          { width: scaled(6, scale), height: scaled(6, scale) },
+                        ]}
+                      />
+                    </View>
+                  </View>
+                ) : null}
+              </ScrollView>
 
               {choiceOptions.length ? (
                 <View
@@ -853,19 +874,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#ffffff',
   },
-  hintBubble: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#f4d2a2',
-    backgroundColor: '#fff0d8',
-  },
-  hintText: {
-    color: '#92400e',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
   optionGrid: {
     position: 'absolute',
     flexDirection: 'row',
@@ -953,26 +961,40 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 12,
   },
+  conversationRow: {
+    width: '100%',
+    flexDirection: 'row',
+  },
+  conversationRowAssistant: {
+    justifyContent: 'flex-start',
+  },
+  conversationRowUser: {
+    justifyContent: 'flex-end',
+  },
   conversationBubble: {
     borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
   },
   conversationBubbleAssistant: {
-    alignSelf: 'flex-start',
-    maxWidth: '88%',
-    borderColor: '#f4d2a2',
-    backgroundColor: '#fff7e6',
+    borderColor: 'rgba(254, 215, 170, 0.5)',
+    backgroundColor: '#ffedd5',
   },
   conversationBubbleUser: {
-    alignSelf: 'flex-end',
-    maxWidth: '88%',
-    borderColor: '#93c5fd',
-    backgroundColor: '#eff6ff',
+    borderWidth: 0,
+    backgroundColor: '#0ea5e9',
   },
   conversationBubbleLive: {
-    borderStyle: 'dashed',
+    opacity: 0.6,
+  },
+  botSpeakingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(254, 215, 170, 0.3)',
+    backgroundColor: 'rgba(254, 215, 170, 0.4)',
+  },
+  botSpeakingDot: {
+    borderRadius: 999,
+    backgroundColor: '#c2410c',
   },
   developerSmokeCard: {
     position: 'absolute',
@@ -1012,13 +1034,14 @@ const styles = StyleSheet.create({
     color: '#052e16',
     fontWeight: '900',
   },
-  conversationSpeaker: {
-    color: '#334155',
-    fontWeight: '800',
-  },
   conversationText: {
-    color: '#1f2937',
-    fontWeight: '700',
+    fontWeight: '400',
+  },
+  conversationTextAssistant: {
+    color: '#7c2d12',
+  },
+  conversationTextUser: {
+    color: '#ffffff',
   },
   avatar: {
     position: 'absolute',

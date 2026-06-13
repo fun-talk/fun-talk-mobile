@@ -99,6 +99,7 @@ describe('structuredSpeechAutoRecording', () => {
         controllerView: SPEECH_VIEW,
         recordingStatus: 'recorded',
         recordingUri: 'file:///tmp/follow-read.m4a',
+        hasSpeech: true,
         lastSubmittedRecordingUri: null,
       }),
       true,
@@ -109,7 +110,21 @@ describe('structuredSpeechAutoRecording', () => {
         controllerView: SPEECH_VIEW,
         recordingStatus: 'recorded',
         recordingUri: 'file:///tmp/follow-read.m4a',
+        hasSpeech: true,
         lastSubmittedRecordingUri: 'file:///tmp/follow-read.m4a',
+      }),
+      false,
+    );
+  });
+
+  it('does not auto submit silent recorded speech turns', () => {
+    assert.equal(
+      shouldAutoSubmitStructuredSpeechRecording({
+        controllerView: SPEECH_VIEW,
+        recordingStatus: 'recorded',
+        recordingUri: 'file:///tmp/follow-read.m4a',
+        hasSpeech: false,
+        lastSubmittedRecordingUri: null,
       }),
       false,
     );

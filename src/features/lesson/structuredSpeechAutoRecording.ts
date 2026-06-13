@@ -16,6 +16,7 @@ type AutoSubmitOptions = {
   controllerView: NativeLessonControllerView;
   recordingStatus: RecordingControllerStatus;
   recordingUri: string | null;
+  hasSpeech: boolean;
   lastSubmittedRecordingUri: string | null;
 };
 
@@ -92,11 +93,13 @@ export function shouldAutoSubmitStructuredSpeechRecording({
   controllerView,
   recordingStatus,
   recordingUri,
+  hasSpeech,
   lastSubmittedRecordingUri,
 }: AutoSubmitOptions): boolean {
   return (
     isStructuredSpeechTurn(controllerView) &&
     recordingStatus === 'recorded' &&
+    hasSpeech &&
     Boolean(recordingUri) &&
     recordingUri !== lastSubmittedRecordingUri
   );

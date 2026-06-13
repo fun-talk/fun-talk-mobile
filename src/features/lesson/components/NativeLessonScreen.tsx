@@ -268,6 +268,7 @@ function NativeLessonLoadedScreen({
   const controllerView = realtime.realtimeView;
   const recordingStatus = recording.state.status;
   const recordingUri = recording.state.recordingUri;
+  const hasSpeech = recording.state.hasSpeech;
   const startRecording = recording.start;
   const cancelRecording = recording.cancel;
   const acknowledgeRecordingSubmit = recording.acknowledgeSubmit;
@@ -420,6 +421,7 @@ function NativeLessonLoadedScreen({
       controllerView,
       recordingStatus,
       recordingUri,
+      hasSpeech,
       lastSubmittedRecordingUri: lastStructuredAutoSubmittedUriRef.current,
     });
     console.warn('native_lesson_recording|auto_submit_check', {
@@ -447,6 +449,7 @@ function NativeLessonLoadedScreen({
     void submitRecording();
   }, [
     controllerView,
+    hasSpeech,
     recordingStatus,
     recordingUri,
     submitRecording,

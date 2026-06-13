@@ -72,7 +72,7 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
       if (!isCapturingRef.current) {
         return;
       }
-      const elapsedMs = Math.max(0, Math.round(buffer.timestamp * 1000));
+      const elapsedMs = Math.max(0, Date.now() - startedAtMsRef.current);
       dispatch({
         type: 'metering',
         metering: estimateDbFromInt16Pcm(buffer.data),
