@@ -30,7 +30,7 @@ import { syncWebViewAuthCookies } from '../syncWebViewCookies';
 import { buildWebViewBootstrapScript } from '../webViewBootstrap';
 import {
   parseWebViewBridgeMessage,
-  resolveWebViewCourseProgressUpdate,
+  resolveAdvancingWebViewCourseProgressUpdate,
   resolveWebViewAuthUpdate,
 } from '../webViewMessages';
 import { writeCourseProgress } from '@/shared/courseHomeProgress';
@@ -145,7 +145,7 @@ export function LessonWebViewScreen() {
         return;
       }
 
-      const progressUpdate = resolveWebViewCourseProgressUpdate(message);
+      const progressUpdate = resolveAdvancingWebViewCourseProgressUpdate(message);
       if (!progressUpdate) {
         return;
       }

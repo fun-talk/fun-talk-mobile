@@ -136,3 +136,28 @@ export function resolveWebViewCourseProgressUpdate(
     completedCourseNumbers,
   };
 }
+
+export function resolveAdvancingWebViewCourseProgressUpdate(
+  message: WebViewBridgeMessage,
+): WebViewCourseProgressUpdate | null {
+  const update = resolveWebViewCourseProgressUpdate(message);
+  if (!update) {
+    return null;
+  }
+
+  const currentCourseNumber = Math.min(
+    update.totalCourses,
+    Math.max(update.currentCourseNumber, update.courseNumber + 1),
+  );
+  const completedCourseNumbers = Array.from(
+    new Set([...update.completedCourseNumbers, update.courseNumber]),
+  )
+    .filter((value) => value >= 1 && value <= update.totalCourses)
+    .sort((a, b) => a - b);
+
+  return {
+    ...update,
+    currentCourseNumber,
+    completedCourseNumbers,
+  };
+}
