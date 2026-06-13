@@ -19,7 +19,6 @@ import {
   consumeCourseHomeFoxMove,
   type CourseHomeFoxMove,
 } from '@/shared/courseHomeFoxMove';
-import { resolveCourseLessonEntryPath } from '@/shared/courseOpeningSceneEntry';
 import { getWebBaseUrl } from '@/lib/env';
 
 import { computeMapPixelHeight } from '../layout/courseHomeLayout';
@@ -167,11 +166,9 @@ export function useCourseHome(options: {
           search.set('skip_opening', '1');
         }
 
-        const webDestination = await resolveCourseLessonEntryPath(
-          search,
-          skipOpeningScene,
-          apiClient,
-        );
+        // 直接构造课程页 URL，确保 from/course_number/total_courses 完整传入 WebView。
+        // 绕开 opening scene 中转，避免 return_to 编码/解码过程中参数丢失。
+        const webDestination = `/app/lesson?${search.toString()}`;
 
         search.set('skip_opening', skipOpeningScene ? '1' : '0');
         search.set('web_destination', webDestination);
