@@ -13,6 +13,7 @@ import {
 } from './lessonMode.ts';
 import {
   parseWebViewBridgeMessage,
+  resolveAdvancingWebViewCourseProgressUpdate,
   resolveWebViewCourseProgressUpdate,
   resolveWebViewAuthUpdate,
 } from './webViewMessages.ts';
@@ -149,6 +150,29 @@ describe('webViewMessages', () => {
     );
     assert.ok(message);
     assert.deepEqual(resolveWebViewCourseProgressUpdate(message!), {
+      kind: 'course_progress_completed',
+      courseNumber: 4,
+      totalCourses: 23,
+      currentCourseNumber: 5,
+      completedCourseNumbers: [1, 2, 4],
+    });
+  });
+
+  it('advances stale webview completion progress before mobile persistence', () => {
+    const message = parseWebViewBridgeMessage(
+      JSON.stringify({
+        version: 1,
+        messageType: 21,
+        payload: JSON.stringify({
+          courseNumber: 4,
+          totalCourses: 23,
+          currentCourseNumber: 4,
+          completedCourseNumbers: [1, 2],
+        }),
+      }),
+    );
+    assert.ok(message);
+    assert.deepEqual(resolveAdvancingWebViewCourseProgressUpdate(message!), {
       kind: 'course_progress_completed',
       courseNumber: 4,
       totalCourses: 23,
