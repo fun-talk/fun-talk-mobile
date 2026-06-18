@@ -10,7 +10,6 @@ import {
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { WebViewNavigation } from 'react-native-webview/lib/WebViewTypes';
 
@@ -41,7 +40,6 @@ const LOGIN_ROUTE = '/(auth)/login' as Href;
 
 export function LessonWebViewScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<LessonRouteParams>();
   const { auth, saveAuth, logout } = useAuth();
   const webViewRef = useRef<WebView>(null);
@@ -196,10 +194,6 @@ export function LessonWebViewScreen() {
         }
       : {};
 
-  const handleExitLesson = useCallback(() => {
-    router.replace(COURSES_ROUTE);
-  }, [router]);
-
   if (!auth?.token) {
     return (
       <View style={styles.centered}>
@@ -234,12 +228,6 @@ export function LessonWebViewScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" hidden />
-
-      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-        <Pressable accessibilityRole="button" onPress={handleExitLesson} style={styles.exitButton}>
-          <Text style={styles.exitButtonText}>返回课程</Text>
-        </Pressable>
-      </View>
 
       {webError ? (
         <View style={styles.errorBanner}>
@@ -284,31 +272,6 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#020617',
-  },
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    pointerEvents: 'box-none',
-  },
-  exitButton: {
-    borderRadius: 999,
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.35)',
-  },
-  exitButtonText: {
-    color: '#f8fafc',
-    fontWeight: '700',
-    fontSize: 14,
   },
   webview: {
     flex: 1,
