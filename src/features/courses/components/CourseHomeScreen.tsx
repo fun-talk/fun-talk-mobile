@@ -129,7 +129,13 @@ export function CourseHomeScreen() {
       foxLeft.value = currentFoxLayout.left;
       foxTop.value = currentFoxLayout.top;
       foxScale.value = 1;
-      if (pendingFoxMove) {
+      // 目标课程尚未到达时保留 pendingFoxMove，等待 currentCourse 推进后再播放动画；
+      // 目标课程已过期或无效时立即清除。
+      const shouldKeepPending =
+        pendingFoxMove &&
+        pendingFoxMove.toCourseNumber > currentCourse.number &&
+        pendingFoxMove.toCourseNumber <= totalCourses;
+      if (pendingFoxMove && !shouldKeepPending) {
         clearPendingFoxMove();
       }
       return;
