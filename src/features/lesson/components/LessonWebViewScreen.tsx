@@ -8,7 +8,6 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { WebViewNavigation } from 'react-native-webview/lib/WebViewTypes';
@@ -32,7 +31,7 @@ import {
   resolveAdvancingWebViewCourseProgressUpdate,
   resolveWebViewAuthUpdate,
 } from '../webViewMessages';
-import { writeCourseProgress } from '@/shared/courseHomeProgress';
+import { readCourseProgress, writeMergedCourseProgress } from '@/shared/courseHomeProgress';
 import { writeCourseHomeFoxMove } from '@/shared/courseHomeFoxMove';
 
 const COURSES_ROUTE = '/(app)/courses' as Href;
@@ -68,13 +67,6 @@ export function LessonWebViewScreen() {
       apiHost,
     });
   }, [apiHost, auth, deviceId]);
-
-  useEffect(() => {
-    void ScreenOrientation.unlockAsync();
-    return () => {
-      void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,17 +140,24 @@ export function LessonWebViewScreen() {
         return;
       }
 
-      await writeCourseProgress({
-        completedCourseNumbers: progressUpdate.completedCourseNumbers,
-        currentCourseNumber: progressUpdate.currentCourseNumber,
-      });
-      await writeCourseHomeFoxMove(
+      const previousProgress = await readCourseProgress(progressUpdate.totalCourses);
+      const wasCurrentCourse = previousProgress.currentCourseNumber === progressUpdate.courseNumber;
+      const progress = await writeMergedCourseProgress(
         {
-          fromCourseNumber: progressUpdate.courseNumber,
-          toCourseNumber: progressUpdate.currentCourseNumber,
+          completedCourseNumbers: progressUpdate.completedCourseNumbers,
+          currentCourseNumber: progressUpdate.currentCourseNumber,
         },
         progressUpdate.totalCourses,
       );
+      if (wasCurrentCourse && progress.currentCourseNumber > progressUpdate.courseNumber) {
+        await writeCourseHomeFoxMove(
+          {
+            fromCourseNumber: progressUpdate.courseNumber,
+            toCourseNumber: progress.currentCourseNumber,
+          },
+          progressUpdate.totalCourses,
+        );
+      }
     },
     [auth, logout, router, saveAuth],
   );

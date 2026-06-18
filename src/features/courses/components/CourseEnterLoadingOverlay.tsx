@@ -15,11 +15,15 @@ import { clampByViewport } from '../layout/courseHomeLayout';
 type CourseEnterLoadingOverlayProps = {
   visible: boolean;
   viewportWidth: number;
+  title?: string;
+  coverImageUrl?: string;
 };
 
 export function CourseEnterLoadingOverlay({
   visible,
   viewportWidth,
+  title = '',
+  coverImageUrl = '',
 }: CourseEnterLoadingOverlayProps) {
   const bounce = useSharedValue(0);
   const spin = useSharedValue(0);
@@ -44,20 +48,41 @@ export function CourseEnterLoadingOverlay({
 
   if (!visible) return null;
 
-  const foxSize = Math.min(88, viewportWidth * 0.22);
+  const coverSize = Math.min(128, Math.max(96, viewportWidth * 0.32));
+  const normalizedTitle = title.trim();
+  const normalizedCoverImageUrl = coverImageUrl.trim();
+  const coverSource = normalizedCoverImageUrl
+    ? { uri: normalizedCoverImageUrl }
+    : courseHomeImages.fox;
+  const titleSize = clampByViewport({ min: 18, vw: 0.03, max: 28 }, viewportWidth);
   const labelSize = clampByViewport({ min: 16, vw: 0.024, max: 22 }, viewportWidth);
 
   return (
     <Modal transparent visible animationType="fade" statusBarTranslucent>
       <View style={styles.backdrop}>
         <View style={styles.panel}>
-          <Animated.View style={foxStyle}>
+          <Animated.View
+            style={[
+              styles.coverWrap,
+              foxStyle,
+              {
+                width: coverSize,
+                height: coverSize,
+                borderRadius: coverSize * 0.25,
+              },
+            ]}
+          >
             <Image
-              source={courseHomeImages.fox}
-              style={{ width: foxSize, height: foxSize * 1.1 }}
-              contentFit="contain"
+              source={coverSource}
+              style={styles.coverImage}
+              contentFit={normalizedCoverImageUrl ? 'cover' : 'contain'}
             />
           </Animated.View>
+          {normalizedTitle ? (
+            <Text style={[styles.title, { fontSize: titleSize }]} numberOfLines={3}>
+              {normalizedTitle}
+            </Text>
+          ) : null}
           <Animated.View style={[styles.spinner, spinnerStyle]} />
           <Text style={[styles.label, { fontSize: labelSize }]}>正在进入课程...</Text>
         </View>
@@ -83,19 +108,43 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(37, 184, 221, 0.92)',
   },
   panel: {
+    width: '86%',
+    maxWidth: 460,
     minWidth: 220,
-    paddingHorizontal: 36,
-    paddingTop: 28,
-    paddingBottom: 24,
+    paddingHorizontal: 32,
+    paddingTop: 34,
+    paddingBottom: 28,
     borderRadius: 28,
     backgroundColor: 'rgba(255, 255, 255, 0.88)',
     alignItems: 'center',
-    gap: 18,
+    gap: 16,
     shadowColor: '#0f59a4',
     shadowOpacity: 0.18,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 18 },
     elevation: 8,
+  },
+  coverWrap: {
+    overflow: 'hidden',
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
+    backgroundColor: 'rgba(230, 248, 253, 0.92)',
+    shadowColor: '#1054a6',
+    shadowOpacity: 0.14,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 6,
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  title: {
+    width: '100%',
+    color: '#1559b8',
+    fontWeight: '900',
+    lineHeight: undefined,
+    textAlign: 'center',
   },
   spinner: {
     width: 42,
