@@ -47,6 +47,7 @@ export function useCourseHome(options: {
   const [isLoadingLessons, setIsLoadingLessons] = useState(true);
   const [lessonLoadFailed, setLessonLoadFailed] = useState(false);
   const [isEnteringCourse, setIsEnteringCourse] = useState(false);
+  const [enteringCourse, setEnteringCourse] = useState<CourseMapNode | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [progress, setProgress] = useState<CourseProgress>({
     completedCourseNumbers: [],
@@ -143,6 +144,7 @@ export function useCourseHome(options: {
   const enterCourse = useCallback(
     async (course: CourseMapNode, skipOpeningScene: boolean) => {
       if (isEnteringCourse) return;
+      setEnteringCourse(course);
       setIsEnteringCourse(true);
 
       try {
@@ -152,6 +154,7 @@ export function useCourseHome(options: {
         ]);
         if (!loggedIn) {
           setIsEnteringCourse(false);
+          setEnteringCourse(null);
           return;
         }
 
@@ -178,6 +181,7 @@ export function useCourseHome(options: {
         console.warn('enter course failed:', error);
       } finally {
         setIsEnteringCourse(false);
+        setEnteringCourse(null);
       }
     },
     [apiClient, checkLoginBeforeEnter, isEnteringCourse, router, totalCourses],
@@ -216,6 +220,7 @@ export function useCourseHome(options: {
     isLoadingLessons,
     lessonLoadFailed,
     isEnteringCourse,
+    enteringCourse,
     isLoggingOut,
     progress,
     totalCourses,

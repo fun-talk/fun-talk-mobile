@@ -1,7 +1,6 @@
 import { Image } from 'expo-image';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -43,6 +42,7 @@ export function CourseHomeScreen() {
     isLoadingLessons,
     lessonLoadFailed,
     isEnteringCourse,
+    enteringCourse,
     isLoggingOut,
     totalCourses,
     mapHeight,
@@ -77,13 +77,6 @@ export function CourseHomeScreen() {
       void refreshCourseHome();
     }, [refreshCourseHome]),
   );
-
-  useEffect(() => {
-    void ScreenOrientation.unlockAsync();
-    return () => {
-      void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-    };
-  }, []);
 
   const countLabel = isLoadingLessons
     ? '正在加载课程...'
@@ -325,7 +318,12 @@ export function CourseHomeScreen() {
         />
       </Pressable>
 
-      <CourseEnterLoadingOverlay visible={isEnteringCourse} viewportWidth={width} />
+      <CourseEnterLoadingOverlay
+        visible={isEnteringCourse}
+        viewportWidth={width}
+        title={enteringCourse?.title}
+        coverImageUrl={enteringCourse?.coverImageUrl}
+      />
     </View>
   );
 }

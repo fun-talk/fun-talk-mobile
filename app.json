@@ -3,7 +3,7 @@
     "name": "fun-talk-mobile",
     "slug": "fun-talk-mobile",
     "version": "1.0.0",
-    "orientation": "default",
+    "orientation": "landscape",
     "icon": "./assets/images/icon.png",
     "scheme": [
       "funtalkmobile",
@@ -13,6 +13,7 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.anonymous.funtalkmobile",
+      "requireFullScreen": true,
       "associatedDomains": [
         "applinks:ai-fun-talk.com"
       ],
