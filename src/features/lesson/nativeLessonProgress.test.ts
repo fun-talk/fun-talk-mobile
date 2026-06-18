@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import { createApiClient } from '@/lib/api/client';
 import { createMemoryStorage } from '@/lib/storage/asyncStorage';
 import { COURSE_HOME_PROGRESS_KEY } from '@/shared/courseHomeProgress';
+import { readCourseHomeFoxMove } from '@/shared/courseHomeFoxMove';
 
 import {
   buildNativeLessonCompletionPayload,
@@ -89,6 +90,45 @@ describe('nativeLessonProgress', () => {
     }
   });
 
+  it('does not queue a fox move when reviewing an earlier course', async () => {
+    const storage = createMemoryStorage({
+      [COURSE_HOME_PROGRESS_KEY]: JSON.stringify({
+        completedCourseNumbers: [1, 2, 3],
+        currentCourseNumber: 4,
+      }),
+    });
+    const apiClient = createApiClient({
+      baseUrl: 'http://localhost:9000',
+      getDeviceId: async () => 'device-1',
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      Response.json({
+        completed_course_numbers: [1, 2, 3],
+        current_course_number: 4,
+      });
+
+    try {
+      const progress = await completeNativeLessonProgress(
+        {
+          lessonId: '414',
+          courseNumber: '2',
+          totalCourses: '23',
+        },
+        apiClient,
+        storage,
+      );
+
+      assert.deepEqual(progress, {
+        completedCourseNumbers: [1, 2, 3],
+        currentCourseNumber: 4,
+      });
+      assert.equal(await readCourseHomeFoxMove(23, storage), null);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('does not write local progress when the server rejects completion', async () => {
     const storage = createMemoryStorage();
     const apiClient = createApiClient({
@@ -118,4 +158,3 @@ describe('nativeLessonProgress', () => {
     }
   });
 });
-

@@ -2,6 +2,7 @@ import type { ApiClient } from '@/lib/api/client';
 import type { KeyValueStorage } from '@/lib/storage/asyncStorage';
 import { defaultAsyncStorage } from '@/lib/storage/asyncStorage';
 import {
+  readCourseProgress,
   saveCourseHomeCourseCompleted,
   type CourseProgress,
 } from '@/shared/courseHomeProgress';
@@ -52,14 +53,18 @@ export async function completeNativeLessonProgress(
   if (!payload) {
     throw new Error('native lesson completion params are incomplete');
   }
+  const previousProgress = await readCourseProgress(payload.totalCourses, storage);
+  const wasCurrentCourse = previousProgress.currentCourseNumber === payload.courseNumber;
   const progress = await saveCourseHomeCourseCompleted(payload, apiClient, storage);
-  await writeCourseHomeFoxMove(
-    {
-      fromCourseNumber: payload.courseNumber,
-      toCourseNumber: progress.currentCourseNumber,
-    },
-    payload.totalCourses,
-    storage,
-  );
+  if (wasCurrentCourse && progress.currentCourseNumber > payload.courseNumber) {
+    await writeCourseHomeFoxMove(
+      {
+        fromCourseNumber: payload.courseNumber,
+        toCourseNumber: progress.currentCourseNumber,
+      },
+      payload.totalCourses,
+      storage,
+    );
+  }
   return progress;
 }

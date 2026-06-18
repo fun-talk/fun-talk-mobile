@@ -11,6 +11,7 @@ import {
   parseStoredCourseProgress,
   readCourseProgress,
   saveCourseHomeCourseCompleted,
+  writeMergedCourseProgress,
 } from './courseHomeProgress';
 
 describe('course home progress', () => {
@@ -74,6 +75,107 @@ describe('course home progress', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it('replaces stale local progress when loading the current user from the server', async () => {
+    await storage.setItem(
+      COURSE_HOME_PROGRESS_KEY,
+      JSON.stringify({
+        completedCourseNumbers: [1, 2, 3, 4],
+        currentCourseNumber: 5,
+      }),
+    );
+    const apiClient = createApiClient({
+      baseUrl: 'http://localhost:9000',
+      getDeviceId: async () => 'test-device',
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      Response.json({
+        completed_course_numbers: [],
+        current_course_number: 1,
+      });
+
+    try {
+      assert.deepEqual(await fetchCourseHomeProgress(23, apiClient, storage), {
+        completedCourseNumbers: [],
+        currentCourseNumber: 1,
+      });
+      assert.deepEqual(await readCourseProgress(23, storage), {
+        completedCourseNumbers: [],
+        currentCourseNumber: 1,
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('keeps the final course completed when completion save echoes stale server progress', async () => {
+    await storage.setItem(
+      COURSE_HOME_PROGRESS_KEY,
+      JSON.stringify({
+        completedCourseNumbers: [1, 2, 3, 4, 5],
+        currentCourseNumber: 5,
+      }),
+    );
+    const apiClient = createApiClient({
+      baseUrl: 'http://localhost:9000',
+      getDeviceId: async () => 'test-device',
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      Response.json({
+        completed_course_numbers: [1, 2, 3, 4],
+        current_course_number: 5,
+      });
+
+    try {
+      assert.deepEqual(
+        await saveCourseHomeCourseCompleted(
+          {
+            courseNumber: 5,
+            lessonId: '417',
+            totalCourses: 5,
+          },
+          apiClient,
+          storage,
+        ),
+        {
+          completedCourseNumbers: [1, 2, 3, 4, 5],
+          currentCourseNumber: 5,
+        },
+      );
+      assert.deepEqual(await readCourseProgress(5, storage), {
+        completedCourseNumbers: [1, 2, 3, 4, 5],
+        currentCourseNumber: 5,
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('merges direct WebView progress updates without downgrading local progress', async () => {
+    await storage.setItem(
+      COURSE_HOME_PROGRESS_KEY,
+      JSON.stringify({
+        completedCourseNumbers: [1, 2, 3, 4],
+        currentCourseNumber: 5,
+      }),
+    );
+
+    await writeMergedCourseProgress(
+      {
+        completedCourseNumbers: [1, 2, 4],
+        currentCourseNumber: 5,
+      },
+      23,
+      storage,
+    );
+
+    assert.deepEqual(await readCourseProgress(23, storage), {
+      completedCourseNumbers: [1, 2, 3, 4],
+      currentCourseNumber: 5,
+    });
   });
 
   it('saves completed progress to the server and mirrors it locally', async () => {

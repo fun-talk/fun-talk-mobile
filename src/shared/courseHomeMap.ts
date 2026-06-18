@@ -7,6 +7,7 @@ export type CourseHomeLesson = {
   lesson_key?: string;
   title?: string;
   description?: string;
+  cover_image_url?: string;
   status?: number;
 };
 
@@ -14,6 +15,7 @@ export type CourseMapNode = {
   number: number;
   lessonId: string;
   title: string;
+  coverImageUrl: string;
   x: number;
   y: number;
 };
@@ -87,6 +89,7 @@ export function buildCourseMapNodes(
       // backend lesson id so deleted lessons cannot be reopened by position.
       lessonId: String(lesson?.id ?? number),
       title: lesson?.title || `课程 ${number}`,
+      coverImageUrl: lesson?.cover_image_url || '',
       x: position.x,
       y: position.y,
     };
