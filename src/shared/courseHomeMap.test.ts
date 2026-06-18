@@ -36,7 +36,7 @@ describe('courseHomeMap', () => {
     assert.deepEqual(
       buildCourseMapNodes(
         [
-          { id: 1, status: 1, title: '第一课' },
+          { id: 1, status: 1, title: '第一课', cover_image_url: 'https://example.test/one.jpg' },
           { id: 4, status: 1, title: '第二课' },
         ],
         2,
@@ -44,10 +44,16 @@ describe('courseHomeMap', () => {
         number: node.number,
         lessonId: node.lessonId,
         title: node.title,
+        coverImageUrl: node.coverImageUrl,
       })),
       [
-        { number: 1, lessonId: '1', title: '第一课' },
-        { number: 2, lessonId: '4', title: '第二课' },
+        {
+          number: 1,
+          lessonId: '1',
+          title: '第一课',
+          coverImageUrl: 'https://example.test/one.jpg',
+        },
+        { number: 2, lessonId: '4', title: '第二课', coverImageUrl: '' },
       ],
     );
   });

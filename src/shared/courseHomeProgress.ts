@@ -77,6 +77,30 @@ export function normalizeServerProgress(
   return { completedCourseNumbers: completed, currentCourseNumber: current };
 }
 
+export function mergeCourseProgress(
+  incoming: CourseProgress,
+  total: number,
+  previous?: CourseProgress,
+): CourseProgress {
+  if (!previous) {
+    return incoming;
+  }
+  const completedCourseNumbers = Array.from(
+    new Set([...previous.completedCourseNumbers, ...incoming.completedCourseNumbers]),
+  )
+    .filter((value) => Number.isInteger(value) && value >= 1 && value <= total)
+    .sort((a, b) => a - b);
+  const firstOpen = Math.min(total, completedCourseNumbers.length + 1);
+  const currentCourseNumber = Math.min(
+    total,
+    Math.max(previous.currentCourseNumber, incoming.currentCourseNumber, firstOpen),
+  );
+  return {
+    completedCourseNumbers,
+    currentCourseNumber,
+  };
+}
+
 export async function readCourseProgress(
   total: number,
   storage: KeyValueStorage = defaultAsyncStorage,
@@ -90,6 +114,17 @@ export async function writeCourseProgress(
   storage: KeyValueStorage = defaultAsyncStorage,
 ): Promise<void> {
   await storage.setItem(COURSE_HOME_PROGRESS_KEY, JSON.stringify(progress));
+}
+
+export async function writeMergedCourseProgress(
+  progress: CourseProgress,
+  total: number,
+  storage: KeyValueStorage = defaultAsyncStorage,
+): Promise<CourseProgress> {
+  const previous = await readCourseProgress(total, storage);
+  const merged = mergeCourseProgress(progress, total, previous);
+  await writeCourseProgress(merged, storage);
+  return merged;
 }
 
 export async function markCourseHomeCourseCompleted(
@@ -131,6 +166,12 @@ export async function saveCourseHomeCourseCompleted(
   apiClient: ApiClient,
   storage: KeyValueStorage = defaultAsyncStorage,
 ): Promise<CourseProgress> {
+  const previous = await readCourseProgress(options.totalCourses, storage);
+  const optimisticProgress = buildCompletedCourseProgress(
+    options.courseNumber,
+    options.totalCourses,
+    previous,
+  );
   const response = await apiClient.post('/api/v1/course_progress/complete', {
     course_number: options.courseNumber,
     lesson_id: options.lessonId,
@@ -142,9 +183,13 @@ export async function saveCourseHomeCourseCompleted(
     throw new Error(`save course progress failed: ${response.status}`);
   }
 
-  const progress = normalizeServerProgress(
-    (await response.json()) as CourseProgressApiResponse,
+  const progress = mergeCourseProgress(
+    normalizeServerProgress(
+      (await response.json()) as CourseProgressApiResponse,
+      options.totalCourses,
+    ),
     options.totalCourses,
+    optimisticProgress,
   );
   await writeCourseProgress(progress, storage);
   return progress;

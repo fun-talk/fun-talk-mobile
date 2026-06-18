@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
 
 import { AuthProvider } from '@/features/auth';
@@ -7,6 +8,10 @@ import { OpeningAnimation } from '@/components/OpeningAnimation';
 
 export default function RootLayout() {
   const [showOpening, setShowOpening] = useState(true);
+
+  useEffect(() => {
+    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+  }, []);
 
   const handleFinish = useCallback(() => {
     setShowOpening(false);
