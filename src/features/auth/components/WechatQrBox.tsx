@@ -7,6 +7,8 @@ import { LoginColors } from './LoginConstants';
 type WechatQrBoxProps = QrLoginState & {
   size: number;
   onRefresh: () => void;
+  showMeta?: boolean;
+  metaColor?: string;
 };
 
 function formatTime(seconds: number): string {
@@ -15,7 +17,15 @@ function formatTime(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-export function WechatQrBox({ qrUrl, status, expiresIn, size, onRefresh }: WechatQrBoxProps) {
+export function WechatQrBox({
+  qrUrl,
+  status,
+  expiresIn,
+  size,
+  onRefresh,
+  showMeta = true,
+  metaColor = '#ffffff',
+}: WechatQrBoxProps) {
   const showOverlay = status === 'scanned' || status === 'confirmed' || status === 'expired';
   const isWaiting = status === 'waiting';
   const isLowTime = expiresIn > 0 && expiresIn < 60;
@@ -59,13 +69,16 @@ export function WechatQrBox({ qrUrl, status, expiresIn, size, onRefresh }: Wecha
         )}
       </View>
 
-      {/* Meta text */}
-      <Text style={styles.meta}>请使用微信扫一扫登录</Text>
-      {isWaiting && expiresIn > 0 && (
-        <Text style={[styles.countdown, isLowTime && styles.countdownWarning]}>
-          有效期: {formatTime(expiresIn)}
-        </Text>
-      )}
+      {showMeta ? (
+        <>
+          <Text style={[styles.meta, { color: metaColor }]}>请使用微信扫一扫登录</Text>
+          {isWaiting && expiresIn > 0 && (
+            <Text style={[styles.countdown, { color: metaColor }, isLowTime && styles.countdownWarning]}>
+              有效期: {formatTime(expiresIn)}
+            </Text>
+          )}
+        </>
+      ) : null}
     </View>
   );
 }
@@ -121,14 +134,12 @@ const styles = StyleSheet.create({
   meta: {
     marginTop: 8,
     fontSize: 12,
-    color: '#ffffff',
     textAlign: 'center',
     opacity: 0.85,
   },
   countdown: {
     marginTop: 4,
     fontSize: 11,
-    color: '#ffffff',
     textAlign: 'center',
     opacity: 0.7,
   },

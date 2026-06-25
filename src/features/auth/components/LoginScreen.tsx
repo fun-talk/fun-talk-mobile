@@ -16,6 +16,8 @@ import { showErrorToast, showSuccessToast } from '@/lib/toast';
 
 import { useAuth } from '../AuthProvider';
 import { loginImages } from '../assets/loginAssets';
+import { useWechatQrLogin } from '../hooks/useWechatQrLogin';
+import type { FtAuthRecord } from '@/lib/auth/types';
 import { LoginError } from '../services/login';
 import {
   loginHomePhone,
@@ -171,11 +173,33 @@ export function LoginScreen() {
     [apiClient, saveAuth, finishLogin, requireAgreement],
   );
 
+  /* ---- QR scan login callbacks ---- */
+  const handleQrLoginSuccess = useCallback(
+    async (auth: FtAuthRecord) => {
+      await saveAuth(auth);
+      showSuccessToast('扫码登录成功，正在进入...');
+      router.replace(COURSES_ROUTE);
+    },
+    [saveAuth, router],
+  );
+
+  const handleQrLoginError = useCallback((error: string) => {
+    showErrorToast(error);
+  }, []);
+
+  const qrLogin = useWechatQrLogin(apiClient, {
+    rememberMe: true,
+    autoLoad: false,
+    onLoginSuccess: handleQrLoginSuccess,
+    onLoginError: handleQrLoginError,
+  });
+
   /* ---- WeChat native login ---- */
   const handleWechatLoginPress = useCallback(() => {
     if (!requireAgreement()) return;
+    qrLogin.refresh();
     setWechatModalVisible(true);
-  }, [requireAgreement]);
+  }, [qrLogin, requireAgreement]);
 
   const handleWechatLogin = useCallback(() => {
     setWechatModalVisible(false);
@@ -263,6 +287,7 @@ export function LoginScreen() {
       <WechatModal
         visible={wechatModalVisible}
         isSubmitting={isSubmitting}
+        qrLogin={qrLogin}
         onClose={() => setWechatModalVisible(false)}
         onWechatLogin={handleWechatLogin}
       />

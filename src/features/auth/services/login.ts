@@ -141,7 +141,7 @@ export async function loginWithWechatCode(
 }
 
 /* ================================================================
- *  WeChat QR Code Scan Login (web OAuth via /wechat/qrcode + /wechat/poll)
+ *  WeChat QR Code Scan Login (mobile OAuth via /wechat/qrcode + /wechat/poll)
  * ================================================================ */
 
 export type QrCodeData = {
@@ -160,7 +160,7 @@ export type QrPollResult = {
 };
 
 export async function fetchWechatQrCode(apiClient: ApiClient): Promise<QrCodeData> {
-  const response = await apiClient.get('/login/v1/wechat/qrcode');
+  const response = await apiClient.get('/login/v1/wechat/qrcode?channel=mobile');
   const data = await parseJson<QrCodeData & { detail?: string }>(response);
 
   if (!response.ok || !data.qr_url || !data.state) {
