@@ -1,10 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
+import { AccountAgreement } from './AccountAgreement';
 import { PersonalForm } from './PersonalForm';
 import { SchoolForm } from './SchoolForm';
 
-type LoginTab = 'personal' | 'school';
+type LoginTab = 'home' | 'school';
+type FamilyLoginMode = 'sms' | 'password';
 
 type LoginViewProps = {
   activeTab: LoginTab;
@@ -12,13 +14,14 @@ type LoginViewProps = {
   onHomePress: () => void;
   isDesktopLayout: boolean;
   isSubmitting: boolean;
-  statusMessage: string;
-  errorMessage: string;
-  rememberMe: boolean;
-  onRememberMeChange: (value: boolean) => void;
+  agreed: boolean;
+  onAgreementChange: (checked: boolean) => void;
+  smsCountdown: number;
+  onSendSms: (phone: string) => void;
   onWechatLoginPress: () => void;
-  onPersonalSubmit: (phone: string, password: string) => void;
-  onSchoolSubmit: (school: string, className: string, studentName: string, schoolCode: string) => void;
+  onPersonalSubmit: (phone: string, credential: string, mode: FamilyLoginMode) => void;
+  onSchoolSubmit: (digitalId: string, password: string) => void;
+  onForgotPassword: () => void;
 };
 
 export function LoginView({
@@ -27,17 +30,18 @@ export function LoginView({
   onHomePress,
   isDesktopLayout,
   isSubmitting,
-  statusMessage,
-  errorMessage,
-  rememberMe,
-  onRememberMeChange,
+  agreed,
+  onAgreementChange,
+  smsCountdown,
+  onSendSms,
   onWechatLoginPress,
   onPersonalSubmit,
   onSchoolSubmit,
+  onForgotPassword,
 }: LoginViewProps) {
   return (
     <View style={styles.container}>
-      {/* Home Button — absolute within the scene, matches web .home-button */}
+      {/* Home Button — pill-shaped, matches web .account-topbar-btn */}
       <Pressable style={styles.homeBtn} onPress={onHomePress} disabled={isSubmitting}>
         <View style={styles.homeIcon}>
           <View style={styles.homeIconRoof} />
@@ -46,64 +50,64 @@ export function LoginView({
         <Text style={styles.homeBtnText}>返回首页</Text>
       </Pressable>
 
-      {/* Login Stage — matches web .login-stage: padding 86px 16px 32px */}
+      {/* Login Stage — centered card */}
       <View style={styles.loginStage}>
-        {/* Login Panel — matches web .login-panel */}
-        <View style={[styles.panel, isDesktopLayout && styles.panelDesktop]}>
-          {/* Tabs */}
+        {/* Glassmorphic card — matches web .account-card-student-login */}
+        <View style={[styles.card, isDesktopLayout && styles.cardDesktop]}>
+          {/* Heading — matches web .account-student-login-heading */}
+          <View style={styles.heading}>
+            <Text style={styles.headingTitle}>学生登录</Text>
+            <Text style={styles.headingSubtitle}>选择家庭个人账号或学校账号</Text>
+          </View>
+
+          {/* Tabs — matches web .account-tabs .account-login-tabs */}
           <View style={styles.tabs}>
             <Pressable
-              style={styles.tab}
-              onPress={() => onTabChange('personal')}
-              disabled={isSubmitting}>
-              <Text style={[styles.tabText, activeTab === 'personal' && styles.tabTextActive]}>
-                个人登录
+              style={[styles.tab, activeTab === 'home' && styles.tabActive]}
+              onPress={() => onTabChange('home')}
+              disabled={isSubmitting}
+            >
+              <Text style={[styles.tabText, activeTab === 'home' && styles.tabTextActive]}>
+                家庭账号
               </Text>
-              {activeTab === 'personal' && <View style={styles.tabIndicator} />}
             </Pressable>
             <Pressable
-              style={styles.tab}
+              style={[styles.tab, activeTab === 'school' && styles.tabActive]}
               onPress={() => onTabChange('school')}
-              disabled={isSubmitting}>
+              disabled={isSubmitting}
+            >
               <Text style={[styles.tabText, activeTab === 'school' && styles.tabTextActive]}>
-                学校登录
+                学校账号
               </Text>
-              {activeTab === 'school' && <View style={styles.tabIndicator} />}
             </Pressable>
           </View>
 
-          {/* Forms */}
-          <View style={styles.forms}>
-            {activeTab === 'personal' ? (
+          {/* Panel wrap — matches web .account-login-panel-wrap */}
+          <View style={styles.panelWrap}>
+            {activeTab === 'home' ? (
               <PersonalForm
                 isSubmitting={isSubmitting}
-                rememberMe={rememberMe}
-                onRememberMeChange={onRememberMeChange}
+                smsCountdown={smsCountdown}
+                onSendSms={onSendSms}
                 onWechatLoginPress={onWechatLoginPress}
                 onSubmit={onPersonalSubmit}
               />
             ) : (
-              <SchoolForm isSubmitting={isSubmitting} onSubmit={onSchoolSubmit} />
+              <SchoolForm
+                isSubmitting={isSubmitting}
+                onSubmit={onSchoolSubmit}
+                onForgotPassword={onForgotPassword}
+              />
             )}
 
-            {/* Status / Error messages */}
-            {statusMessage ? (
-              <Text style={[styles.note, { color: LoginColors.success }]}>{statusMessage}</Text>
-            ) : null}
-            {errorMessage ? (
-              <Text style={[styles.note, { color: LoginColors.error }]}>{errorMessage}</Text>
-            ) : null}
           </View>
 
-          {/* Agreement footer */}
-          <View style={styles.agreement}>
-            <Text style={styles.agreementText}>
-              登录即表示同意
-              <Text style={styles.agreementLink}>《用户协议》</Text>
-              <Text style={styles.agreementLink}>《隐私政策》</Text>
-              <Text style={styles.agreementLink}>《儿童隐私保护声明》</Text>
-            </Text>
-          </View>
+          {/* Agreement — matches web .account-checkbox-field */}
+          <AccountAgreement
+            checked={agreed}
+            onChange={onAgreementChange}
+            disabled={isSubmitting}
+          />
         </View>
       </View>
     </View>
@@ -116,136 +120,162 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
-  /* ---- Home Button — matches web .home-button (mobile: top:40, right:14, h:44) ---- */
+  /* ── Home Button (web .account-btn-secondary .account-topbar-btn) ── */
   homeBtn: {
     position: 'absolute',
-    top: LoginSizes.homeBtnTop,
-    right: LoginSizes.homeBtnRight,
+    top: 40,
+    right: 14,
     zIndex: 5,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    height: LoginSizes.homeBtnHeight,
-    paddingHorizontal: 15,
-    borderRadius: 999,
-    backgroundColor: LoginColors.homeBtnBg,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: LoginSizes.btnBorderRadius,
+    backgroundColor: LoginColors.secondaryBg,
+    borderWidth: 1.5,
+    borderColor: LoginColors.secondaryBorder,
   },
   homeIcon: {
-    width: LoginSizes.homeIconW,
-    height: LoginSizes.homeIconH,
+    width: 18,
+    height: 16,
     justifyContent: 'flex-end',
     alignItems: 'center',
   },
   homeIconRoof: {
     width: 0,
     height: 0,
-    borderLeftWidth: LoginSizes.homeIconW / 2,
-    borderRightWidth: LoginSizes.homeIconW / 2,
-    borderBottomWidth: 6,
+    borderLeftWidth: 9,
+    borderRightWidth: 9,
+    borderBottomWidth: 5,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderBottomColor: LoginColors.orange,
   },
   homeIconBody: {
-    width: LoginSizes.homeIconW - 4,
-    height: 11,
+    width: 14,
+    height: 9,
     backgroundColor: LoginColors.orange,
     borderTopLeftRadius: 1,
     borderTopRightRadius: 1,
   },
   homeBtnText: {
-    fontSize: LoginSizes.homeBtnFontSize,
-    fontWeight: LoginWeights.black,
-    color: LoginColors.homeBtnText,
+    fontSize: LoginSizes.headerBtnFontSize,
+    fontWeight: LoginWeights.extraBold,
+    color: LoginColors.secondaryText,
   },
 
-  /* ---- Login Stage — matches web .login-stage (mobile) ---- */
+  /* ── Login Stage ── */
   loginStage: {
     width: '100%',
     alignItems: 'center',
-    paddingTop: LoginSizes.loginStagePaddingTop,
-    paddingHorizontal: LoginSizes.loginStagePaddingH,
-    paddingBottom: LoginSizes.loginStagePaddingBottom,
+    paddingTop: 60,
+    paddingHorizontal: 16,
+    paddingBottom: 32,
   },
 
-  /* ---- Panel — matches web .login-panel ---- */
-  panel: {
+  /* ── Glassmorphic Card (web .account-card-student-login) ── */
+  card: {
     width: '100%',
-    maxWidth: LoginSizes.panelMaxWidth,
-    borderRadius: LoginSizes.panelBorderRadius,
-    backgroundColor: LoginColors.panelBg,
-    overflow: 'hidden',
-    shadowColor: LoginColors.shadowColor,
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.1,
-    shadowRadius: 44,
+    maxWidth: LoginSizes.cardMaxWidth,
+    borderRadius: LoginSizes.cardBorderRadius,
+    backgroundColor: LoginColors.cardBg,
+    borderWidth: 1,
+    borderColor: LoginColors.cardBorder,
+    paddingVertical: LoginSizes.cardPaddingVM,
+    paddingHorizontal: LoginSizes.cardPaddingHM,
+    // shadow (web box-shadow)
+    shadowColor: LoginColors.cardShadow,
+    shadowOffset: { width: 0, height: 25 },
+    shadowOpacity: 0.08,
+    shadowRadius: 50,
     elevation: 10,
   },
-  panelDesktop: {
-    aspectRatio: LoginSizes.panelAspectW / LoginSizes.panelAspectH,
+  cardDesktop: {
+    maxWidth: 520,
   },
 
-  /* ---- Tabs — matches web .tabs ---- */
+  /* ── Heading (web .account-student-login-heading) ── */
+  heading: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  headingTitle: {
+    fontSize: LoginSizes.titleFontSize,
+    fontWeight: LoginWeights.extraBold,
+    color: LoginColors.text,
+    marginBottom: 6,
+    letterSpacing: -0.5,
+  },
+  headingSubtitle: {
+    fontSize: LoginSizes.subtitleFontSize,
+    color: LoginColors.textMuted,
+    lineHeight: 22,
+  },
+
+  /* ── Tabs (web .account-tabs .account-login-tabs) ── */
   tabs: {
     flexDirection: 'row',
-    height: LoginSizes.tabHeight,
-    borderBottomWidth: LoginSizes.tabBorderBottom,
-    borderBottomColor: LoginColors.line,
+    backgroundColor: LoginColors.tabContainerBg,
+    borderRadius: LoginSizes.tabContainerRadius,
+    padding: 4,
+    gap: LoginSizes.tabGap,
+    marginBottom: 20,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
+    paddingVertical: LoginSizes.tabPaddingV,
+    paddingHorizontal: LoginSizes.tabPaddingH,
+    borderRadius: LoginSizes.tabActiveRadius,
+  },
+  tabActive: {
+    backgroundColor: LoginColors.tabActiveBg,
+    shadowColor: LoginColors.tabShadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   tabText: {
     fontSize: LoginSizes.tabFontSize,
-    fontWeight: LoginWeights.extraBlack,
-    color: LoginColors.tabInactive,
+    fontWeight: LoginWeights.bold,
+    color: LoginColors.tabInactiveText,
   },
   tabTextActive: {
-    color: LoginColors.orange,
-  },
-  tabIndicator: {
-    position: 'absolute',
-    left: LoginSizes.tabIndicatorLeft,
-    right: LoginSizes.tabIndicatorRight,
-    bottom: -LoginSizes.tabBorderBottom,
-    height: LoginSizes.tabActiveIndicatorHeight,
-    borderTopLeftRadius: LoginSizes.tabActiveIndicatorHeight,
-    borderTopRightRadius: LoginSizes.tabActiveIndicatorHeight,
-    backgroundColor: LoginColors.orange,
+    color: LoginColors.tabActiveText,
+    fontWeight: LoginWeights.extraBold,
   },
 
-  /* ---- Forms — matches web .forms ---- */
-  forms: {
-    marginTop: 10,
-    paddingTop: LoginSizes.formPaddingTop,
-    paddingHorizontal: LoginSizes.formPaddingHorizontal,
-    paddingBottom: 4,
+  /* ── Panel Wrap (web .account-login-panel-wrap) ── */
+  panelWrap: {
+    marginBottom: 0,
   },
-  note: {
-    marginTop: 10,
+
+  /* ── Error (web .account-error) ── */
+  errorBox: {
+    backgroundColor: LoginColors.errorBg,
+    borderWidth: 1,
+    borderColor: LoginColors.errorBorder,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 12,
+  },
+  errorText: {
+    fontSize: LoginSizes.noteFontSize,
+    fontWeight: LoginWeights.semiBold,
+    color: LoginColors.errorText,
+    textAlign: 'center',
+  },
+
+  /* ── Success ── */
+  successText: {
+    marginTop: 12,
     fontSize: LoginSizes.noteFontSize,
     fontWeight: LoginWeights.extraBold,
+    color: LoginColors.success,
     textAlign: 'center',
-    minHeight: 20,
-  },
-
-  /* ---- Agreement — matches web .agreement ---- */
-  agreement: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 14,
-  },
-  agreementText: {
-    fontSize: LoginSizes.agreementFontSize,
-    fontWeight: LoginWeights.extraBold,
-    color: LoginColors.agreement,
-    textAlign: 'center',
-    lineHeight: LoginSizes.agreementFontSize * 1.45,
-  },
-  agreementLink: {
-    color: LoginColors.agreementLink,
   },
 });

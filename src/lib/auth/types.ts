@@ -7,6 +7,8 @@ export type FtAuthRecord = {
   phone?: string;
   logo?: string;
   authType?: string;
+  /** New account system type: 'school_student' | 'home_account' */
+  accountType?: string;
   persistent?: boolean;
   expiresAt?: number;
 };

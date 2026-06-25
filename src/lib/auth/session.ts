@@ -81,6 +81,110 @@ export function buildFtAuthFromCheckResponse(
   };
 }
 
+/* ================================================================
+ *  New Account v1 session builders (aligned with web PR#179)
+ * ================================================================ */
+
+/**
+ * Build FtAuthRecord from /account/v1/student/login response.
+ */
+export function buildFtAuthFromStudentLogin(
+  token: string,
+  expiresIn: number,
+  digitalId: string,
+  persistent: boolean,
+): FtAuthRecord {
+  const expiresInMs = expiresIn > 0 ? expiresIn * 1000 : PERSISTENT_AUTH_MS;
+  return {
+    userId: digitalId,
+    token,
+    username: digitalId,
+    name: digitalId,
+    accountType: 'school_student',
+    authType: 'student',
+    persistent,
+    expiresAt: Date.now() + expiresInMs,
+    hasUsername: false,
+    phone: '',
+    logo: '',
+  };
+}
+
+/**
+ * Build FtAuthRecord from /account/v1/home/phone/login or /account/v1/home/wechat/login response.
+ */
+export function buildFtAuthFromHomeLogin(
+  token: string,
+  expiresIn: number,
+  phone: string,
+  wechatOpenid: string,
+  persistent: boolean,
+): FtAuthRecord {
+  const expiresInMs = expiresIn > 0 ? expiresIn * 1000 : PERSISTENT_AUTH_MS;
+  const userId = wechatOpenid || phone;
+  return {
+    userId,
+    token,
+    username: phone || wechatOpenid,
+    name: phone || wechatOpenid,
+    phone,
+    accountType: 'home_account',
+    authType: 'home',
+    persistent,
+    expiresAt: Date.now() + expiresInMs,
+    hasUsername: false,
+    logo: '',
+  };
+}
+
+/**
+ * Build FtAuthRecord from /account/v1/session response.
+ */
+export function buildFtAuthFromAccountSession(
+  accountType: string,
+  studentDigitalId?: string,
+  homePhone?: string | null,
+  previous?: FtAuthRecord | null,
+): FtAuthRecord {
+  const persistent = previous?.persistent ?? true;
+  const expiresInMs = previous?.expiresAt
+    ? previous.expiresAt - Date.now()
+    : PERSISTENT_AUTH_MS;
+
+  if (accountType === 'student') {
+    const id = studentDigitalId || previous?.userId || '';
+    return {
+      userId: id,
+      token: previous?.token || '',
+      username: id,
+      name: id,
+      accountType: 'school_student',
+      authType: 'student',
+      persistent,
+      expiresAt: Date.now() + expiresInMs,
+      hasUsername: false,
+      phone: previous?.phone || '',
+      logo: previous?.logo || '',
+    };
+  }
+
+  // home account
+  const phone = homePhone || previous?.phone || '';
+  return {
+    userId: previous?.userId || phone,
+    token: previous?.token || '',
+    username: phone,
+    name: phone,
+    phone,
+    accountType: 'home_account',
+    authType: 'home',
+    persistent,
+    expiresAt: Date.now() + expiresInMs,
+    hasUsername: false,
+    logo: previous?.logo || '',
+  };
+}
+
 export function mergeAuthRecord(
   base: FtAuthRecord,
   patch: Partial<FtAuthRecord>,

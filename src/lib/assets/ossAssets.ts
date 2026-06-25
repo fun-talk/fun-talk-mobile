@@ -11,6 +11,10 @@ export const ossAssets = {
   images: {
     homeBackground: joinOssPath('images/home/background.png'),
     loginBackground: joinOssPath('images/login/background.png'),
+    /** Web PR#179 login background — same asset as web AccountBackground. */
+    loginBackgroundV1: joinOssPath('images/uploads/2026/06/22/login-background-180932.png'),
+    /** Web PR#179 brand logo — same asset as web FoxAvatar. */
+    loginLogoV1: joinOssPath('images/uploads/2026/06/22/login-logo-180818.png'),
   },
   sounds: {
     onboardingGreeting:
