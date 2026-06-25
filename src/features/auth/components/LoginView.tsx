@@ -11,7 +11,6 @@ type FamilyLoginMode = 'sms' | 'password';
 type LoginViewProps = {
   activeTab: LoginTab;
   onTabChange: (tab: LoginTab) => void;
-  onHomePress: () => void;
   isDesktopLayout: boolean;
   isSubmitting: boolean;
   agreed: boolean;
@@ -27,7 +26,6 @@ type LoginViewProps = {
 export function LoginView({
   activeTab,
   onTabChange,
-  onHomePress,
   isDesktopLayout,
   isSubmitting,
   agreed,
@@ -41,15 +39,6 @@ export function LoginView({
 }: LoginViewProps) {
   return (
     <View style={styles.container}>
-      {/* Home Button — pill-shaped, matches web .account-topbar-btn */}
-      <Pressable style={styles.homeBtn} onPress={onHomePress} disabled={isSubmitting}>
-        <View style={styles.homeIcon}>
-          <View style={styles.homeIconRoof} />
-          <View style={styles.homeIconBody} />
-        </View>
-        <Text style={styles.homeBtnText}>返回首页</Text>
-      </Pressable>
-
       {/* Login Stage — centered card */}
       <View style={styles.loginStage}>
         {/* Glassmorphic card — matches web .account-card-student-login */}
@@ -118,51 +107,6 @@ const styles = StyleSheet.create({
   container: {
     position: 'relative',
     width: '100%',
-  },
-
-  /* ── Home Button (web .account-btn-secondary .account-topbar-btn) ── */
-  homeBtn: {
-    position: 'absolute',
-    top: 40,
-    right: 14,
-    zIndex: 5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    height: 40,
-    paddingHorizontal: 14,
-    borderRadius: LoginSizes.btnBorderRadius,
-    backgroundColor: LoginColors.secondaryBg,
-    borderWidth: 1.5,
-    borderColor: LoginColors.secondaryBorder,
-  },
-  homeIcon: {
-    width: 18,
-    height: 16,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  homeIconRoof: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 9,
-    borderRightWidth: 9,
-    borderBottomWidth: 5,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: LoginColors.orange,
-  },
-  homeIconBody: {
-    width: 14,
-    height: 9,
-    backgroundColor: LoginColors.orange,
-    borderTopLeftRadius: 1,
-    borderTopRightRadius: 1,
-  },
-  homeBtnText: {
-    fontSize: LoginSizes.headerBtnFontSize,
-    fontWeight: LoginWeights.extraBold,
-    color: LoginColors.secondaryText,
   },
 
   /* ── Login Stage ── */

@@ -16,12 +16,7 @@ import { showErrorToast, showSuccessToast } from '@/lib/toast';
 
 import { useAuth } from '../AuthProvider';
 import { loginImages } from '../assets/loginAssets';
-import { useWechatQrLogin } from '../hooks/useWechatQrLogin';
-import type { FtAuthRecord } from '@/lib/auth/types';
-import {
-  LoginError,
-  checkSession,
-} from '../services/login';
+import { LoginError } from '../services/login';
 import {
   loginHomePhone,
   loginHomeWechat,
@@ -32,12 +27,10 @@ import {
 } from '../services/accountApi';
 import { requestWechatAuthCode } from '../services/wechatNative';
 import { LoginColors } from './LoginConstants';
-import { LandingView } from './LandingView';
 import { LoginView } from './LoginView';
 import { WechatModal } from './WechatModal';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
 
-type ViewMode = 'landing' | 'login';
 type LoginTab = 'home' | 'school';
 
 const COURSES_ROUTE = '/(app)/courses' as Href;
@@ -56,8 +49,7 @@ export function LoginScreen() {
   const logoLeft = isDesktopLayout ? 28 : 18;
   const logoTop = isDesktopLayout ? 56 - logoHeight / 2 : 40;
 
-  const [viewMode, setViewMode] = useState<ViewMode>('landing');
-  const [activeTab, setActiveTab] = useState<LoginTab>('home');
+  const [activeTab, setActiveTab] = useState<LoginTab>('school');
   const [agreed, setAgreed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [wechatModalVisible, setWechatModalVisible] = useState(false);
@@ -103,27 +95,6 @@ export function LoginScreen() {
     }
     return true;
   }, [agreed]);
-
-  /* ---- Landing View Handlers ---- */
-  const handleReturningUser = useCallback(async () => {
-    try {
-      await checkSession(apiClient, null);
-      router.replace(COURSES_ROUTE);
-    } catch {
-      setViewMode('login');
-      showErrorToast('登录已过期，请重新登录');
-    }
-  }, [apiClient, router]);
-
-  const handleNewUser = useCallback(() => {
-    setActiveTab('home');
-    setViewMode('login');
-  }, []);
-
-  /* ---- Login View Handlers ---- */
-  const handleHomePress = useCallback(() => {
-    setViewMode('landing');
-  }, []);
 
   /* ---- SMS ---- */
   const handleSendSms = useCallback(
@@ -236,26 +207,6 @@ export function LoginScreen() {
     [apiClient],
   );
 
-  /* ---- QR scan login callbacks ---- */
-  const handleQrLoginSuccess = useCallback(
-    async (auth: FtAuthRecord) => {
-      await saveAuth(auth);
-      showSuccessToast('扫码登录成功，正在进入...');
-      router.replace(COURSES_ROUTE);
-    },
-    [saveAuth, router],
-  );
-
-  const handleQrLoginError = useCallback((error: string) => {
-    showErrorToast(error);
-  }, []);
-
-  const qrLogin = useWechatQrLogin(apiClient, {
-    rememberMe: true,
-    onLoginSuccess: handleQrLoginSuccess,
-    onLoginError: handleQrLoginError,
-  });
-
   return (
     <KeyboardAvoidingView
       style={styles.root}
@@ -291,31 +242,20 @@ export function LoginScreen() {
               contentFit="contain"
             />
 
-            {viewMode === 'landing' ? (
-              <LandingView
-                onReturningUser={handleReturningUser}
-                onNewUser={handleNewUser}
-                windowWidth={windowWidth}
-                windowHeight={windowHeight}
-                qrLogin={qrLogin}
-              />
-            ) : (
-              <LoginView
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                onHomePress={handleHomePress}
-                isDesktopLayout={isDesktopLayout}
-                isSubmitting={isSubmitting}
-                agreed={agreed}
-                onAgreementChange={setAgreed}
-                smsCountdown={smsCountdown}
-                onSendSms={handleSendSms}
-                onWechatLoginPress={handleWechatLoginPress}
-                onPersonalSubmit={handlePersonalSubmit}
-                onSchoolSubmit={handleSchoolSubmit}
-                onForgotPassword={handleForgotPassword}
-              />
-            )}
+            <LoginView
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              isDesktopLayout={isDesktopLayout}
+              isSubmitting={isSubmitting}
+              agreed={agreed}
+              onAgreementChange={setAgreed}
+              smsCountdown={smsCountdown}
+              onSendSms={handleSendSms}
+              onWechatLoginPress={handleWechatLoginPress}
+              onPersonalSubmit={handlePersonalSubmit}
+              onSchoolSubmit={handleSchoolSubmit}
+              onForgotPassword={handleForgotPassword}
+            />
           </View>
         </ScrollView>
       </View>
