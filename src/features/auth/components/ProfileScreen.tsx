@@ -7,7 +7,9 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type StyleProp,
   View,
+  type ViewStyle,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
@@ -18,6 +20,7 @@ import { loginImages } from '../assets/loginAssets';
 import { showErrorToast, showSuccessToast } from '@/lib/toast';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
 import { BindConfirmModal } from './BindConfirmModal';
+import { validatePasswordPair } from '../passwordPolicy';
 import {
   bindHomePhone,
   bindHomeStudent,
@@ -41,6 +44,52 @@ type ProfileView = 'student' | 'home';
 
 const COURSES_ROUTE = '/(app)/courses' as Href;
 const SMS_COOLDOWN = 60;
+
+function SkeletonBlock({ style }: { style?: StyleProp<ViewStyle> }) {
+  return <View style={[styles.skeletonBlock, style]} />;
+}
+
+function ProfilePanelSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <View style={styles.panel} pointerEvents="none">
+      <SkeletonBlock style={styles.skeletonSectionTitle} />
+      {Array.from({ length: rows }).map((_, index) => (
+        <View style={styles.skeletonField} key={index}>
+          <SkeletonBlock style={styles.skeletonLabel} />
+          <SkeletonBlock style={styles.skeletonInput} />
+        </View>
+      ))}
+      <SkeletonBlock style={styles.skeletonButton} />
+    </View>
+  );
+}
+
+function ProfileSkeletonScreen({ topPadding }: { topPadding: number }) {
+  return (
+    <View style={styles.root} accessibilityRole="progressbar" accessibilityLabel="正在加载个人中心">
+      <Image source={loginImages.background} style={styles.bg} contentFit="cover" />
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: topPadding }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <SkeletonBlock style={styles.skeletonHeaderTitle} />
+          <View style={styles.headerActions}>
+            <SkeletonBlock style={styles.skeletonHeaderBtn} />
+            <SkeletonBlock style={styles.skeletonHeaderBtn} />
+          </View>
+        </View>
+
+        <View style={styles.profileGrid}>
+          <ProfilePanelSkeleton />
+          <ProfilePanelSkeleton rows={5} />
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
 
 export function ProfileScreen() {
   const router = useRouter();
@@ -173,8 +222,8 @@ try {
 
   // Password
   const handlePasswordSave = async () => {
-    if (!newPassword || !confirmPassword) { showErrorToast('请填写新密码和确认密码'); return; }
-    if (newPassword !== confirmPassword) { showErrorToast('两次输入的密码不一致'); return; }
+    const passwordError = validatePasswordPair(newPassword, confirmPassword);
+    if (passwordError) { showErrorToast(passwordError); return; }
     setSavingPassword(true);
 
 
@@ -277,12 +326,7 @@ try {
   const title = isHomeView ? '家庭个人中心' : isStudentView ? '学生个人中心' : '个人中心';
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={LoginColors.primaryEnd} />
-        <Text style={styles.loadingText}>加载中...</Text>
-      </View>
-    );
+    return <ProfileSkeletonScreen topPadding={insets.top + 20} />;
   }
 
   /* ── Reusable submit button ── */
@@ -379,7 +423,7 @@ try {
               <View style={styles.field}>
                 <Text style={styles.label}>新密码</Text>
                 <View style={styles.inputWrapper}>
-                  <TextInput style={[styles.input, styles.inputWithIcon]} value={newPassword} onChangeText={setNewPassword} placeholder="请输入新密码" placeholderTextColor={LoginColors.inputPlaceholder} secureTextEntry={!showNewPassword} />
+                  <TextInput style={[styles.input, styles.inputWithIcon]} value={newPassword} onChangeText={setNewPassword} placeholder="至少 8 位，包含字母和数字" placeholderTextColor={LoginColors.inputPlaceholder} secureTextEntry={!showNewPassword} />
                   <Pressable style={styles.eyeBtn} onPress={() => setShowNewPassword(!showNewPassword)}><Text style={styles.eyeIcon}>{showNewPassword ? '👁️' : '🙈'}</Text></Pressable>
                 </View>
               </View>
@@ -488,6 +532,14 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 24, paddingBottom: 48 },
   loadingContainer: { flex: 1, backgroundColor: LoginColors.skyBg, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { fontSize: 16, fontWeight: '700', color: LoginColors.text },
+  skeletonBlock: { borderRadius: 999, backgroundColor: 'rgba(226, 232, 240, 0.86)' },
+  skeletonHeaderTitle: { width: 148, height: 28 },
+  skeletonHeaderBtn: { width: 92, height: 38 },
+  skeletonSectionTitle: { width: 132, height: 22, marginBottom: 24 },
+  skeletonField: { marginBottom: LoginSizes.fieldMarginBottom },
+  skeletonLabel: { width: 64, height: 14, marginBottom: LoginSizes.labelMarginBottom },
+  skeletonInput: { height: LoginSizes.inputHeight, borderRadius: LoginSizes.inputBorderRadius },
+  skeletonButton: { width: 118, height: 42, marginTop: 4 },
 
   /* ── Header (web .account-profile-topbar) ── */
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
