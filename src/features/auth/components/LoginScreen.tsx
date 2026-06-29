@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -266,6 +268,14 @@ export function LoginScreen() {
               contentFit="contain"
             />
 
+            <Pressable
+              style={styles.teacherAuthButton}
+              onPress={() => router.push('/(auth)/teacher-auth' as Href)}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.teacherAuthButtonText}>老师注册 / 登录</Text>
+            </Pressable>
+
             <LoginView
               activeTab={activeTab}
               onTabChange={setActiveTab}
@@ -332,5 +342,22 @@ const styles = StyleSheet.create({
   logoBase: {
     position: 'absolute',
     zIndex: 5,
+  },
+  teacherAuthButton: {
+    position: 'absolute',
+    right: 24,
+    top: 36,
+    zIndex: 6,
+    backgroundColor: LoginColors.secondaryBg,
+    borderWidth: 1,
+    borderColor: LoginColors.secondaryBorder,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  teacherAuthButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: LoginColors.secondaryText,
   },
 });

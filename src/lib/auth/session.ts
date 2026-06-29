@@ -26,6 +26,17 @@ export type CheckSessionResponse = {
 const PERSISTENT_AUTH_MS = 7 * 24 * 60 * 60 * 1000;
 const SESSION_AUTH_MS = 24 * 60 * 60 * 1000;
 
+export type TeacherAccountSession = {
+  id: number;
+  phone: string;
+  email?: string;
+  display_name: string;
+  role: 'admin' | 'teacher';
+  school_id?: number;
+  school_name?: string | null;
+  is_admin: boolean;
+};
+
 export function buildFtAuthFromLoginResponse(
   data: LoginSuccessResponse,
   rememberMe: boolean,
@@ -138,6 +149,36 @@ export function buildFtAuthFromHomeLogin(
 }
 
 /**
+ * Build FtAuthRecord from /account/v1/teacher/login or register response.
+ */
+export function buildFtAuthFromTeacherLogin(
+  token: string,
+  expiresIn: number,
+  teacher: TeacherAccountSession,
+  persistent: boolean,
+): FtAuthRecord {
+  const expiresInMs = expiresIn > 0 ? expiresIn * 1000 : PERSISTENT_AUTH_MS;
+  const label = teacher.display_name || teacher.phone;
+  return {
+    userId: String(teacher.id),
+    token,
+    username: label,
+    name: label,
+    phone: teacher.phone,
+    accountType: 'teacher_account',
+    authType: 'teacher',
+    teacherId: teacher.id,
+    teacherRole: teacher.role,
+    isAdmin: teacher.is_admin,
+    schoolName: teacher.school_name || '',
+    persistent,
+    expiresAt: Date.now() + expiresInMs,
+    hasUsername: Boolean(label),
+    logo: '',
+  };
+}
+
+/**
  * Build FtAuthRecord from /account/v1/session response.
  */
 export function buildFtAuthFromAccountSession(
@@ -145,6 +186,7 @@ export function buildFtAuthFromAccountSession(
   studentDigitalId?: string,
   homePhone?: string | null,
   previous?: FtAuthRecord | null,
+  teacher?: TeacherAccountSession | null,
 ): FtAuthRecord {
   const persistent = previous?.persistent ?? true;
   const expiresInMs = previous?.expiresAt
@@ -164,6 +206,27 @@ export function buildFtAuthFromAccountSession(
       expiresAt: Date.now() + expiresInMs,
       hasUsername: false,
       phone: previous?.phone || '',
+      logo: previous?.logo || '',
+    };
+  }
+
+  if (accountType === 'teacher') {
+    const label = teacher?.display_name || teacher?.phone || previous?.username || '';
+    return {
+      userId: teacher?.id ? String(teacher.id) : previous?.userId || '',
+      token: previous?.token || '',
+      username: label,
+      name: label,
+      phone: teacher?.phone || previous?.phone || '',
+      accountType: 'teacher_account',
+      authType: 'teacher',
+      teacherId: teacher?.id || previous?.teacherId,
+      teacherRole: teacher?.role || previous?.teacherRole,
+      isAdmin: teacher?.is_admin ?? previous?.isAdmin,
+      schoolName: teacher?.school_name || previous?.schoolName || '',
+      persistent,
+      expiresAt: Date.now() + expiresInMs,
+      hasUsername: Boolean(label),
       logo: previous?.logo || '',
     };
   }

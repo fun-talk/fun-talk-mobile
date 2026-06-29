@@ -106,6 +106,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
               accountSession.student?.digital_id,
               accountSession.home?.phone,
               stored,
+              accountSession.teacher,
             );
             await setFtAuth(verified);
             if (!cancelled) {

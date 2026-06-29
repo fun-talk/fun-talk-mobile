@@ -9,6 +9,10 @@ export type FtAuthRecord = {
   authType?: string;
   /** New account system type: 'school_student' | 'home_account' */
   accountType?: string;
+  teacherId?: number;
+  teacherRole?: 'admin' | 'teacher';
+  isAdmin?: boolean;
+  schoolName?: string;
   persistent?: boolean;
   expiresAt?: number;
 };

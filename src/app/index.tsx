@@ -2,12 +2,10 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect, type Href } from 'expo-router';
 
 import { useAuth } from '@/features/auth';
-
-const COURSES_ROUTE = '/(app)/courses' as Href;
-const LOGIN_ROUTE = '/(auth)/login' as Href;
+import { LOGIN_ROUTE, resolveAuthenticatedHomeRoute } from '@/lib/auth/accountRoutes';
 
 export default function IndexScreen() {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { auth, isLoading, isAuthenticated } = useAuth();
 
   if (isLoading) {
     return (
@@ -18,10 +16,10 @@ export default function IndexScreen() {
   }
 
   if (isAuthenticated) {
-    return <Redirect href={COURSES_ROUTE} />;
+    return <Redirect href={resolveAuthenticatedHomeRoute(auth) as Href} />;
   }
 
-  return <Redirect href={LOGIN_ROUTE} />;
+  return <Redirect href={LOGIN_ROUTE as Href} />;
 }
 
 const styles = StyleSheet.create({
