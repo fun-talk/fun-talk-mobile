@@ -1,25 +1,62 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { useAuth } from '@/features/auth';
 import { LoginColors, LoginWeights } from '@/features/auth/components/LoginConstants';
 import { showErrorToast, showSuccessToast } from '@/lib/toast';
 import {
+  approveMergeRequest,
+  cancelMergeRequest,
+  createMergeRequest,
+  fetchIncomingMergeRequests,
+  fetchNotifications,
+  fetchOutgoingMergeRequests,
   fetchSchoolManagement,
-  mergeAdminClasses,
-  mergeAdminSchool,
+  markNotificationRead,
+  rejectMergeRequest,
+  type MergeRequestRow,
+  type NotificationRow,
   type SchoolManagement,
-  type SchoolManagementPendingClass,
-  type SchoolManagementPendingSchool,
 } from '@/features/auth/services/accountApi';
 
 import { AccountConsoleShell, Panel, SecondaryButton } from './AccountConsoleShell';
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: '等待确认',
+  approved: '已批准',
+  rejected: '已拒绝',
+  cancelled: '已取消',
+  expired: '已过期',
+};
 
 export function SchoolManagementScreen() {
   const { apiClient } = useAuth();
   const [management, setManagement] = useState<SchoolManagement | null>(null);
   const [loading, setLoading] = useState(true);
   const [mergingKey, setMergingKey] = useState('');
+
+  // Merge school modal
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [sendingRequest, setSendingRequest] = useState(false);
+
+  // Requests
+  const [incoming, setIncoming] = useState<MergeRequestRow[]>([]);
+  const [outgoing, setOutgoing] = useState<MergeRequestRow[]>([]);
+
+  // Notifications
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [showNotifModal, setShowNotifModal] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -33,24 +70,70 @@ export function SchoolManagementScreen() {
     }
   }, [apiClient]);
 
+  const loadRequests = useCallback(async () => {
+    try {
+      const inc = await fetchIncomingMergeRequests(apiClient);
+      setIncoming(inc.requests);
+    } catch { /* ignore */ }
+    try {
+      const out = await fetchOutgoingMergeRequests(apiClient);
+      setOutgoing(out.requests);
+    } catch { /* ignore */ }
+  }, [apiClient]);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const result = await fetchNotifications(apiClient);
+      setNotifications(result.notifications);
+    } catch { /* ignore */ }
+  }, [apiClient]);
+
   useEffect(() => {
     void loadData();
-  }, [loadData]);
+    void loadRequests();
+    void loadNotifications();
+  }, [loadData, loadRequests, loadNotifications]);
 
-  const confirmMergeClass = (item: SchoolManagementPendingClass) => {
+  const refreshAll = useCallback(() => {
+    void loadData();
+    void loadRequests();
+    void loadNotifications();
+  }, [loadData, loadRequests, loadNotifications]);
+
+  // -- School merge request ----------------------------------------------
+
+  const handleSendMergeRequest = async () => {
+    if (!phoneInput.trim()) return;
+    setSendingRequest(true);
+    try {
+      const result = await createMergeRequest(apiClient, phoneInput.trim());
+      showSuccessToast(`合并请求已发送（ID: ${result.request.id}），等待对方管理员确认`);
+      setShowMergeModal(false);
+      setPhoneInput('');
+      await refreshAll();
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : '发送失败');
+    } finally {
+      setSendingRequest(false);
+    }
+  };
+
+  // -- Incoming request actions -----------------------------------------
+
+  const handleApprove = (req: MergeRequestRow) => {
     Alert.alert(
-      '确认合并班级',
-      `确认将「${item.source_class_name}」合并到「${item.target_class_name}」？将影响 ${item.student_count} 名学生。`,
+      '确认批准合并',
+      `确认将学校「${req.requesting_school_name || '未知'}」合并到当前学校？`,
       [
         { text: '取消', style: 'cancel' },
         {
-          text: '合并',
+          text: '批准合并',
           onPress: async () => {
-            setMergingKey(`class-${item.source_class_id}`);
+            setMergingKey(`approve-${req.id}`);
             try {
-              await mergeAdminClasses(apiClient, item.source_class_id, item.target_class_id);
-              showSuccessToast(`已合并班级：${item.source_class_name} → ${item.target_class_name}`);
-              await loadData();
+              const result = await approveMergeRequest(apiClient, req.id);
+              showSuccessToast(`合并完成：${result.record.target_label}`);
+              await refreshAll();
             } catch (error) {
               showErrorToast(error instanceof Error ? error.message : '合并失败');
             } finally {
@@ -62,22 +145,22 @@ export function SchoolManagementScreen() {
     );
   };
 
-  const confirmMergeSchool = (item: SchoolManagementPendingSchool) => {
+  const handleReject = (req: MergeRequestRow) => {
     Alert.alert(
-      '确认合并学校',
-      `确认将学校「${item.school_name}」合并到当前学校？将影响 ${item.student_count} 名学生、${item.teacher_count} 名老师。`,
+      '确认拒绝',
+      `确认拒绝学校「${req.requesting_school_name || '未知'}」的合并请求？`,
       [
         { text: '取消', style: 'cancel' },
         {
-          text: '合并',
+          text: '拒绝',
           onPress: async () => {
-            setMergingKey(`school-${item.school_id}`);
+            setMergingKey(`reject-${req.id}`);
             try {
-              await mergeAdminSchool(apiClient, item.school_id);
-              showSuccessToast(`已合并学校：${item.school_name}`);
-              await loadData();
+              await rejectMergeRequest(apiClient, req.id);
+              showSuccessToast('已拒绝合并请求');
+              await refreshAll();
             } catch (error) {
-              showErrorToast(error instanceof Error ? error.message : '合并失败');
+              showErrorToast(error instanceof Error ? error.message : '操作失败');
             } finally {
               setMergingKey('');
             }
@@ -86,9 +169,65 @@ export function SchoolManagementScreen() {
       ],
     );
   };
+
+  const handleCancel = (req: MergeRequestRow) => {
+    Alert.alert(
+      '确认取消',
+      '确认取消该合并请求？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '取消请求',
+          onPress: async () => {
+            setMergingKey(`cancel-${req.id}`);
+            try {
+              await cancelMergeRequest(apiClient, req.id);
+              showSuccessToast('已取消合并请求');
+              await refreshAll();
+            } catch (error) {
+              showErrorToast(error instanceof Error ? error.message : '取消失败');
+            } finally {
+              setMergingKey('');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // -- Notifications ----------------------------------------------------
+
+  const handleNotifPress = async (notif: NotificationRow) => {
+    if (!notif.is_read) {
+      try { await markNotificationRead(apiClient, notif.id); } catch {}
+      await loadNotifications();
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  // -- Render -----------------------------------------------------------
 
   return (
     <AccountConsoleShell title="学校信息管理" active="admin-schools">
+      {/* Top action bar */}
+      <View style={styles.notifBar}>
+        <Pressable style={styles.mergeBtn} onPress={() => { setPhoneInput(''); setShowMergeModal(true); }}>
+          <Text style={styles.mergeBtnText}>合并学校</Text>
+        </Pressable>
+        <Pressable
+          style={styles.notifBell}
+          onPress={() => { setShowNotifModal(true); void loadNotifications(); }}
+        >
+          <Text style={styles.notifBellIcon}>🔔</Text>
+          {unreadCount > 0 && (
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
+
       <Panel>
         {loading || !management ? (
           <View style={styles.loading}>
@@ -104,62 +243,67 @@ export function SchoolManagementScreen() {
               <Stat label="学生数量" value={String(management.school.student_count)} />
             </View>
 
-            <SectionTitle title="班级列表" />
+            {/* -- Incoming merge requests ------------------------------- */}
+            <SectionTitle title={`收到的合并请求${incoming.length > 0 ? ` (${incoming.length})` : ''}`} />
             <ScrollView horizontal>
               <View style={styles.table}>
-                <TableHeader columns={['班级名', '所属老师', '学生数量', '创建时间']} />
-                {management.classes.map((item) => (
-                  <View key={item.id} style={styles.row}>
-                    <Text style={styles.cell}>{item.name}</Text>
-                    <Text style={styles.cell}>{item.teacher_names.join('、') || '—'}</Text>
-                    <Text style={styles.cell}>{item.student_count}</Text>
-                    <Text style={styles.cell}>{new Date(item.created_at * 1000).toLocaleString()}</Text>
-                  </View>
-                ))}
+                <TableHeader columns={['请求方学校', '请求方管理员', '请求时间', '操作']} />
+                {incoming.length === 0 ? (
+                  <Text style={styles.empty}>暂无收到的合并请求</Text>
+                ) : (
+                  incoming.map((req) => (
+                    <View key={req.id} style={styles.row}>
+                      <Text style={styles.cell}>{req.requesting_school_name || '—'}</Text>
+                      <Text style={styles.cell}>{req.requesting_admin_name || req.requesting_admin_phone || '—'}</Text>
+                      <Text style={styles.cell}>{new Date(req.created_at * 1000).toLocaleString()}</Text>
+                      <View style={[styles.cell, styles.actionCell]}>
+                        <SecondaryButton
+                          label={mergingKey === `approve-${req.id}` ? '处理中…' : '批准'}
+                          onPress={() => handleApprove(req)}
+                          disabled={Boolean(mergingKey)}
+                        />
+                        <SecondaryButton
+                          label={mergingKey === `reject-${req.id}` ? '处理中…' : '拒绝'}
+                          onPress={() => handleReject(req)}
+                          disabled={Boolean(mergingKey)}
+                        />
+                      </View>
+                    </View>
+                  ))
+                )}
               </View>
             </ScrollView>
 
-            <SectionTitle title="待合并记录" />
-            {management.pending_classes.length === 0 && management.pending_schools.length === 0 ? (
-              <Text style={styles.subtitle}>暂无待合并记录</Text>
-            ) : (
-              <ScrollView horizontal>
-                <View style={styles.table}>
-                  <TableHeader columns={['类型', '相似名称', '合并目标', '影响学生', '操作']} />
-                  {management.pending_schools.map((item) => (
-                    <View key={`school-${item.school_id}`} style={styles.row}>
-                      <Text style={styles.cell}>学校</Text>
-                      <Text style={styles.cell}>{item.school_name}</Text>
-                      <Text style={styles.cell}>{management.school.name}</Text>
-                      <Text style={styles.cell}>{item.student_count}</Text>
-                      <View style={styles.cell}>
-                        <SecondaryButton
-                          label={mergingKey === `school-${item.school_id}` ? '合并中...' : '合并'}
-                          onPress={() => confirmMergeSchool(item)}
-                          disabled={Boolean(mergingKey)}
-                        />
+            {/* -- Outgoing merge requests ------------------------------- */}
+            <SectionTitle title="发出的合并请求" />
+            <ScrollView horizontal>
+              <View style={styles.table}>
+                <TableHeader columns={['目标学校', '目标管理员手机', '状态', '发起时间', '操作']} />
+                {outgoing.length === 0 ? (
+                  <Text style={styles.empty}>暂无发出的合并请求</Text>
+                ) : (
+                  outgoing.map((req) => (
+                    <View key={req.id} style={styles.row}>
+                      <Text style={styles.cell}>{req.target_school_name || '—'}</Text>
+                      <Text style={styles.cell}>{req.target_admin_phone || '—'}</Text>
+                      <Text style={styles.cell}>{STATUS_LABELS[req.status] || req.status}</Text>
+                      <Text style={styles.cell}>{new Date(req.created_at * 1000).toLocaleString()}</Text>
+                      <View style={[styles.cell, styles.actionCell]}>
+                        {req.status === 'pending' && (
+                          <SecondaryButton
+                            label={mergingKey === `cancel-${req.id}` ? '取消中…' : '取消'}
+                            onPress={() => handleCancel(req)}
+                            disabled={Boolean(mergingKey)}
+                          />
+                        )}
                       </View>
                     </View>
-                  ))}
-                  {management.pending_classes.map((item) => (
-                    <View key={`class-${item.source_class_id}`} style={styles.row}>
-                      <Text style={styles.cell}>班级</Text>
-                      <Text style={styles.cell}>{item.source_class_name}</Text>
-                      <Text style={styles.cell}>{item.target_class_name}</Text>
-                      <Text style={styles.cell}>{item.student_count}</Text>
-                      <View style={styles.cell}>
-                        <SecondaryButton
-                          label={mergingKey === `class-${item.source_class_id}` ? '合并中...' : '合并'}
-                          onPress={() => confirmMergeClass(item)}
-                          disabled={Boolean(mergingKey)}
-                        />
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </ScrollView>
-            )}
+                  ))
+                )}
+              </View>
+            </ScrollView>
 
+            {/* -- Merge history ---------------------------------------- */}
             <SectionTitle title="合并记录" />
             <ScrollView horizontal>
               <View style={styles.table}>
@@ -183,6 +327,80 @@ export function SchoolManagementScreen() {
           </>
         )}
       </Panel>
+
+      {/* -- Merge school phone modal --------------------------------- */}
+      <Modal visible={showMergeModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>合并学校</Text>
+            <Text style={styles.modalHint}>
+              请输入对方学校管理员的手机号，系统将向其发送合并请求确认。
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="请输入对方管理员手机号"
+              placeholderTextColor={LoginColors.textMuted}
+              value={phoneInput}
+              onChangeText={setPhoneInput}
+              keyboardType="phone-pad"
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                style={styles.modalCancelBtn}
+                onPress={() => setShowMergeModal(false)}
+              >
+                <Text style={styles.modalCancelText}>取消</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalConfirmBtn, (sendingRequest || !phoneInput.trim()) && styles.disabled]}
+                onPress={() => void handleSendMergeRequest()}
+                disabled={sendingRequest || !phoneInput.trim()}
+              >
+                <Text style={styles.modalConfirmText}>
+                  {sendingRequest ? '发送中…' : '发送合并请求'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* -- Notifications modal --------------------------------------- */}
+      <Modal visible={showNotifModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.notifModal}>
+            <View style={styles.notifModalHeader}>
+              <Text style={styles.modalTitle}>站内通知</Text>
+              <Pressable onPress={() => setShowNotifModal(false)}>
+                <Text style={styles.notifCloseBtn}>✕</Text>
+              </Pressable>
+            </View>
+            <ScrollView style={styles.notifList}>
+              {notifications.length === 0 ? (
+                <Text style={[styles.subtitle, { padding: 20, textAlign: 'center' }]}>暂无通知</Text>
+              ) : (
+                notifications.map((n) => (
+                  <Pressable
+                    key={n.id}
+                    style={[styles.notifItem, !n.is_read && styles.notifUnread]}
+                    onPress={() => handleNotifPress(n)}
+                  >
+                    <View style={styles.notifItemHeader}>
+                      {!n.is_read && <View style={styles.notifDot} />}
+                      <Text style={styles.notifItemTitle}>{n.title}</Text>
+                    </View>
+                    <Text style={styles.notifItemBody}>{n.message}</Text>
+                    <Text style={styles.notifItemTime}>
+                      {new Date(n.created_at * 1000).toLocaleString()}
+                    </Text>
+                  </Pressable>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </AccountConsoleShell>
   );
 }
@@ -220,6 +438,9 @@ const styles = StyleSheet.create({
   subtitle: {
     color: LoginColors.textMuted,
     fontWeight: LoginWeights.medium,
+  },
+  bold: {
+    fontWeight: LoginWeights.extraBold,
   },
   stats: {
     flexDirection: 'row',
@@ -276,10 +497,203 @@ const styles = StyleSheet.create({
     fontWeight: LoginWeights.extraBold,
     color: LoginColors.textLabel,
   },
+  actionCell: {
+    flexDirection: 'row',
+    gap: 6,
+    width: 200,
+  },
   empty: {
-    width: 1020,
+    width: 850,
     padding: 18,
     color: LoginColors.textMuted,
     fontWeight: LoginWeights.bold,
+  },
+
+  // Top action bar
+  notifBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    gap: 10,
+  },
+  // Merge button
+  mergeBtn: {
+    borderRadius: 12,
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  mergeBtnText: {
+    color: '#fff',
+    fontWeight: LoginWeights.extraBold,
+    fontSize: 14,
+  },
+  notifBell: {
+    position: 'relative',
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: LoginColors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifBellIcon: {
+    fontSize: 22,
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 999,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  notifBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: LoginWeights.extraBold,
+  },
+
+  // Notifications modal
+  notifModal: {
+    width: '90%',
+    maxHeight: '70%',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  notifModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: LoginColors.line,
+  },
+  notifCloseBtn: {
+    fontSize: 18,
+    color: LoginColors.textMuted,
+    fontWeight: LoginWeights.bold,
+  },
+  notifList: {
+    flexGrow: 0,
+  },
+  notifItem: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f8fafc',
+  },
+  notifUnread: {
+    backgroundColor: '#eff6ff',
+  },
+  notifItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  notifDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#3b82f6',
+  },
+  notifItemTitle: {
+    fontSize: 15,
+    fontWeight: LoginWeights.extraBold,
+    color: LoginColors.text,
+  },
+  notifItemBody: {
+    fontSize: 13,
+    color: LoginColors.textLabel,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  notifItemTime: {
+    fontSize: 11,
+    color: LoginColors.textMuted,
+    marginTop: 6,
+  },
+
+  // Merge request modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modal: {
+    width: '90%',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 28,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: LoginWeights.extraBold,
+    color: LoginColors.text,
+    marginBottom: 12,
+  },
+  modalDesc: {
+    fontSize: 15,
+    color: LoginColors.textLabel,
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  modalHint: {
+    fontSize: 13,
+    color: LoginColors.textMuted,
+    marginBottom: 16,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: LoginColors.line,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: LoginColors.text,
+    backgroundColor: '#f8fafc',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 20,
+  },
+  modalCancelBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: LoginColors.secondaryBg,
+    borderWidth: 1,
+    borderColor: LoginColors.secondaryBorder,
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: LoginWeights.bold,
+    color: LoginColors.secondaryText,
+  },
+  modalConfirmBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: LoginColors.primaryStart,
+  },
+  modalConfirmText: {
+    fontSize: 14,
+    fontWeight: LoginWeights.extraBold,
+    color: '#fff',
+  },
+  disabled: {
+    opacity: 0.55,
   },
 });

@@ -177,6 +177,29 @@ export type SchoolMergeRecordRow = {
   created_at: number;
 };
 
+export type MergeRequestRow = {
+  id: number;
+  requesting_admin_name?: string;
+  requesting_admin_phone?: string;
+  requesting_school_id?: number;
+  requesting_school_name?: string;
+  target_school_id?: number;
+  target_school_name?: string;
+  target_admin_phone?: string;
+  status: string;
+  created_at: number;
+};
+
+export type NotificationRow = {
+  id: number;
+  type: string;
+  title: string;
+  message: string;
+  ref_id: number;
+  is_read: boolean;
+  created_at: number;
+};
+
 export type SchoolManagement = {
   school: {
     id: number;
@@ -190,6 +213,7 @@ export type SchoolManagement = {
   pending_schools: SchoolManagementPendingSchool[];
   pending_classes: SchoolManagementPendingClass[];
   merge_records: SchoolMergeRecordRow[];
+  pending_merge_requests_count: number;
 };
 
 export type AccountExportFile = {
@@ -545,16 +569,88 @@ export async function mergeAdminClasses(
   return response.json() as Promise<{ record: { id: number; target_label: string } }>;
 }
 
-export async function mergeAdminSchool(
+/* -- Merge requests (PRD v1.2) --------------------------------------- */
+
+export async function createMergeRequest(
   apiClient: ApiClient,
-  sourceSchoolId: number,
-): Promise<{ record: { id: number; target_label: string } }> {
-  const response = await apiClient.post('/account/v1/admin/schools/merge', {
-    source_school_id: sourceSchoolId,
-    confirm: true,
+  targetAdminPhone: string,
+): Promise<{ request: { id: number; status: string; created_at: number } }> {
+  const response = await apiClient.post('/account/v1/admin/schools/merge-requests', {
+    target_admin_phone: targetAdminPhone,
   });
   if (!response.ok) throw new Error(await readError(response));
-  return response.json() as Promise<{ record: { id: number; target_label: string } }>;
+  return response.json() as Promise<{ request: { id: number; status: string; created_at: number } }>;
+}
+
+export async function fetchIncomingMergeRequests(
+  apiClient: ApiClient,
+): Promise<{ requests: MergeRequestRow[] }> {
+  const response = await apiClient.get('/account/v1/admin/schools/merge-requests/incoming');
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ requests: MergeRequestRow[] }>;
+}
+
+export async function fetchOutgoingMergeRequests(
+  apiClient: ApiClient,
+): Promise<{ requests: MergeRequestRow[] }> {
+  const response = await apiClient.get('/account/v1/admin/schools/merge-requests/outgoing');
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ requests: MergeRequestRow[] }>;
+}
+
+export async function approveMergeRequest(
+  apiClient: ApiClient,
+  requestId: number,
+): Promise<{ record: { record_id: number; target_label: string } }> {
+  const response = await apiClient.post('/account/v1/admin/schools/merge-requests/approve', {
+    request_id: requestId,
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ record: { record_id: number; target_label: string } }>;
+}
+
+export async function rejectMergeRequest(
+  apiClient: ApiClient,
+  requestId: number,
+): Promise<{ request: { id: number; status: string } }> {
+  const response = await apiClient.post('/account/v1/admin/schools/merge-requests/reject', {
+    request_id: requestId,
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ request: { id: number; status: string } }>;
+}
+
+export async function cancelMergeRequest(
+  apiClient: ApiClient,
+  requestId: number,
+): Promise<{ request: { id: number; status: string } }> {
+  const response = await apiClient.post('/account/v1/admin/schools/merge-requests/cancel', {
+    request_id: requestId,
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ request: { id: number; status: string } }>;
+}
+
+/* -- Notifications (PRD v1.2) ---------------------------------------- */
+
+export async function fetchNotifications(
+  apiClient: ApiClient,
+  unreadOnly = false,
+): Promise<{ notifications: NotificationRow[]; unread_count: number }> {
+  const params = unreadOnly ? '?unread_only=true' : '';
+  const response = await apiClient.get(`/account/v1/admin/notifications${params}`);
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ notifications: NotificationRow[]; unread_count: number }>;
+}
+
+export async function markNotificationRead(
+  apiClient: ApiClient,
+  notificationId: number,
+): Promise<void> {
+  const response = await apiClient.post('/account/v1/admin/notifications/read', {
+    notification_id: notificationId,
+  });
+  if (!response.ok) throw new Error(await readError(response));
 }
 
 /* ================================================================
