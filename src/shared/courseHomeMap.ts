@@ -1,5 +1,6 @@
 export const MAP_WIDTH = 3325;
 export const MAP_SEGMENT_HEIGHT = 2155;
+export const MAP_BOTTOM_ACTION_SPACE = 520;
 export const PUBLISHED_LESSON_STATUS = 1;
 
 export type CourseHomeLesson = {
@@ -62,10 +63,11 @@ export function getCoursePosition(courseIndex: number): { x: number; y: number }
 }
 
 export function getCourseMapHeight(totalCourses: number): number {
+  const bottomActionSpace = MAP_BOTTOM_ACTION_SPACE;
   if (totalCourses <= 0) {
-    return MAP_SEGMENT_HEIGHT;
+    return MAP_SEGMENT_HEIGHT + bottomActionSpace;
   }
-  return Math.ceil(totalCourses / BASE_COURSE_POSITIONS.length) * MAP_SEGMENT_HEIGHT;
+  return Math.ceil(totalCourses / BASE_COURSE_POSITIONS.length) * MAP_SEGMENT_HEIGHT + bottomActionSpace;
 }
 
 export function getCourseMapSegmentCount(totalCourses: number): number {
