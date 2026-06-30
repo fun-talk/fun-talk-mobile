@@ -17,11 +17,15 @@ import { showErrorToast, showSuccessToast } from '@/lib/toast';
 import {
   createTeacherAccount,
   fetchAdminOverview,
+  fetchAdminStudents,
   fetchAdminTeachers,
+  fetchSchoolManagement,
   mergeAdminTeachers,
   updateTeacherAccount,
   type AdminOverview,
+  type AdminStudentRow,
   type AdminTeacherRow,
+  type SchoolManagementClass,
 } from '@/features/auth/services/accountApi';
 
 import { AccountConsoleShell, Panel, PrimaryButton, SecondaryButton } from './AccountConsoleShell';
@@ -47,10 +51,16 @@ function editPermissionLabel(value: string) {
   return '创建学生编号';
 }
 
+function studentOptionLabel(student: AdminStudentRow) {
+  return `${student.digital_id} · ${student.nickname_label} · ${student.class_name}`;
+}
+
 export function TeacherManagementScreen() {
-  const { apiClient } = useAuth();
+  const { apiClient, auth } = useAuth();
   const [teachers, setTeachers] = useState<AdminTeacherRow[]>([]);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [schoolClasses, setSchoolClasses] = useState<SchoolManagementClass[]>([]);
+  const [students, setStudents] = useState<AdminStudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showMerge, setShowMerge] = useState(false);
@@ -73,12 +83,16 @@ export function TeacherManagementScreen() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [teacherData, overviewData] = await Promise.all([
+      const [teacherData, overviewData, schoolData, studentData] = await Promise.all([
         fetchAdminTeachers(apiClient),
         fetchAdminOverview(apiClient),
+        fetchSchoolManagement(apiClient),
+        fetchAdminStudents(apiClient),
       ]);
       setTeachers(teacherData.teachers);
       setOverview(overviewData.overview);
+      setSchoolClasses(schoolData.management.classes);
+      setStudents(studentData.students);
     } catch (error) {
       showErrorToast(error instanceof Error ? error.message : '加载老师账号失败');
     } finally {
@@ -91,6 +105,8 @@ export function TeacherManagementScreen() {
   }, [loadData]);
 
   const mergeCandidates = useMemo(() => teachers.filter((teacher) => teacher.role === 'teacher'), [teachers]);
+  const classOptions = useMemo(() => schoolClasses.map((schoolClass) => schoolClass.name), [schoolClasses]);
+  const studentOptions = students;
 
   const handleCreate = async () => {
     if (!phone.trim()) {
@@ -100,6 +116,14 @@ export function TeacherManagementScreen() {
     const passwordError = validatePasswordPair(password, confirmPassword);
     if (passwordError) {
       showErrorToast(passwordError);
+      return;
+    }
+    if (scopeType === 'class' && !scopeValue) {
+      showErrorToast('请选择班级');
+      return;
+    }
+    if (scopeType === 'student' && !scopeValue) {
+      showErrorToast('请选择学生');
       return;
     }
     setSubmitting(true);
@@ -155,7 +179,10 @@ export function TeacherManagementScreen() {
   };
 
   const openEdit = (teacher: AdminTeacherRow) => {
-    if (teacher.role !== 'teacher') return;
+    if (teacher.role === 'admin' && teacher.id !== auth?.teacherId) {
+      showErrorToast('不能修改其他管理员信息');
+      return;
+    }
     setEditTarget(teacher);
     setEditForm({
       displayName: teacher.display_name,
@@ -183,7 +210,7 @@ export function TeacherManagementScreen() {
     const scopeTypeValue = editForm.scopeType || 'global';
     const scopeValueValue = scopeTypeValue === 'global' ? '' : editForm.scopeValue.trim();
     if (scopeTypeValue !== 'global' && !scopeValueValue) {
-      showErrorToast(scopeTypeValue === 'class' ? '请输入班级名' : '请输入学生数字 ID');
+      showErrorToast(scopeTypeValue === 'class' ? '请选择班级' : '请选择学生');
       return;
     }
 
@@ -239,8 +266,39 @@ export function TeacherManagementScreen() {
               <Field label="登录密码" value={password} onChangeText={setPassword} placeholder="至少 8 位，包含字母和数字" secure />
               <Field label="确认密码" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="请再次输入密码" secure />
               <Field label="邮箱（可选）" value={email} onChangeText={setEmail} placeholder="用于找回密码" />
-              <Field label="学生范围" value={scopeType} onChangeText={setScopeType} placeholder="global / class / student" />
-              <Field label="范围值" value={scopeValue} onChangeText={setScopeValue} placeholder="全局可留空，或填写班级名/学生数字 ID" />
+              <ChoiceGroup
+                label="学生范围"
+                value={scopeType}
+                options={[
+                  { value: 'global', label: '全局' },
+                  { value: 'class', label: '指定班级' },
+                  { value: 'student', label: '指定学生' },
+                ]}
+                onChange={(value) => {
+                  setScopeType(value);
+                  setScopeValue('');
+                }}
+              />
+              {scopeType === 'class' ? (
+                <OptionPicker
+                  label="范围值"
+                  value={scopeValue}
+                  placeholder={classOptions.length === 0 ? '暂无班级' : '请选择班级'}
+                  options={classOptions.map((className) => ({ value: className, label: className }))}
+                  onChange={setScopeValue}
+                />
+              ) : scopeType === 'student' ? (
+                <OptionPicker
+                  label="范围值"
+                  value={scopeValue}
+                  placeholder={studentOptions.length === 0 ? '暂无学生' : '请选择学生'}
+                  options={studentOptions.map((student) => ({
+                    value: student.digital_id,
+                    label: studentOptionLabel(student),
+                  }))}
+                  onChange={setScopeValue}
+                />
+              ) : null}
             </View>
             <PrimaryButton label={submitting ? '创建中...' : '创建教学老师'} onPress={handleCreate} disabled={submitting} />
           </View>
@@ -292,15 +350,32 @@ export function TeacherManagementScreen() {
                     ]}
                     onChange={(value) => updateEditForm({
                       scopeType: value,
-                      scopeValue: value === 'global' ? '' : editForm.scopeValue,
+                      scopeValue: value === editForm.scopeType ? editForm.scopeValue : '',
                     })}
                   />
-                  {editForm.scopeType !== 'global' ? (
-                    <Field
+                  {editForm.scopeType === 'class' ? (
+                    <OptionPicker
                       label="范围值"
                       value={editForm.scopeValue}
-                      onChangeText={(value) => updateEditForm({ scopeValue: value })}
-                      placeholder={editForm.scopeType === 'class' ? '班级名，例如：三年级 2 班' : '学生数字 ID'}
+                      placeholder={classOptions.length === 0 ? '暂无班级' : '请选择班级'}
+                      options={classOptions.map((className) => ({ value: className, label: className }))}
+                      onChange={(value) => updateEditForm({ scopeValue: value })}
+                    />
+                  ) : editForm.scopeType === 'student' ? (
+                    <OptionPicker
+                      label="范围值"
+                      value={editForm.scopeValue}
+                      placeholder={studentOptions.length === 0 ? '暂无学生' : '请选择学生'}
+                      options={[
+                        ...(editForm.scopeValue && !studentOptions.some((student) => student.digital_id === editForm.scopeValue)
+                          ? [{ value: editForm.scopeValue, label: `当前学生：${editForm.scopeValue}` }]
+                          : []),
+                        ...studentOptions.map((student) => ({
+                          value: student.digital_id,
+                          label: studentOptionLabel(student),
+                        })),
+                      ]}
+                      onChange={(value) => updateEditForm({ scopeValue: value })}
                     />
                   ) : null}
                   <ChoiceGroup
@@ -381,13 +456,9 @@ function TeacherTable({ teachers, onEdit }: { teachers: AdminTeacherRow[]; onEdi
             <Text style={styles.cell}>{viewPermissionLabel(teacher.view_permissions)}</Text>
             <Text style={styles.cell}>{editPermissionLabel(teacher.edit_permissions)}</Text>
             <View style={styles.cell}>
-              {teacher.role === 'teacher' ? (
-                <Pressable style={styles.editBtn} onPress={() => onEdit(teacher)}>
-                  <Text style={styles.editBtnText}>编辑</Text>
-                </Pressable>
-              ) : (
-                <Text style={styles.subtitle}>不可编辑</Text>
-              )}
+              <Pressable style={styles.editBtn} onPress={() => onEdit(teacher)}>
+                <Text style={styles.editBtnText}>编辑</Text>
+              </Pressable>
             </View>
           </View>
         ))}
@@ -452,6 +523,71 @@ function Field({
         placeholderTextColor={LoginColors.inputPlaceholder}
         secureTextEntry={secure}
       />
+    </View>
+  );
+}
+
+function OptionPicker({
+  label,
+  value,
+  placeholder,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.value === value);
+  const disabled = options.length === 0;
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <Pressable
+        style={[styles.pickerField, disabled && styles.pickerFieldDisabled]}
+        onPress={() => {
+          if (!disabled) setOpen(true);
+        }}
+        disabled={disabled}
+      >
+        <Text style={[styles.pickerFieldText, !selected && styles.pickerPlaceholder]}>
+          {selected?.label || placeholder}
+        </Text>
+      </Pressable>
+
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.optionModal}>
+            <Text style={styles.modalTitle}>{label}</Text>
+            <ScrollView contentContainerStyle={styles.optionList}>
+              {options.map((option) => {
+                const active = option.value === value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    style={[styles.optionRow, active && styles.optionRowActive]}
+                    onPress={() => {
+                      onChange(option.value);
+                      setOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.optionRowText, active && styles.optionRowTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <SecondaryButton label="取消" onPress={() => setOpen(false)} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -572,6 +708,27 @@ const styles = StyleSheet.create({
     backgroundColor: LoginColors.inputBg,
     color: LoginColors.inputText,
   },
+  pickerField: {
+    minWidth: 240,
+    minHeight: 44,
+    borderWidth: 1.5,
+    borderColor: LoginColors.inputBorder,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    backgroundColor: LoginColors.inputBg,
+    justifyContent: 'center',
+  },
+  pickerFieldDisabled: {
+    opacity: 0.68,
+  },
+  pickerFieldText: {
+    color: LoginColors.inputText,
+    fontWeight: LoginWeights.bold,
+  },
+  pickerPlaceholder: {
+    color: LoginColors.inputPlaceholder,
+  },
   loading: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -639,6 +796,38 @@ const styles = StyleSheet.create({
     backgroundColor: LoginColors.modalBg,
     padding: 22,
     gap: 14,
+  },
+  optionModal: {
+    width: '100%',
+    maxWidth: 520,
+    maxHeight: '78%',
+    borderRadius: 22,
+    backgroundColor: LoginColors.modalBg,
+    padding: 22,
+    gap: 14,
+  },
+  optionList: {
+    gap: 8,
+  },
+  optionRow: {
+    minHeight: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: LoginColors.line,
+    backgroundColor: LoginColors.white,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  optionRowActive: {
+    backgroundColor: LoginColors.text,
+    borderColor: LoginColors.text,
+  },
+  optionRowText: {
+    color: LoginColors.text,
+    fontWeight: LoginWeights.bold,
+  },
+  optionRowTextActive: {
+    color: LoginColors.white,
   },
   editModalContent: {
     gap: 14,

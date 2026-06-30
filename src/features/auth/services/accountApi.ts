@@ -159,6 +159,15 @@ export type SchoolManagementPendingClass = {
   created_at: number;
 };
 
+export type ClassMergePreview = {
+  source_class_name: string;
+  target_class_name: string;
+  affected_student_count: number;
+  affected_teacher_count: number;
+  has_suffix_conflict: boolean;
+  conflict_suffixes: string[];
+};
+
 export type SchoolManagementPendingSchool = {
   school_id: number;
   school_name: string;
@@ -553,6 +562,19 @@ export async function fetchSchoolManagement(
   const response = await apiClient.get('/account/v1/admin/schools/management');
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<{ management: SchoolManagement }>;
+}
+
+export async function previewAdminClassMerge(
+  apiClient: ApiClient,
+  sourceClassId: number,
+  targetClassId: number,
+): Promise<{ preview: ClassMergePreview }> {
+  const response = await apiClient.post('/account/v1/admin/schools/merge-classes/preview', {
+    source_class_id: sourceClassId,
+    target_class_id: targetClassId,
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ preview: ClassMergePreview }>;
 }
 
 export async function mergeAdminClasses(
