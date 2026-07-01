@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { LANDSCAPE_MODAL_ORIENTATIONS } from '@/constants/orientation';
 import { useAuth } from '@/features/auth';
 import { LoginColors, LoginWeights } from '@/features/auth/components/LoginConstants';
 import { showErrorToast, showSuccessToast } from '@/lib/toast';
@@ -23,10 +24,13 @@ import {
   fetchOutgoingMergeRequests,
   fetchSchoolManagement,
   markNotificationRead,
+  mergeAdminClasses,
+  previewAdminClassMerge,
   rejectMergeRequest,
   type MergeRequestRow,
   type NotificationRow,
   type SchoolManagement,
+  type SchoolManagementClass,
 } from '@/features/auth/services/accountApi';
 
 import { AccountConsoleShell, Panel, SecondaryButton } from './AccountConsoleShell';
@@ -49,6 +53,12 @@ export function SchoolManagementScreen() {
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
   const [sendingRequest, setSendingRequest] = useState(false);
+
+  // Merge class modal
+  const [showClassMergeModal, setShowClassMergeModal] = useState(false);
+  const [sourceClassId, setSourceClassId] = useState('');
+  const [targetClassId, setTargetClassId] = useState('');
+  const [classPickerTarget, setClassPickerTarget] = useState<'source' | 'target' | null>(null);
 
   // Requests
   const [incoming, setIncoming] = useState<MergeRequestRow[]>([]);
@@ -195,6 +205,65 @@ export function SchoolManagementScreen() {
     );
   };
 
+  // -- Class merge actions ---------------------------------------------
+
+  const handleClassMerge = async (sourceId: number, targetId: number) => {
+    if (sourceId === targetId) {
+      showErrorToast('不能合并同一个班级');
+      return;
+    }
+
+    setMergingKey(`class-preview-${sourceId}-${targetId}`);
+    try {
+      const result = await previewAdminClassMerge(apiClient, sourceId, targetId);
+      const { preview } = result;
+      if (preview.has_suffix_conflict) {
+        showErrorToast(`不能合并，班级学号后 2 位冲突：${preview.conflict_suffixes.join('、')}`);
+        return;
+      }
+
+      Alert.alert(
+        '确认合并班级',
+        `确认将「${preview.source_class_name}」合并到「${preview.target_class_name}」？将移动 ${preview.affected_student_count} 名学生，并更新 ${preview.affected_teacher_count} 个老师的班级范围权限。`,
+        [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '合并',
+            onPress: async () => {
+              setMergingKey(`class-${sourceId}-${targetId}`);
+              try {
+                const mergeResult = await mergeAdminClasses(apiClient, sourceId, targetId);
+                showSuccessToast(`班级合并完成：${mergeResult.record.target_label}`);
+                setShowClassMergeModal(false);
+                setSourceClassId('');
+                setTargetClassId('');
+                await refreshAll();
+              } catch (error) {
+                showErrorToast(error instanceof Error ? error.message : '班级合并失败');
+              } finally {
+                setMergingKey('');
+              }
+            },
+          },
+        ],
+      );
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : '班级合并失败');
+    } finally {
+      setMergingKey('');
+    }
+  };
+
+  const handleManualClassMerge = () => {
+    const sourceId = Number(sourceClassId);
+    const targetId = Number(targetClassId);
+    if (!sourceId || !targetId) {
+      showErrorToast('请选择要合并的班级和保留的班级');
+      return;
+    }
+    void handleClassMerge(sourceId, targetId);
+  };
+
   // -- Notifications ----------------------------------------------------
 
   const handleNotifPress = async (notif: NotificationRow) => {
@@ -243,93 +312,248 @@ export function SchoolManagementScreen() {
               <Stat label="学生数量" value={String(management.school.student_count)} />
             </View>
 
-            {/* -- Incoming merge requests ------------------------------- */}
-            <SectionTitle title={`收到的合并请求${incoming.length > 0 ? ` (${incoming.length})` : ''}`} />
+            <SectionTitle title="班级列表" />
             <ScrollView horizontal>
               <View style={styles.table}>
-                <TableHeader columns={['请求方学校', '请求方管理员', '请求时间', '操作']} />
-                {incoming.length === 0 ? (
-                  <Text style={styles.empty}>暂无收到的合并请求</Text>
-                ) : (
-                  incoming.map((req) => (
-                    <View key={req.id} style={styles.row}>
-                      <Text style={styles.cell}>{req.requesting_school_name || '—'}</Text>
-                      <Text style={styles.cell}>{req.requesting_admin_name || req.requesting_admin_phone || '—'}</Text>
-                      <Text style={styles.cell}>{new Date(req.created_at * 1000).toLocaleString()}</Text>
-                      <View style={[styles.cell, styles.actionCell]}>
-                        <SecondaryButton
-                          label={mergingKey === `approve-${req.id}` ? '处理中…' : '批准'}
-                          onPress={() => handleApprove(req)}
-                          disabled={Boolean(mergingKey)}
-                        />
-                        <SecondaryButton
-                          label={mergingKey === `reject-${req.id}` ? '处理中…' : '拒绝'}
-                          onPress={() => handleReject(req)}
-                          disabled={Boolean(mergingKey)}
-                        />
-                      </View>
-                    </View>
-                  ))
-                )}
+                <TableHeader columns={['班级名', '所属老师', '学生数量', '创建时间']} />
+                {management.classes.map((schoolClass) => (
+                  <View key={schoolClass.id} style={styles.row}>
+                    <Text style={styles.cell}>{schoolClass.name}</Text>
+                    <Text style={styles.cell}>{schoolClass.teacher_names.join('、') || '—'}</Text>
+                    <Text style={styles.cell}>{schoolClass.student_count}</Text>
+                    <Text style={styles.cell}>{new Date(schoolClass.created_at * 1000).toLocaleString()}</Text>
+                  </View>
+                ))}
               </View>
             </ScrollView>
 
-            {/* -- Outgoing merge requests ------------------------------- */}
-            <SectionTitle title="发出的合并请求" />
+            <View style={styles.sectionTitleRow}>
+              <SectionTitle title="班级合并" />
+              <SecondaryButton
+                label="手动合并班级"
+                onPress={() => {
+                  setSourceClassId('');
+                  setTargetClassId('');
+                  setShowClassMergeModal(true);
+                }}
+              />
+            </View>
             <ScrollView horizontal>
               <View style={styles.table}>
-                <TableHeader columns={['目标学校', '目标管理员手机', '状态', '发起时间', '操作']} />
-                {outgoing.length === 0 ? (
-                  <Text style={styles.empty}>暂无发出的合并请求</Text>
+                <TableHeader columns={['疑似重复班级', '保留班级', '源班级学生', '创建时间', '操作']} />
+                {management.pending_classes.length === 0 ? (
+                  <Text style={styles.empty}>暂无疑似重复班级，可使用右侧手动合并。</Text>
                 ) : (
-                  outgoing.map((req) => (
-                    <View key={req.id} style={styles.row}>
-                      <Text style={styles.cell}>{req.target_school_name || '—'}</Text>
-                      <Text style={styles.cell}>{req.target_admin_phone || '—'}</Text>
-                      <Text style={styles.cell}>{STATUS_LABELS[req.status] || req.status}</Text>
-                      <Text style={styles.cell}>{new Date(req.created_at * 1000).toLocaleString()}</Text>
-                      <View style={[styles.cell, styles.actionCell]}>
-                        {req.status === 'pending' && (
+                  management.pending_classes.map((item) => {
+                    const mergeKey = `class-${item.source_class_id}-${item.target_class_id}`;
+                    const previewKey = `class-preview-${item.source_class_id}-${item.target_class_id}`;
+                    return (
+                      <View key={`${item.source_class_id}-${item.target_class_id}`} style={styles.row}>
+                        <Text style={styles.cell}>{item.source_class_name}</Text>
+                        <Text style={styles.cell}>{item.target_class_name}</Text>
+                        <Text style={styles.cell}>{item.student_count}</Text>
+                        <Text style={styles.cell}>{new Date(item.created_at * 1000).toLocaleString()}</Text>
+                        <View style={[styles.cell, styles.actionCell]}>
                           <SecondaryButton
-                            label={mergingKey === `cancel-${req.id}` ? '取消中…' : '取消'}
-                            onPress={() => handleCancel(req)}
+                            label={mergingKey === mergeKey || mergingKey === previewKey ? '处理中…' : '预览并合并'}
+                            onPress={() => void handleClassMerge(item.source_class_id, item.target_class_id)}
                             disabled={Boolean(mergingKey)}
                           />
-                        )}
+                        </View>
                       </View>
-                    </View>
-                  ))
+                    );
+                  })
                 )}
               </View>
             </ScrollView>
 
-            {/* -- Merge history ---------------------------------------- */}
-            <SectionTitle title="合并记录" />
-            <ScrollView horizontal>
-              <View style={styles.table}>
-                <TableHeader columns={['类型', '合并前', '合并后', '影响老师', '影响学生', '时间']} />
-                {management.merge_records.length === 0 ? (
-                  <Text style={styles.empty}>暂无合并记录</Text>
-                ) : (
-                  management.merge_records.map((item) => (
-                    <View key={item.id} style={styles.row}>
-                      <Text style={styles.cell}>{item.merge_type}</Text>
-                      <Text style={styles.cell}>{item.source_label}</Text>
-                      <Text style={styles.cell}>{item.target_label}</Text>
-                      <Text style={styles.cell}>{item.affected_teacher_count}</Text>
-                      <Text style={styles.cell}>{item.affected_student_count}</Text>
-                      <Text style={styles.cell}>{new Date(item.created_at * 1000).toLocaleString()}</Text>
-                    </View>
-                  ))
-                )}
+            <SectionTitle title="学校合并" />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.mergeCompactRow}>
+                <CompactPanel title={`收到的合并请求${incoming.length > 0 ? ` (${incoming.length})` : ''}`}>
+                  {incoming.length === 0 ? (
+                    <Text style={styles.compactEmpty}>暂无收到的合并请求</Text>
+                  ) : (
+                    incoming.map((req) => (
+                      <View key={req.id} style={styles.compactItem}>
+                        <View style={styles.compactCopy}>
+                          <Text style={styles.compactStrong} numberOfLines={1}>{req.requesting_school_name || '—'}</Text>
+                          <Text style={styles.compactSub} numberOfLines={1}>
+                            {req.requesting_admin_name || req.requesting_admin_phone || '—'} · {new Date(req.created_at * 1000).toLocaleString()}
+                          </Text>
+                        </View>
+                        <View style={styles.compactActions}>
+                          <SecondaryButton
+                            label={mergingKey === `approve-${req.id}` ? '处理中…' : '批准'}
+                            onPress={() => handleApprove(req)}
+                            disabled={Boolean(mergingKey)}
+                          />
+                          <SecondaryButton
+                            label={mergingKey === `reject-${req.id}` ? '处理中…' : '拒绝'}
+                            onPress={() => handleReject(req)}
+                            disabled={Boolean(mergingKey)}
+                          />
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </CompactPanel>
+
+                <CompactPanel title="发出的合并请求">
+                  {outgoing.length === 0 ? (
+                    <Text style={styles.compactEmpty}>暂无发出的合并请求</Text>
+                  ) : (
+                    outgoing.map((req) => (
+                      <View key={req.id} style={styles.compactItem}>
+                        <View style={styles.compactCopy}>
+                          <Text style={styles.compactStrong} numberOfLines={1}>{req.target_school_name || '—'}</Text>
+                          <Text style={styles.compactSub} numberOfLines={1}>
+                            {req.target_admin_phone || '—'} · {new Date(req.created_at * 1000).toLocaleString()}
+                          </Text>
+                        </View>
+                        <View style={styles.compactActions}>
+                          <View style={styles.statusPill}>
+                            <Text style={styles.statusPillText}>{STATUS_LABELS[req.status] || req.status}</Text>
+                          </View>
+                          {req.status === 'pending' ? (
+                            <SecondaryButton
+                              label={mergingKey === `cancel-${req.id}` ? '取消中…' : '取消'}
+                              onPress={() => handleCancel(req)}
+                              disabled={Boolean(mergingKey)}
+                            />
+                          ) : null}
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </CompactPanel>
+
+                <CompactPanel title="合并记录">
+                  {management.merge_records.length === 0 ? (
+                    <Text style={styles.compactEmpty}>暂无合并记录</Text>
+                  ) : (
+                    management.merge_records.map((item) => (
+                      <View key={item.id} style={styles.compactItem}>
+                        <View style={styles.compactCopy}>
+                          <Text style={styles.compactStrong} numberOfLines={1}>{item.source_label} → {item.target_label}</Text>
+                          <Text style={styles.compactSub} numberOfLines={1}>
+                            {item.merge_type} · 老师 {item.affected_teacher_count} · 学生 {item.affected_student_count}
+                          </Text>
+                        </View>
+                        <Text style={styles.compactTime} numberOfLines={1}>
+                          {new Date(item.created_at * 1000).toLocaleString()}
+                        </Text>
+                      </View>
+                    ))
+                  )}
+                </CompactPanel>
               </View>
             </ScrollView>
           </>
         )}
       </Panel>
 
+      {/* -- Merge class modal ---------------------------------------- */}
+      <Modal
+        visible={showClassMergeModal}
+        transparent
+        animationType="fade"
+        supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>合并班级</Text>
+            <Text style={styles.modalHint}>
+              选择要被合并的班级，以及合并后保留的班级。确认前会先检查学号后 2 位冲突。
+            </Text>
+            <ClassSelectField
+              label="要合并的班级"
+              value={sourceClassId}
+              classes={management?.classes || []}
+              placeholder="请选择班级"
+              onPress={() => setClassPickerTarget('source')}
+            />
+            <ClassSelectField
+              label="合并后保留班级"
+              value={targetClassId}
+              classes={management?.classes || []}
+              placeholder="请选择班级"
+              disabledClassId={sourceClassId}
+              onPress={() => setClassPickerTarget('target')}
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                style={styles.modalCancelBtn}
+                onPress={() => setShowClassMergeModal(false)}
+              >
+                <Text style={styles.modalCancelText}>取消</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalConfirmBtn, (Boolean(mergingKey) || !sourceClassId || !targetClassId) && styles.disabled]}
+                onPress={handleManualClassMerge}
+                disabled={Boolean(mergingKey) || !sourceClassId || !targetClassId}
+              >
+                <Text style={styles.modalConfirmText}>
+                  {mergingKey.startsWith('class-') ? '处理中…' : '预览并合并'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={classPickerTarget !== null}
+        transparent
+        animationType="fade"
+        supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.classPickerModal}>
+            <Text style={styles.modalTitle}>
+              {classPickerTarget === 'source' ? '要合并的班级' : '合并后保留班级'}
+            </Text>
+            <ScrollView style={styles.classPickerList}>
+              {(management?.classes || []).map((schoolClass) => {
+                const disabled = classPickerTarget === 'target' && String(schoolClass.id) === sourceClassId;
+                return (
+                  <Pressable
+                    key={schoolClass.id}
+                    style={[styles.classOption, disabled && styles.classOptionDisabled]}
+                    disabled={disabled}
+                    onPress={() => {
+                      if (classPickerTarget === 'source') {
+                        setSourceClassId(String(schoolClass.id));
+                        if (targetClassId === String(schoolClass.id)) setTargetClassId('');
+                      } else {
+                        setTargetClassId(String(schoolClass.id));
+                      }
+                      setClassPickerTarget(null);
+                    }}
+                  >
+                    <Text style={[styles.classOptionText, disabled && styles.classOptionTextDisabled]}>
+                      {schoolClass.name}（{schoolClass.student_count} 人）
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.modalCancelBtn} onPress={() => setClassPickerTarget(null)}>
+                <Text style={styles.modalCancelText}>取消</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* -- Merge school phone modal --------------------------------- */}
-      <Modal visible={showMergeModal} transparent animationType="fade">
+      <Modal
+        visible={showMergeModal}
+        transparent
+        animationType="fade"
+        supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>合并学校</Text>
@@ -367,7 +591,12 @@ export function SchoolManagementScreen() {
       </Modal>
 
       {/* -- Notifications modal --------------------------------------- */}
-      <Modal visible={showNotifModal} transparent animationType="slide">
+      <Modal
+        visible={showNotifModal}
+        transparent
+        animationType="slide"
+        supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.notifModal}>
             <View style={styles.notifModalHeader}>
@@ -416,6 +645,50 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function SectionTitle({ title }: { title: string }) {
   return <Text style={styles.sectionTitle}>{title}</Text>;
+}
+
+function CompactPanel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={styles.compactPanel}>
+      <View style={styles.compactHeader}>
+        <Text style={styles.compactTitle}>{title}</Text>
+      </View>
+      <ScrollView style={styles.compactList}>{children}</ScrollView>
+    </View>
+  );
+}
+
+function ClassSelectField({
+  label,
+  value,
+  classes,
+  placeholder,
+  disabledClassId,
+  onPress,
+}: {
+  label: string;
+  value: string;
+  classes: SchoolManagementClass[];
+  placeholder: string;
+  disabledClassId?: string;
+  onPress: () => void;
+}) {
+  const selected = classes.find((schoolClass) => String(schoolClass.id) === value);
+  const disabled = classes.filter((schoolClass) => String(schoolClass.id) !== disabledClassId).length === 0;
+  return (
+    <View style={styles.modalField}>
+      <Text style={styles.modalFieldLabel}>{label}</Text>
+      <Pressable
+        style={[styles.classSelectField, disabled && styles.disabled]}
+        disabled={disabled}
+        onPress={onPress}
+      >
+        <Text style={[styles.classSelectText, !selected && styles.classSelectPlaceholder]} numberOfLines={1}>
+          {selected ? `${selected.name}（${selected.student_count} 人）` : placeholder}
+        </Text>
+      </Pressable>
+    </View>
+  );
 }
 
 function TableHeader({ columns }: { columns: string[] }) {
@@ -473,6 +746,12 @@ const styles = StyleSheet.create({
     fontWeight: LoginWeights.extraBold,
     color: LoginColors.text,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   table: {
     borderRadius: 16,
     borderWidth: 1,
@@ -507,6 +786,90 @@ const styles = StyleSheet.create({
     padding: 18,
     color: LoginColors.textMuted,
     fontWeight: LoginWeights.bold,
+  },
+  mergeCompactRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  compactPanel: {
+    width: 360,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: LoginColors.line,
+    backgroundColor: LoginColors.white,
+    overflow: 'hidden',
+  },
+  compactHeader: {
+    minHeight: 46,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: LoginColors.line,
+    backgroundColor: '#f8fafc',
+  },
+  compactTitle: {
+    fontSize: 16,
+    fontWeight: LoginWeights.extraBold,
+    color: LoginColors.text,
+  },
+  compactList: {
+    minHeight: 68,
+    maxHeight: 172,
+  },
+  compactItem: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  compactCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  compactStrong: {
+    color: LoginColors.text,
+    fontSize: 14,
+    fontWeight: LoginWeights.extraBold,
+  },
+  compactSub: {
+    marginTop: 3,
+    color: LoginColors.textMuted,
+    fontSize: 12,
+    fontWeight: LoginWeights.bold,
+  },
+  compactTime: {
+    maxWidth: 128,
+    color: LoginColors.textMuted,
+    fontSize: 12,
+    fontWeight: LoginWeights.bold,
+  },
+  compactActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  compactEmpty: {
+    padding: 18,
+    color: LoginColors.textMuted,
+    fontWeight: LoginWeights.bold,
+    textAlign: 'center',
+  },
+  statusPill: {
+    borderRadius: 999,
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  statusPillText: {
+    color: '#166534',
+    fontSize: 12,
+    fontWeight: LoginWeights.extraBold,
   },
 
   // Top action bar
@@ -636,6 +999,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 28,
   },
+  classPickerModal: {
+    width: '90%',
+    maxHeight: '70%',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 22,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: LoginWeights.extraBold,
@@ -662,6 +1032,54 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: LoginColors.text,
     backgroundColor: '#f8fafc',
+  },
+  modalField: {
+    marginBottom: 12,
+  },
+  modalFieldLabel: {
+    marginBottom: 8,
+    color: LoginColors.textLabel,
+    fontSize: 13,
+    fontWeight: LoginWeights.extraBold,
+  },
+  classSelectField: {
+    borderWidth: 1,
+    borderColor: LoginColors.line,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#f8fafc',
+  },
+  classSelectText: {
+    color: LoginColors.text,
+    fontSize: 15,
+    fontWeight: LoginWeights.bold,
+  },
+  classSelectPlaceholder: {
+    color: LoginColors.textMuted,
+  },
+  classPickerList: {
+    maxHeight: 360,
+  },
+  classOption: {
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor: LoginColors.line,
+    backgroundColor: '#f8fafc',
+    marginBottom: 8,
+  },
+  classOptionDisabled: {
+    opacity: 0.45,
+  },
+  classOptionText: {
+    color: LoginColors.text,
+    fontSize: 15,
+    fontWeight: LoginWeights.bold,
+  },
+  classOptionTextDisabled: {
+    color: LoginColors.textMuted,
   },
   modalActions: {
     flexDirection: 'row',
