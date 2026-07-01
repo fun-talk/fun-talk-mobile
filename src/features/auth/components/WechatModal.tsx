@@ -1,5 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { LANDSCAPE_MODAL_ORIENTATIONS } from '@/constants/orientation';
 import type { QrLoginState } from '../hooks/useWechatQrLogin';
 import { isWechatLoginSupported } from '../services/wechatNative';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
@@ -28,7 +29,8 @@ export function WechatModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}
-      statusBarTranslucent>
+      statusBarTranslucent
+      supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}>
       <View style={styles.backdrop}>
         <View style={styles.dialog}>
           <View style={styles.header}>

@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { LANDSCAPE_MODAL_ORIENTATIONS } from '@/constants/orientation';
 import { useAuth } from '@/features/auth';
 import { LoginColors, LoginWeights } from '@/features/auth/components/LoginConstants';
 import { validatePasswordPair } from '@/features/auth/passwordPolicy';
@@ -314,7 +315,13 @@ export function TeacherManagementScreen() {
         )}
       </Panel>
 
-      <Modal visible={Boolean(editTarget && editForm)} transparent animationType="slide" onRequestClose={closeEdit}>
+      <Modal
+        visible={Boolean(editTarget && editForm)}
+        transparent
+        animationType="slide"
+        onRequestClose={closeEdit}
+        supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.modal}>
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editModalContent}>
@@ -409,7 +416,13 @@ export function TeacherManagementScreen() {
         </View>
       </Modal>
 
-      <Modal visible={showMerge} transparent animationType="fade" onRequestClose={() => setShowMerge(false)}>
+      <Modal
+        visible={showMerge}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMerge(false)}
+        supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>合并账号 / 信息</Text>
@@ -559,7 +572,13 @@ function OptionPicker({
         </Text>
       </Pressable>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+        supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.optionModal}>
             <Text style={styles.modalTitle}>{label}</Text>

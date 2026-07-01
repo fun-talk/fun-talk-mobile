@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { LANDSCAPE_MODAL_ORIENTATIONS } from '@/constants/orientation';
 import { showErrorToast } from '@/lib/toast';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
 
@@ -57,6 +58,7 @@ export function ForgotPasswordModal({
       transparent
       animationType="fade"
       onRequestClose={handleClose}
+      supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
     >
       <Pressable style={styles.backdrop} onPress={handleClose}>
         <Pressable style={styles.dialog} onPress={() => {}}>

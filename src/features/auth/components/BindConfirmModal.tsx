@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { LANDSCAPE_MODAL_ORIENTATIONS } from '@/constants/orientation';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
 import type { HomeBindingPreview } from '../services/accountApi';
 
@@ -34,6 +35,7 @@ export function BindConfirmModal({
       transparent
       animationType="fade"
       onRequestClose={onCancel}
+      supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
     >
       <Pressable style={styles.backdrop} onPress={onCancel}>
         <Pressable style={styles.dialog} onPress={() => {}}>
