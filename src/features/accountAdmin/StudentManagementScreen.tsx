@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
+import { LANDSCAPE_MODAL_ORIENTATIONS } from '@/constants/orientation';
 import { useAuth } from '@/features/auth';
 import { LoginColors, LoginWeights } from '@/features/auth/components/LoginConstants';
 import { validatePasswordStrength } from '@/features/auth/passwordPolicy';
@@ -28,6 +29,7 @@ import {
   fetchTeacherPrintCards,
   fetchTeacherStudents,
   resetStudentPassword,
+  updateManagedStudentNickname,
   type AdminStudentRow,
   type PasswordResetRequestRow,
 } from '@/features/auth/services/accountApi';
@@ -45,8 +47,11 @@ export function StudentManagementScreen({ role }: StudentManagementScreenProps) 
   const [loading, setLoading] = useState(true);
   const [resetPasswords, setResetPasswords] = useState<Record<number, string>>({});
   const [resetTarget, setResetTarget] = useState<AdminStudentRow | null>(null);
+  const [nicknameTarget, setNicknameTarget] = useState<AdminStudentRow | null>(null);
   const [customPassword, setCustomPassword] = useState('');
+  const [nicknameDraft, setNicknameDraft] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [savingNickname, setSavingNickname] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
 
@@ -88,6 +93,11 @@ export function StudentManagementScreen({ role }: StudentManagementScreenProps) 
     setResetTarget(student);
   };
 
+  const handleOpenNickname = (student: AdminStudentRow) => {
+    setNicknameDraft(student.nickname || '');
+    setNicknameTarget(student);
+  };
+
   const handleConfirmReset = async () => {
     if (!resetTarget) return;
     const normalized = customPassword.trim();
@@ -110,6 +120,24 @@ export function StudentManagementScreen({ role }: StudentManagementScreenProps) 
       showErrorToast(error instanceof Error ? error.message : '重置失败');
     } finally {
       setResetting(false);
+    }
+  };
+
+  const handleConfirmNickname = async () => {
+    if (!nicknameTarget) return;
+
+    setSavingNickname(true);
+    try {
+      const result = await updateManagedStudentNickname(apiClient, nicknameTarget.id, nicknameDraft);
+      setStudents((current) =>
+        current.map((student) => (student.id === nicknameTarget.id ? result.student : student)),
+      );
+      showSuccessToast(`已更新学生 ${nicknameTarget.digital_id} 的昵称`);
+      setNicknameTarget(null);
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : '修改昵称失败');
+    } finally {
+      setSavingNickname(false);
     }
   };
 
@@ -218,12 +246,19 @@ export function StudentManagementScreen({ role }: StudentManagementScreenProps) 
             students={filteredStudents}
             resetPasswords={resetPasswords}
             onReset={handleOpenReset}
+            onEditNickname={handleOpenNickname}
             onViewHomeData={handleViewHomeData}
           />
         )}
       </Panel>
 
-      <Modal visible={Boolean(resetTarget)} transparent animationType="fade" onRequestClose={() => setResetTarget(null)}>
+      <Modal
+        visible={Boolean(resetTarget)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setResetTarget(null)}
+        supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>重置学生密码</Text>
@@ -250,6 +285,38 @@ export function StudentManagementScreen({ role }: StudentManagementScreenProps) 
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={Boolean(nicknameTarget)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNicknameTarget(null)}
+        supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>修改学生昵称</Text>
+            <Text style={styles.subtitle}>学生 {nicknameTarget?.digital_id}</Text>
+            <TextInput
+              style={styles.input}
+              value={nicknameDraft}
+              onChangeText={setNicknameDraft}
+              placeholder="请输入学生昵称"
+              placeholderTextColor={LoginColors.inputPlaceholder}
+              editable={!savingNickname}
+              maxLength={20}
+            />
+            <View style={styles.modalActions}>
+              <SecondaryButton label="取消" onPress={() => setNicknameTarget(null)} disabled={savingNickname} />
+              <PrimaryButton
+                label={savingNickname ? '保存中...' : '保存'}
+                onPress={handleConfirmNickname}
+                disabled={savingNickname}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </AccountConsoleShell>
   );
 }
@@ -266,11 +333,13 @@ function StudentTable({
   students,
   resetPasswords,
   onReset,
+  onEditNickname,
   onViewHomeData,
 }: {
   students: AdminStudentRow[];
   resetPasswords: Record<number, string>;
   onReset: (student: AdminStudentRow) => void;
+  onEditNickname: (student: AdminStudentRow) => void;
   onViewHomeData: (student: AdminStudentRow) => void;
 }) {
   if (students.length === 0) {
@@ -281,7 +350,7 @@ function StudentTable({
     <ScrollView horizontal showsHorizontalScrollIndicator>
       <View style={styles.table}>
         <View style={[styles.tableRow, styles.tableHeader]}>
-          {['数字 ID', '昵称', '班级 ID 后 2 位', '密码', '学校与家庭数据绑定', '操作'].map((title) => (
+          {['数字 ID', '昵称', '班级', '班级 ID 后 2 位', '密码', '学校与家庭数据绑定', '操作'].map((title) => (
             <Text key={title} style={[styles.cell, styles.headerCell]}>
               {title}
             </Text>
@@ -298,7 +367,15 @@ function StudentTable({
                 </Text>
                 {student.pending_password_reset ? <StatusTag label="待重置" tone="warn" /> : null}
               </View>
-              <Text style={styles.cell}>{student.nickname_label}</Text>
+              <View style={styles.cell}>
+                <Text style={student.nickname_label === '未设置' ? styles.mutedText : styles.boldText}>
+                  {student.nickname_label}
+                </Text>
+                <Pressable onPress={() => onEditNickname(student)}>
+                  <Text style={styles.linkText}>修改</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.cell}>{student.class_name}</Text>
               <Text selectable style={styles.cell}>
                 {student.class_suffix}
               </Text>

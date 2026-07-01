@@ -7,7 +7,7 @@ import { useRouter, type Href } from 'expo-router';
 import { useAuth } from '@/features/auth';
 import { LoginColors, LoginWeights } from '@/features/auth/components/LoginConstants';
 import { validatePasswordStrength } from '@/features/auth/passwordPolicy';
-import { showErrorToast, showSuccessToast } from '@/lib/toast';
+import { showErrorToast, showInfoToast, showSuccessToast } from '@/lib/toast';
 
 import { AccountConsoleShell, Panel, PrimaryButton, SecondaryButton } from './AccountConsoleShell';
 import { getAccountLoginUrl, printOrShareAccountCards, shareExportFile } from './accountFiles';
@@ -25,6 +25,12 @@ type StudentCreateScreenProps = {
 };
 
 type DocumentPickerModule = typeof import('expo-document-picker');
+
+type CsvImportProgress = {
+  fileName: string;
+  label: string;
+  percent: number;
+};
 
 async function loadDocumentPickerModule(): Promise<DocumentPickerModule> {
   try {
@@ -45,6 +51,7 @@ export function StudentCreateScreen({ role }: StudentCreateScreenProps) {
   const [initialPassword, setInitialPassword] = useState('');
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<CsvImportProgress | null>(null);
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [result, setResult] = useState<CreatedStudentResult | null>(null);
@@ -95,24 +102,32 @@ export function StudentCreateScreen({ role }: StudentCreateScreenProps) {
         copyToCacheDirectory: true,
       });
       if (picked.canceled || !picked.assets[0]) return;
-      const file = new File(picked.assets[0].uri);
+      const asset = picked.assets[0];
+      const fileName = asset.name || 'students.csv';
+      setImportProgress({ fileName, label: '正在读取 CSV 文件...', percent: 15 });
+      showInfoToast(`已选择 ${fileName}，开始导入学生账号...`);
+      const file = new File(asset.uri);
       const rows = parseStudentCsv(await file.text());
+      setImportProgress({ fileName, label: '正在校验 CSV 内容...', percent: 40 });
       if (rows.length === 0) {
-        showErrorToast('CSV 文件为空或格式不正确');
-        return;
+        throw new Error('CSV 文件为空或格式不正确');
       }
       const invalidIndex = rows.findIndex((row) => validatePasswordStrength(row.initial_password));
       if (invalidIndex >= 0) {
-        showErrorToast(`第 ${invalidIndex + 2} 行：${validatePasswordStrength(rows[invalidIndex].initial_password)}`);
-        return;
+        throw new Error(`第 ${invalidIndex + 2} 行：${validatePasswordStrength(rows[invalidIndex].initial_password)}`);
       }
+      setImportProgress({ fileName, label: `正在提交 ${rows.length} 条学生账号...`, percent: 70 });
       const response = await batchCreateStudents(apiClient, rows);
+      setImportProgress({ fileName, label: '导入完成，正在准备结果...', percent: 92 });
       if (response.created[0]) {
         setResult(response.created[0]);
       }
+      setImportProgress({ fileName, label: '导入完成', percent: 100 });
       showSuccessToast(`批量导入完成：成功 ${response.created_count} 条，失败 ${response.errors.length} 条`);
+      setTimeout(() => setImportProgress(null), 1200);
     } catch (error) {
       showErrorToast(error instanceof Error ? error.message : '导入失败');
+      setImportProgress(null);
     } finally {
       setImporting(false);
     }
@@ -193,6 +208,17 @@ export function StudentCreateScreen({ role }: StudentCreateScreenProps) {
             onPress={handleImportCsv}
             disabled={importing}
           />
+          {importProgress ? (
+            <View style={styles.importProgress} accessibilityRole="progressbar">
+              <View style={styles.importProgressCopy}>
+                <Text style={styles.importProgressLabel}>{importProgress.label}</Text>
+                <Text style={styles.importProgressFile}>{importProgress.fileName}</Text>
+              </View>
+              <View style={styles.importProgressTrack}>
+                <View style={[styles.importProgressBar, { width: `${importProgress.percent}%` }]} />
+              </View>
+            </View>
+          ) : null}
         </Panel>
       </View>
 
@@ -265,6 +291,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: LoginWeights.medium,
     lineHeight: 20,
+  },
+  importProgress: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    backgroundColor: '#f0f9ff',
+    padding: 14,
+    gap: 10,
+  },
+  importProgressCopy: {
+    gap: 4,
+  },
+  importProgressLabel: {
+    color: '#0369a1',
+    fontSize: 14,
+    fontWeight: LoginWeights.extraBold,
+  },
+  importProgressFile: {
+    color: LoginColors.textMuted,
+    fontSize: 13,
+    fontWeight: LoginWeights.bold,
+  },
+  importProgressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#dbeafe',
+    overflow: 'hidden',
+  },
+  importProgressBar: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#06b6d4',
   },
   field: {
     gap: 6,

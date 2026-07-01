@@ -455,6 +455,20 @@ export async function resetStudentPassword(
   return response.json() as Promise<{ student: StudentSession; temporary_password: string }>;
 }
 
+export async function updateManagedStudentNickname(
+  apiClient: ApiClient,
+  studentId: number,
+  nickname: string,
+): Promise<{ student: AdminStudentRow }> {
+  const response = await apiClient.request(`/account/v1/students/${studentId}/nickname`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nickname }),
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ student: AdminStudentRow }>;
+}
+
 export async function createStudentAccount(
   apiClient: ApiClient,
   payload: {
