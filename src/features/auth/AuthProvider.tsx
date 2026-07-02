@@ -13,8 +13,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import { createApiClient, type ApiClient } from '@/lib/api/client';
 import { clearFtAuth, getFtAuth, setFtAuth } from '@/lib/auth/storage';
 import type { FtAuthRecord } from '@/lib/auth/types';
+import { buildFtAuthFromAccountSession } from '@/lib/auth/session';
 import { getApiHost } from '@/lib/env';
 import { checkSession } from '@/features/auth/services/login';
+import { fetchAccountSession } from '@/features/auth/services/accountApi';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Splash may already be hidden during fast refresh.
@@ -96,13 +98,45 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
 
         try {
-          const verified = await checkSession(apiClient, stored);
-          await setFtAuth(verified);
-          if (!cancelled) {
-            setAuthState(verified);
-            authRef.current = verified;
+          // Try new account v1 session first (for accounts created via new login flow)
+          if (stored.accountType) {
+            const accountSession = await fetchAccountSession(apiClient);
+            const verified = buildFtAuthFromAccountSession(
+              accountSession.account_type,
+              accountSession.student?.digital_id,
+              accountSession.home?.phone,
+              stored,
+              accountSession.teacher,
+            );
+            await setFtAuth(verified);
+            if (!cancelled) {
+              setAuthState(verified);
+              authRef.current = verified;
+            }
+          } else {
+            // Fall back to legacy session check
+            const verified = await checkSession(apiClient, stored);
+            await setFtAuth(verified);
+            if (!cancelled) {
+              setAuthState(verified);
+              authRef.current = verified;
+            }
           }
         } catch {
+          // If new session check fails but we have legacy auth, try legacy
+          if (stored.accountType) {
+            try {
+              const verified = await checkSession(apiClient, stored);
+              await setFtAuth(verified);
+              if (!cancelled) {
+                setAuthState(verified);
+                authRef.current = verified;
+              }
+              return;
+            } catch {
+              // both failed, clear
+            }
+          }
           await clearFtAuth();
           if (!cancelled) {
             setAuthState(null);

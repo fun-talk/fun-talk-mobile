@@ -28,6 +28,7 @@ export function useWechatQrLogin(
     rememberMe: boolean;
     onLoginSuccess: (auth: FtAuthRecord) => void;
     onLoginError: (error: string) => void;
+    autoLoad?: boolean;
   },
 ) {
   const [state, setState] = useState<QrLoginState>({
@@ -147,10 +148,12 @@ export function useWechatQrLogin(
     void loadQrCode();
   }, [loadQrCode]);
 
-  // Auto-load on mount
+  // Auto-load on mount when used by always-visible QR entry points.
   useEffect(() => {
     mountedRef.current = true;
-    void loadQrCode();
+    if (options.autoLoad !== false) {
+      void loadQrCode();
+    }
     return () => {
       mountedRef.current = false;
       stopAll();

@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import Animated, {
   Easing,
   runOnJS,
@@ -31,9 +31,12 @@ import {
   isLandscapeTablet,
 } from '../layout/courseHomeLayout';
 
+const PROFILE_ROUTE = '/(app)/profile' as Href;
+
 export function CourseHomeScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { auth, apiClient, logout } = useAuth();
   const landscapeTablet = isLandscapeTablet(width, height);
 
@@ -294,6 +297,7 @@ export function CourseHomeScreen() {
         onLogout={() => {
           void handleLogout();
         }}
+        onProfilePress={() => router.push(PROFILE_ROUTE)}
       />
 
       <Pressable

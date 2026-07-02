@@ -1,16 +1,26 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { LANDSCAPE_MODAL_ORIENTATIONS } from '@/constants/orientation';
+import type { QrLoginState } from '../hooks/useWechatQrLogin';
 import { isWechatLoginSupported } from '../services/wechatNative';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
+import { WechatQrBox } from './WechatQrBox';
 
 type WechatModalProps = {
   visible: boolean;
   isSubmitting: boolean;
+  qrLogin: QrLoginState & { refresh: () => void };
   onClose: () => void;
   onWechatLogin: () => void;
 };
 
-export function WechatModal({ visible, isSubmitting, onClose, onWechatLogin }: WechatModalProps) {
+export function WechatModal({
+  visible,
+  isSubmitting,
+  qrLogin,
+  onClose,
+  onWechatLogin,
+}: WechatModalProps) {
   const wechatSupported = isWechatLoginSupported();
 
   return (
@@ -19,24 +29,33 @@ export function WechatModal({ visible, isSubmitting, onClose, onWechatLogin }: W
       transparent
       animationType="fade"
       onRequestClose={onClose}
-      statusBarTranslucent>
+      statusBarTranslucent
+      supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}>
       <View style={styles.backdrop}>
         <View style={styles.dialog}>
-          <Pressable style={styles.closeBtn} onPress={onClose} disabled={isSubmitting}>
-            <Text style={styles.closeBtnText}>×</Text>
-          </Pressable>
-
-          <Text style={styles.title}>微信扫码登录</Text>
-
-          <View style={styles.qrBox}>
-            <View style={styles.qrPlaceholder}>
-              <Text style={styles.qrPlaceholderIcon}>💬</Text>
-              <Text style={styles.qrPlaceholderText}>
-                {wechatSupported
-                  ? '点击下方按钮\n通过微信授权登录'
-                  : '微信登录仅支持\niOS / Android 真机'}
-              </Text>
+          <View style={styles.header}>
+            <View style={styles.heading}>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>微信登录</Text>
+              </View>
+              <Text style={styles.title}>扫码进入课程大厅</Text>
+              <Text style={styles.subtitle}>使用另一台手机微信扫一扫，授权后本机自动登录</Text>
             </View>
+
+            <Pressable style={styles.closeBtn} onPress={onClose} disabled={isSubmitting}>
+              <Text style={styles.closeBtnText}>×</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.qrPanel}>
+            <WechatQrBox
+              qrUrl={qrLogin.qrUrl}
+              status={qrLogin.status}
+              expiresIn={qrLogin.expiresIn}
+              size={204}
+              onRefresh={qrLogin.refresh}
+              showMeta={false}
+            />
           </View>
 
           {wechatSupported ? (
@@ -44,15 +63,17 @@ export function WechatModal({ visible, isSubmitting, onClose, onWechatLogin }: W
               style={[styles.wechatLoginBtn, isSubmitting && styles.disabled]}
               onPress={onWechatLogin}
               disabled={isSubmitting}>
-              <Text style={styles.wechatLoginBtnText}>微信登录</Text>
+              <Text style={styles.wechatLoginBtnText}>打开微信授权</Text>
             </Pressable>
           ) : null}
 
-          <Text style={styles.meta}>
-            {wechatSupported
-              ? '请使用微信授权登录'
-              : '请使用 development build 或正式包'}
-          </Text>
+          <View style={styles.note}>
+            <Text style={styles.noteText}>
+              {wechatSupported
+                ? '扫码和按钮都可以登录；扫码适合家长用自己的手机授权。'
+                : '请使用微信扫一扫二维码完成授权。'}
+            </Text>
+          </View>
         </View>
       </View>
     </Modal>
@@ -65,94 +86,131 @@ const styles = StyleSheet.create({
     backgroundColor: LoginColors.modalBackdrop,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: 20,
   },
   dialog: {
     width: '100%',
-    maxWidth: 360,
-    paddingTop: 32,
-    paddingBottom: 28,
-    paddingHorizontal: 28,
+    maxWidth: 388,
+    paddingTop: 24,
+    paddingBottom: 22,
+    paddingHorizontal: 22,
     borderRadius: LoginSizes.modalBorderRadius,
-    backgroundColor: LoginColors.modalDialogBg,
+    backgroundColor: LoginColors.modalBg,
     alignItems: 'center',
-    shadowColor: LoginColors.shadowColor,
+    borderWidth: 1,
+    borderColor: LoginColors.cardBorder,
+    shadowColor: LoginColors.cardShadow,
     shadowOffset: { width: 0, height: 24 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.14,
     shadowRadius: 48,
     elevation: 12,
   },
+  header: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 18,
+  },
+  heading: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: LoginSizes.tagRadius,
+    backgroundColor: LoginColors.infoGreenBg,
+    borderWidth: 1,
+    borderColor: LoginColors.infoGreenBorder,
+    marginBottom: 10,
+  },
+  badgeText: {
+    fontSize: LoginSizes.tagFontSize,
+    fontWeight: LoginWeights.extraBold,
+    color: LoginColors.infoGreenText,
+  },
   closeBtn: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
     width: LoginSizes.modalCloseSize,
     height: LoginSizes.modalCloseSize,
     borderRadius: LoginSizes.modalCloseSize / 2,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: LoginColors.modalCloseBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   closeBtnText: {
-    fontSize: 28,
-    lineHeight: 30,
-    color: LoginColors.modalCloseBtn,
+    fontSize: 24,
+    lineHeight: 26,
+    color: LoginColors.modalCloseText,
   },
   title: {
-    marginBottom: 16,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: LoginWeights.extraBlack,
-    color: LoginColors.wechatGreenModal,
-    textAlign: 'center',
+    color: LoginColors.text,
+    textAlign: 'left',
   },
-  qrBox: {
-    width: 260,
+  subtitle: {
+    marginTop: 8,
+    fontSize: LoginSizes.captionFontSize,
+    lineHeight: 20,
+    color: LoginColors.textMuted,
+    textAlign: 'left',
+  },
+  qrPanel: {
+    width: 252,
     aspectRatio: 1,
-    padding: 14,
-    borderWidth: 14,
-    borderColor: 'rgba(255,255,255,0.96)',
-    borderRadius: 24,
-    backgroundColor: '#f4f6fa',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: LoginColors.panelBorder,
+    borderRadius: LoginSizes.panelBorderRadius,
+    backgroundColor: LoginColors.white,
     overflow: 'hidden',
-  },
-  qrPlaceholder: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  qrPlaceholderIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  qrPlaceholderText: {
-    fontSize: 15,
-    fontWeight: LoginWeights.extraBold,
-    color: '#888',
-    textAlign: 'center',
-    lineHeight: 22,
+    shadowColor: LoginColors.cardShadow,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 24,
+    elevation: 4,
   },
   wechatLoginBtn: {
-    marginTop: 16,
-    width: 260,
-    height: 48,
-    borderRadius: 14,
+    marginTop: 18,
+    width: '100%',
+    height: LoginSizes.wechatBtnHeight,
+    borderRadius: LoginSizes.wechatBtnBorderRadius,
     backgroundColor: LoginColors.wechatGreen,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: LoginColors.primaryShadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 6,
   },
   wechatLoginBtnText: {
-    fontSize: 18,
-    fontWeight: LoginWeights.black,
+    fontSize: LoginSizes.wechatBtnFontSize,
+    fontWeight: LoginWeights.extraBold,
     color: LoginColors.white,
   },
   disabled: {
     opacity: 0.65,
   },
-  meta: {
+  note: {
+    width: '100%',
     marginTop: 14,
-    fontSize: 14,
-    fontWeight: LoginWeights.extraBold,
-    color: '#666',
-    textAlign: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: LoginSizes.infoBoxRadius,
+    backgroundColor: LoginColors.infoGreenBg,
+    borderWidth: 1,
+    borderColor: LoginColors.infoGreenBorder,
+  },
+  noteText: {
+    fontSize: LoginSizes.captionFontSize,
+    lineHeight: 20,
+    fontWeight: LoginWeights.semiBold,
+    color: LoginColors.infoGreenText,
+    textAlign: 'left',
   },
 });
