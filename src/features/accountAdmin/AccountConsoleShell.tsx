@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 
 import { useAuth } from '@/features/auth';
 import {
   ADMIN_TEACHERS_ROUTE,
-  COURSES_ROUTE,
   TEACHER_STUDENTS_ROUTE,
   isAdminTeacher,
 } from '@/lib/auth/accountRoutes';
 import { LoginColors, LoginWeights } from '@/features/auth/components/LoginConstants';
+import { loginImages } from '@/features/auth/assets/loginAssets';
 
 type AccountConsoleShellProps = {
   title: string;
@@ -26,6 +27,7 @@ export function AccountConsoleShell({ title, active, children }: AccountConsoleS
   const isAdmin = isAdminTeacher(auth);
   const { width } = useWindowDimensions();
   const compact = width < 760;
+  const collapsedSidebar = !compact && width < 1200;
 
   const navItems = isAdmin
     ? [
@@ -42,40 +44,61 @@ export function AccountConsoleShell({ title, active, children }: AccountConsoleS
 
   return (
     <View style={[styles.root, compact && styles.rootCompact]}>
-      <View style={[styles.sidebar, compact && styles.sidebarCompact]}>
-        <View style={styles.brandBlock}>
-          <Text style={styles.brand}>欧波开心学</Text>
-          <Text style={styles.meta}>
-            {auth?.schoolName || '学校后台'} · {isAdmin ? '管理员' : '教学老师'}
-          </Text>
+      <Image source={loginImages.background} style={styles.backgroundImage} contentFit="cover" />
+      <View style={[styles.sidebar, collapsedSidebar && styles.sidebarCollapsed, compact && styles.sidebarCompact]}>
+        <View style={[styles.brandBlock, collapsedSidebar && styles.brandBlockCollapsed]}>
+          <Image source={loginImages.logo} style={styles.brandLogo} contentFit="contain" />
+          <View style={[styles.brandText, collapsedSidebar && styles.hidden]}>
+            <Text style={styles.brand}>{isAdmin ? '管理员后台' : '教学老师后台'}</Text>
+            <Text style={styles.meta}>{auth?.schoolName || '学校后台'}</Text>
+          </View>
         </View>
 
         <View style={[styles.nav, compact && styles.navCompact]}>
           {navItems.map((item) => (
             <Pressable
               key={item.key}
-              style={[styles.navItem, active === item.key && styles.navItemActive]}
+              style={[
+                styles.navItem,
+                collapsedSidebar && styles.navItemCollapsed,
+                active === item.key && styles.navItemActive,
+              ]}
               onPress={() => router.replace(item.href as Href)}
             >
-              <Text style={[styles.navText, active === item.key && styles.navTextActive]}>{item.label}</Text>
+              <Text
+                style={[
+                  styles.navText,
+                  collapsedSidebar && styles.navTextCollapsed,
+                  active === item.key && styles.navTextActive,
+                ]}
+              >
+                {collapsedSidebar ? item.label.slice(0, 2) : item.label}
+              </Text>
             </Pressable>
           ))}
         </View>
 
-        <View style={[styles.sidebarFooter, compact && styles.sidebarFooterCompact]}>
-          <Text style={styles.userName} numberOfLines={1}>{auth?.username || auth?.phone || '教师账号'}</Text>
+        <View style={[styles.sidebarFooter, collapsedSidebar && styles.sidebarFooterCollapsed, compact && styles.sidebarFooterCompact]}>
+          <Text style={[styles.userName, collapsedSidebar && styles.hidden]} numberOfLines={1}>
+            {auth?.username || auth?.phone || '教师账号'} ({isAdmin ? '管理员' : '老师'})
+          </Text>
           <View style={styles.footerActions}>
-            <Pressable onPress={() => router.replace(COURSES_ROUTE as Href)}>
-              <Text style={styles.linkBtn}>返回大厅</Text>
-            </Pressable>
             <Pressable onPress={handleLogout}>
-              <Text style={styles.linkBtn}>退出登录</Text>
+              <Text style={styles.linkBtn}>{collapsedSidebar ? '退出' : '退出登录'}</Text>
             </Pressable>
           </View>
         </View>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, compact && styles.contentCompact]} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          collapsedSidebar && styles.contentWithCollapsedSidebar,
+          compact && styles.contentCompact,
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.screenReaderTitle}>{title}</Text>
         {children}
       </ScrollView>
@@ -132,42 +155,68 @@ export function StatusTag({ label, tone }: { label: string; tone: 'ok' | 'muted'
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#eef6ff',
+    backgroundColor: '#dff4ff',
     flexDirection: 'row',
+  },
+  backgroundImage: {
+    ...StyleSheet.absoluteFillObject,
   },
   rootCompact: {
     flexDirection: 'column',
   },
   sidebar: {
-    width: 260,
-    backgroundColor: 'rgba(240, 249, 255, 0.85)',
+    width: 220,
+    backgroundColor: 'rgba(240, 249, 255, 0.82)',
     borderRightWidth: 1.5,
     borderBottomColor: LoginColors.line,
     borderRightColor: LoginColors.line,
     paddingHorizontal: 20,
-    paddingVertical: 32,
+    paddingVertical: 56,
+  },
+  sidebarCollapsed: {
+    width: 84,
+    paddingHorizontal: 12,
+    alignItems: 'center',
   },
   sidebarCompact: {
     width: '100%',
     borderRightWidth: 0,
     borderBottomWidth: 1.5,
     paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 14,
+    paddingTop: 20,
+    paddingBottom: 16,
   },
   brandBlock: {
-    gap: 2,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
     marginBottom: 40,
   },
+  brandBlockCollapsed: {
+    justifyContent: 'center',
+  },
+  brandLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 0,
+  },
+  brandText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  hidden: {
+    display: 'none',
+  },
   brand: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: LoginWeights.extraBold,
     color: LoginColors.text,
   },
   meta: {
-    fontSize: 12,
+    marginTop: 4,
+    fontSize: 11,
     fontWeight: LoginWeights.bold,
-    color: LoginColors.textMuted,
+    color: '#94a3b8',
   },
   nav: {
     gap: 8,
@@ -182,6 +231,10 @@ const styles = StyleSheet.create({
     borderTopColor: LoginColors.line,
     paddingTop: 24,
     gap: 6,
+  },
+  sidebarFooterCollapsed: {
+    alignItems: 'center',
+    paddingTop: 18,
   },
   sidebarFooterCompact: {
     marginTop: 14,
@@ -207,6 +260,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  navItemCollapsed: {
+    width: 56,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
   navItemActive: {
     backgroundColor: LoginColors.white,
     borderWidth: 1.5,
@@ -221,6 +281,11 @@ const styles = StyleSheet.create({
     fontWeight: LoginWeights.bold,
     color: LoginColors.textMuted,
   },
+  navTextCollapsed: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 17,
+  },
   navTextActive: {
     color: LoginColors.text,
   },
@@ -228,7 +293,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 40,
+    paddingHorizontal: 70,
+    paddingVertical: 70,
+  },
+  contentWithCollapsedSidebar: {
+    paddingHorizontal: 48,
   },
   contentCompact: {
     padding: 18,
@@ -239,8 +308,8 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   panel: {
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderWidth: 1,
     borderColor: LoginColors.cardBorder,
     padding: 32,

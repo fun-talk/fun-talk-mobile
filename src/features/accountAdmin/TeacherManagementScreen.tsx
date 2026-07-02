@@ -461,12 +461,12 @@ function TeacherTable({ teachers, onEdit }: { teachers: AdminTeacherRow[]; onEdi
         <View style={[styles.row, styles.headerRow]}>
           {[
             { label: '老师账号', width: 130 },
-            { label: '角色', width: 90 },
+            { label: '角色', width: 112 },
             { label: '学生范围', width: 150 },
-            { label: '手机号', width: 130 },
-            { label: '邮箱', width: 170 },
+            { label: '手机号', width: 150 },
+            { label: '邮箱', width: 230 },
             { label: '查看权限', width: 110 },
-            { label: '编辑权限', width: 180 },
+            { label: '编辑权限', width: 190 },
           ].map((column) => (
             <Text key={column.label} style={[styles.cell, styles.headerCell, { width: column.width }]}>{column.label}</Text>
           ))}
@@ -474,23 +474,23 @@ function TeacherTable({ teachers, onEdit }: { teachers: AdminTeacherRow[]; onEdi
         {teachers.map((teacher) => (
           <View key={teacher.id} style={styles.row}>
             <Pressable style={[styles.cellButton, { width: 130 }]} onPress={() => onEdit(teacher)}>
-              <Text style={[styles.cellText, styles.bold]} numberOfLines={1}>{teacher.display_name}</Text>
+              <Text style={[styles.cellText, styles.bold]} numberOfLines={2}>{teacher.display_name}</Text>
             </Pressable>
-            <Text style={[styles.cell, styles.cellText, { width: 90 }]} numberOfLines={1}>{teacher.role_label}</Text>
+            <Text style={[styles.cell, styles.cellText, { width: 112 }]} numberOfLines={2}>{teacher.role_label}</Text>
             <Pressable style={[styles.cellButton, { width: 150 }]} onPress={() => onEdit(teacher)}>
-              <Text style={styles.cellLinkText} numberOfLines={1}>{teacher.scope_label}</Text>
+              <Text style={styles.cellLinkText} numberOfLines={2}>{teacher.scope_label}</Text>
             </Pressable>
-            <Pressable style={[styles.cellButton, { width: 130 }]} onPress={() => onEdit(teacher)}>
+            <Pressable style={[styles.cellButton, { width: 150 }]} onPress={() => onEdit(teacher)}>
               <Text selectable style={styles.cellLinkText} numberOfLines={1}>{teacher.phone}</Text>
             </Pressable>
-            <Pressable style={[styles.cellButton, { width: 170 }]} onPress={() => onEdit(teacher)}>
-              <Text style={styles.cellLinkText} numberOfLines={1}>{teacher.email || '未设置'}</Text>
+            <Pressable style={[styles.cellButton, { width: 230 }]} onPress={() => onEdit(teacher)}>
+              <Text style={styles.cellLinkText} numberOfLines={2}>{teacher.email || '未设置'}</Text>
             </Pressable>
             <Pressable style={[styles.cellButton, { width: 110 }]} onPress={() => onEdit(teacher)}>
-              <Text style={styles.cellLinkText} numberOfLines={1}>{viewPermissionLabel(teacher.view_permissions)}</Text>
+              <Text style={styles.cellLinkText} numberOfLines={2}>{viewPermissionLabel(teacher.view_permissions)}</Text>
             </Pressable>
-            <Pressable style={[styles.cellButton, { width: 180 }]} onPress={() => onEdit(teacher)}>
-              <Text style={styles.cellLinkText} numberOfLines={1}>{editPermissionLabel(teacher.edit_permissions)}</Text>
+            <Pressable style={[styles.cellButton, { width: 190 }]} onPress={() => onEdit(teacher)}>
+              <Text style={styles.cellLinkText} numberOfLines={2}>{editPermissionLabel(teacher.edit_permissions)}</Text>
             </Pressable>
           </View>
         ))}
@@ -794,7 +794,7 @@ const styles = StyleSheet.create({
     fontWeight: LoginWeights.medium,
   },
   table: {
-    minWidth: 960,
+    minWidth: 1072,
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: LoginColors.line,
@@ -807,6 +807,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+    minHeight: 70,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
     backgroundColor: LoginColors.white,
