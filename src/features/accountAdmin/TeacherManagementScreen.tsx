@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -58,6 +59,8 @@ function studentOptionLabel(student: AdminStudentRow) {
 
 export function TeacherManagementScreen() {
   const { apiClient, auth } = useAuth();
+  const { width } = useWindowDimensions();
+  const compact = width < 760;
   const [teachers, setTeachers] = useState<AdminTeacherRow[]>([]);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [schoolClasses, setSchoolClasses] = useState<SchoolManagementClass[]>([]);
@@ -242,16 +245,16 @@ export function TeacherManagementScreen() {
   return (
     <AccountConsoleShell title="老师账号管理" active="admin-teachers">
       <Panel>
-        <View style={styles.header}>
+        <View style={[styles.header, compact && styles.headerCompact]}>
           <Text style={styles.panelTitle}>老师账号管理</Text>
-          <View style={styles.actions}>
+          <View style={[styles.actions, compact && styles.actionsCompact]}>
             <SecondaryButton label="合并账号 / 信息" onPress={() => setShowMerge(true)} disabled={mergeCandidates.length < 2} />
             <PrimaryButton label={showForm ? '收起表单' : '新增老师'} onPress={() => setShowForm((value) => !value)} />
           </View>
         </View>
 
         {overview ? (
-          <View style={styles.stats}>
+          <View style={[styles.stats, compact && styles.statsCompact]}>
             <Stat label="管理员账号" value={String(overview.admin_count)} />
             <Stat label="教学老师账号" value={String(overview.teacher_count)} />
             <Stat label="学生账号" value={String(overview.student_count)} />
@@ -456,23 +459,39 @@ function TeacherTable({ teachers, onEdit }: { teachers: AdminTeacherRow[]; onEdi
     <ScrollView horizontal>
       <View style={styles.table}>
         <View style={[styles.row, styles.headerRow]}>
-          {['老师账号', '角色', '学生范围', '手机号', '查看权限', '编辑权限', '操作'].map((label) => (
-            <Text key={label} style={[styles.cell, styles.headerCell]}>{label}</Text>
+          {[
+            { label: '老师账号', width: 130 },
+            { label: '角色', width: 90 },
+            { label: '学生范围', width: 150 },
+            { label: '手机号', width: 130 },
+            { label: '邮箱', width: 170 },
+            { label: '查看权限', width: 110 },
+            { label: '编辑权限', width: 180 },
+          ].map((column) => (
+            <Text key={column.label} style={[styles.cell, styles.headerCell, { width: column.width }]}>{column.label}</Text>
           ))}
         </View>
         {teachers.map((teacher) => (
           <View key={teacher.id} style={styles.row}>
-            <Text style={[styles.cell, styles.bold]}>{teacher.display_name}</Text>
-            <Text style={styles.cell}>{teacher.role_label}</Text>
-            <Text style={styles.cell}>{teacher.scope_label}</Text>
-            <Text selectable style={styles.cell}>{teacher.phone}</Text>
-            <Text style={styles.cell}>{viewPermissionLabel(teacher.view_permissions)}</Text>
-            <Text style={styles.cell}>{editPermissionLabel(teacher.edit_permissions)}</Text>
-            <View style={styles.cell}>
-              <Pressable style={styles.editBtn} onPress={() => onEdit(teacher)}>
-                <Text style={styles.editBtnText}>编辑</Text>
-              </Pressable>
-            </View>
+            <Pressable style={[styles.cellButton, { width: 130 }]} onPress={() => onEdit(teacher)}>
+              <Text style={[styles.cellText, styles.bold]} numberOfLines={1}>{teacher.display_name}</Text>
+            </Pressable>
+            <Text style={[styles.cell, styles.cellText, { width: 90 }]} numberOfLines={1}>{teacher.role_label}</Text>
+            <Pressable style={[styles.cellButton, { width: 150 }]} onPress={() => onEdit(teacher)}>
+              <Text style={styles.cellLinkText} numberOfLines={1}>{teacher.scope_label}</Text>
+            </Pressable>
+            <Pressable style={[styles.cellButton, { width: 130 }]} onPress={() => onEdit(teacher)}>
+              <Text selectable style={styles.cellLinkText} numberOfLines={1}>{teacher.phone}</Text>
+            </Pressable>
+            <Pressable style={[styles.cellButton, { width: 170 }]} onPress={() => onEdit(teacher)}>
+              <Text style={styles.cellLinkText} numberOfLines={1}>{teacher.email || '未设置'}</Text>
+            </Pressable>
+            <Pressable style={[styles.cellButton, { width: 110 }]} onPress={() => onEdit(teacher)}>
+              <Text style={styles.cellLinkText} numberOfLines={1}>{viewPermissionLabel(teacher.view_permissions)}</Text>
+            </Pressable>
+            <Pressable style={[styles.cellButton, { width: 180 }]} onPress={() => onEdit(teacher)}>
+              <Text style={styles.cellLinkText} numberOfLines={1}>{editPermissionLabel(teacher.edit_permissions)}</Text>
+            </Pressable>
           </View>
         ))}
       </View>
@@ -655,12 +674,19 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 16,
+    marginBottom: 0,
+  },
+  headerCompact: {
+    alignItems: 'stretch',
+    flexDirection: 'column',
   },
   panelTitle: {
-    fontSize: 20,
+    fontSize: 28,
     fontWeight: LoginWeights.extraBold,
     color: LoginColors.text,
+    letterSpacing: -0.4,
   },
   actions: {
     flexDirection: 'row',
@@ -668,39 +694,48 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 8,
   },
+  actionsCompact: {
+    justifyContent: 'flex-start',
+  },
   stats: {
     flexDirection: 'row',
-    gap: 14,
+    gap: 16,
+    marginBottom: 0,
+  },
+  statsCompact: {
+    flexDirection: 'column',
   },
   stat: {
     flex: 1,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: 20,
+    borderWidth: 1.5,
     borderColor: LoginColors.line,
-    backgroundColor: '#f8fafc',
-    padding: 16,
+    backgroundColor: LoginColors.white,
+    padding: 24,
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 28,
+    fontSize: 36,
     fontWeight: LoginWeights.extraBold,
-    color: LoginColors.text,
+    color: LoginColors.orange,
+    lineHeight: 40,
   },
   statLabel: {
-    marginTop: 4,
-    color: LoginColors.textMuted,
+    marginTop: 10,
+    color: '#64748b',
     fontWeight: LoginWeights.bold,
+    fontSize: 14,
   },
   form: {
-    borderRadius: 18,
-    borderWidth: 1,
+    borderRadius: 20,
+    borderWidth: 1.5,
     borderColor: LoginColors.line,
     backgroundColor: '#f8fafc',
-    padding: 16,
-    gap: 14,
+    padding: 24,
+    gap: 16,
   },
   formTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: LoginWeights.extraBold,
     color: LoginColors.text,
   },
@@ -759,43 +794,54 @@ const styles = StyleSheet.create({
     fontWeight: LoginWeights.medium,
   },
   table: {
-    borderRadius: 16,
-    borderWidth: 1,
+    minWidth: 960,
+    borderRadius: 20,
+    borderWidth: 1.5,
     borderColor: LoginColors.line,
     overflow: 'hidden',
+    backgroundColor: LoginColors.white,
+    shadowColor: LoginColors.cardShadow,
+    shadowOpacity: 0.01,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 4 },
   },
   row: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: LoginColors.line,
+    borderBottomColor: '#f1f5f9',
     backgroundColor: LoginColors.white,
   },
   headerRow: {
     backgroundColor: '#f8fafc',
+    borderBottomColor: LoginColors.line,
+    borderBottomWidth: 1.5,
   },
   cell: {
-    width: 160,
-    padding: 12,
-    color: LoginColors.text,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
-  editBtn: {
-    alignSelf: 'flex-start',
-    minHeight: 36,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: LoginColors.primaryStart,
-    backgroundColor: '#eff6ff',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  cellButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     justifyContent: 'center',
   },
-  editBtnText: {
-    color: LoginColors.primaryStart,
-    fontWeight: LoginWeights.extraBold,
+  cellText: {
+    color: LoginColors.textLabel,
+    fontSize: 15,
+    fontWeight: LoginWeights.semiBold,
+  },
+  cellLinkText: {
+    color: LoginColors.textLabel,
+    fontSize: 15,
+    fontWeight: LoginWeights.semiBold,
+    textDecorationLine: 'underline',
+    textDecorationColor: '#cbd5e1',
   },
   headerCell: {
     fontWeight: LoginWeights.extraBold,
-    color: LoginColors.textLabel,
+    color: '#64748b',
+    fontSize: 13,
+    letterSpacing: 0.6,
   },
   bold: {
     fontWeight: LoginWeights.extraBold,
@@ -811,19 +857,19 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 520,
     maxHeight: '88%',
-    borderRadius: 22,
+    borderRadius: 28,
     backgroundColor: LoginColors.modalBg,
-    padding: 22,
-    gap: 14,
+    padding: 24,
+    gap: 16,
   },
   optionModal: {
     width: '100%',
     maxWidth: 520,
     maxHeight: '78%',
-    borderRadius: 22,
+    borderRadius: 28,
     backgroundColor: LoginColors.modalBg,
-    padding: 22,
-    gap: 14,
+    padding: 24,
+    gap: 16,
   },
   optionList: {
     gap: 8,
