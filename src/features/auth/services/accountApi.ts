@@ -469,6 +469,17 @@ export async function updateManagedStudentNickname(
   return response.json() as Promise<{ student: AdminStudentRow }>;
 }
 
+export async function deleteManagedStudent(
+  apiClient: ApiClient,
+  studentId: number,
+): Promise<{ student: Pick<AdminStudentRow, 'id' | 'digital_id' | 'status'> }> {
+  const response = await apiClient.request(`/account/v1/students/${studentId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ student: Pick<AdminStudentRow, 'id' | 'digital_id' | 'status'> }>;
+}
+
 export async function createStudentAccount(
   apiClient: ApiClient,
   payload: {
