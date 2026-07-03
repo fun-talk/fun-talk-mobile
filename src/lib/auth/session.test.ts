@@ -77,6 +77,26 @@ describe('auth session mapping', () => {
     assert.equal(auth.teacherRole, 'admin');
     assert.equal(auth.isAdmin, true);
     assert.equal(auth.schoolName, '阳光小学');
+    assert.equal(auth.teacherProfileRequired, false);
+  });
+
+  it('preserves teacher profile completion requirement from login response', () => {
+    const auth = buildFtAuthFromTeacherLogin(
+      'teacher-token',
+      3600,
+      {
+        id: 9,
+        phone: '13900000001',
+        display_name: '老师0001',
+        role: 'admin',
+        school_name: '',
+        is_admin: true,
+        profile_required: true,
+      },
+      true,
+    );
+
+    assert.equal(auth.teacherProfileRequired, true);
   });
 
   it('restores teacher account session without dropping the existing token', () => {
@@ -101,5 +121,6 @@ describe('auth session mapping', () => {
     assert.equal(auth.teacherRole, 'teacher');
     assert.equal(auth.isAdmin, false);
     assert.equal(auth.schoolName, '未来学校');
+    assert.equal(auth.teacherProfileRequired, false);
   });
 });

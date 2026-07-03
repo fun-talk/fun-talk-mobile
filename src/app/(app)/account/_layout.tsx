@@ -2,7 +2,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect, Stack, type Href } from 'expo-router';
 
 import { useAuth } from '@/features/auth';
-import { COURSES_ROUTE, isTeacherAuth } from '@/lib/auth/accountRoutes';
+import { COURSES_ROUTE, TEACHER_AUTH_ROUTE, isTeacherAuth } from '@/lib/auth/accountRoutes';
 
 export default function AccountLayout() {
   const { auth, isLoading } = useAuth();
@@ -17,6 +17,10 @@ export default function AccountLayout() {
 
   if (!isTeacherAuth(auth)) {
     return <Redirect href={COURSES_ROUTE as Href} />;
+  }
+
+  if (auth?.teacherProfileRequired) {
+    return <Redirect href={TEACHER_AUTH_ROUTE as Href} />;
   }
 
   return <Stack screenOptions={{ headerShown: false }} />;

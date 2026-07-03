@@ -12,6 +12,7 @@ export type FtAuthRecord = {
   teacherId?: number;
   teacherRole?: 'admin' | 'teacher';
   isAdmin?: boolean;
+  teacherProfileRequired?: boolean;
   schoolName?: string;
   persistent?: boolean;
   expiresAt?: number;

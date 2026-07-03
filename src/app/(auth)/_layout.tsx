@@ -16,6 +16,9 @@ export default function AuthLayout() {
   }
 
   if (isAuthenticated) {
+    if (auth?.teacherProfileRequired) {
+      return <Stack screenOptions={{ headerShown: false }} />;
+    }
     return <Redirect href={resolveAuthenticatedHomeRoute(auth) as Href} />;
   }
 
