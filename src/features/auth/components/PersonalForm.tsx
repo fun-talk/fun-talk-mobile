@@ -7,7 +7,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { isWechatLoginSupported } from '../services/wechatNative';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
 
 type FamilyLoginMode = 'sms' | 'password';
@@ -16,7 +15,6 @@ type PersonalFormProps = {
   isSubmitting: boolean;
   smsCountdown: number;
   onSendSms: (phone: string) => void;
-  onWechatLoginPress: () => void;
   onSubmit: (phone: string, credential: string, mode: FamilyLoginMode) => void;
 };
 
@@ -24,7 +22,6 @@ export function PersonalForm({
   isSubmitting,
   smsCountdown,
   onSendSms,
-  onWechatLoginPress,
   onSubmit,
 }: PersonalFormProps) {
   const [phone, setPhone] = useState('');
@@ -44,17 +41,6 @@ export function PersonalForm({
       <View style={styles.panelHeading}>
         <Text style={styles.panelCaption}>首次登录将自动创建账号</Text>
       </View>
-
-      {/* WeChat Login — web .account-btn-block */}
-      <Pressable
-        style={[styles.wechatBtn, isSubmitting && styles.disabled]}
-        onPress={onWechatLoginPress}
-        disabled={isSubmitting}
-      >
-        <Text style={styles.wechatBtnText}>
-          {isWechatLoginSupported() ? '微信登录' : '微信登录（仅真机）'}
-        </Text>
-      </Pressable>
 
       {/* SMS / Password sub-tabs — web .account-family-login-tabs */}
       <View style={styles.subTabs}>
@@ -172,21 +158,6 @@ const styles = StyleSheet.create({
   panelCaption: {
     fontSize: LoginSizes.captionFontSize,
     color: LoginColors.success,
-  },
-
-  /* ── WeChat button (web .account-btn-block) ── */
-  wechatBtn: {
-    height: LoginSizes.wechatBtnHeight,
-    borderRadius: LoginSizes.wechatBtnBorderRadius,
-    backgroundColor: LoginColors.wechatGreen,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  wechatBtnText: {
-    fontSize: LoginSizes.wechatBtnFontSize,
-    fontWeight: LoginWeights.extraBold,
-    color: LoginColors.white,
   },
 
   /* ── Sub-tabs (web .account-family-login-tabs) ── */

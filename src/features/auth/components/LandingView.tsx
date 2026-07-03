@@ -2,9 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 
 import { loginImages } from '../assets/loginAssets';
-import type { QrLoginState } from '../hooks/useWechatQrLogin';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
-import { WechatQrBox } from './WechatQrBox';
 
 /** Web breakpoint: @media (max-width: 760px) */
 const MOBILE_BREAKPOINT = 760;
@@ -14,7 +12,6 @@ type LandingViewProps = {
   onNewUser: () => void;
   windowWidth: number;
   windowHeight: number;
-  qrLogin: QrLoginState & { refresh: () => void };
 };
 
 export function LandingView({
@@ -22,7 +19,6 @@ export function LandingView({
   onNewUser,
   windowWidth,
   windowHeight,
-  qrLogin,
 }: LandingViewProps) {
   const isDesktop = windowWidth >= MOBILE_BREAKPOINT;
 
@@ -33,7 +29,6 @@ export function LandingView({
         onNewUser={onNewUser}
         windowWidth={windowWidth}
         windowHeight={windowHeight}
-        qrLogin={qrLogin}
       />
     );
   }
@@ -43,7 +38,6 @@ export function LandingView({
       onReturningUser={onReturningUser}
       onNewUser={onNewUser}
       windowHeight={windowHeight}
-      qrLogin={qrLogin}
     />
   );
 }
@@ -59,13 +53,11 @@ function DesktopLandingView({
   onNewUser,
   windowWidth,
   windowHeight,
-  qrLogin,
 }: {
   onReturningUser: () => void;
   onNewUser: () => void;
   windowWidth: number;
   windowHeight: number;
-  qrLogin: QrLoginState & { refresh: () => void };
 }) {
   const vw = windowWidth / 100; // 1vw in px
   const vh = windowHeight / 100; // 1vh in px
@@ -106,32 +98,7 @@ function DesktopLandingView({
 
   return (
     <View style={[desktopStyles.container, { top: 0, left: 0, right: 0, bottom: 0 }]}>
-      {/* ---- QR Stage: left 0, width 66.666%, top 10.5vh ---- */}
-      <View style={[desktopStyles.qrStage, { top: qrTop }]}>
-        <View style={desktopStyles.qrHero}>
-          <Text style={[desktopStyles.qrTitle, { lineHeight: qrTitleStrongSize * 0.96 }]}>
-            <Text style={[desktopStyles.qrTitleStrong, { fontSize: qrTitleStrongSize }]}>
-              扫一扫
-            </Text>
-            {'\n'}
-            <Text
-              style={[
-                desktopStyles.qrTitleSpan,
-                { fontSize: qrTitleSpanSize, marginTop: cx(8, 1 * vh, 12) },
-              ]}>
-              开始学习吧!
-            </Text>
-          </Text>
-
-          <WechatQrBox
-            qrUrl={qrLogin.qrUrl}
-            status={qrLogin.status}
-            expiresIn={qrLogin.expiresIn}
-            size={qrBoxWidth - qrBoxBorder * 2 - cx(20, 2.2 * vw, 32)}
-            onRefresh={qrLogin.refresh}
-          />
-        </View>
-      </View>
+      {/* ---- QR Stage hidden per product requirement ---- */}
 
       {/* ---- Mascot: absolute right, bottom (fox-login.png: 788×1182 ≈ 2:3 portrait) ---- */}
       <Image
@@ -331,33 +298,14 @@ function MobileLandingView({
   onReturningUser,
   onNewUser,
   windowHeight,
-  qrLogin,
 }: {
   onReturningUser: () => void;
   onNewUser: () => void;
   windowHeight: number;
-  qrLogin: QrLoginState & { refresh: () => void };
 }) {
   return (
     <View style={[mobileStyles.container, { minHeight: windowHeight }]}>
-      {/* QR Stage */}
-      <View style={mobileStyles.qrStage}>
-        <View style={mobileStyles.qrHero}>
-          <Text style={mobileStyles.qrTitle}>
-            <Text style={mobileStyles.qrTitleStrong}>扫一扫</Text>
-            {'\n'}
-            <Text style={mobileStyles.qrTitleSpan}>开始学习吧!</Text>
-          </Text>
-
-          <WechatQrBox
-            qrUrl={qrLogin.qrUrl}
-            status={qrLogin.status}
-            expiresIn={qrLogin.expiresIn}
-            size={180}
-            onRefresh={qrLogin.refresh}
-          />
-        </View>
-      </View>
+      {/* QR Stage hidden per product requirement */}
 
       {/* Mascot */}
       <Image

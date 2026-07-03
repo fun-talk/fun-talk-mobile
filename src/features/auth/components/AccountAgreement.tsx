@@ -1,34 +1,59 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import type { AgreementType } from '../data/agreements';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
 
 type AccountAgreementProps = {
   checked: boolean;
   onChange: (checked: boolean) => void;
+  onAgreementPress?: (type: AgreementType) => void;
   disabled?: boolean;
 };
 
-export function AccountAgreement({ checked, onChange, disabled = false }: AccountAgreementProps) {
+export function AccountAgreement({
+  checked,
+  onChange,
+  onAgreementPress,
+  disabled = false,
+}: AccountAgreementProps) {
   return (
-    <Pressable
-      style={styles.row}
-      onPress={() => onChange(!checked)}
-      disabled={disabled}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
-    >
-      <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+    <View style={styles.row}>
+      <Pressable
+        style={[styles.checkbox, checked && styles.checkboxChecked]}
+        onPress={() => onChange(!checked)}
+        disabled={disabled}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked }}
+      >
         {checked ? <Text style={styles.checkmark}>✓</Text> : null}
-      </View>
+      </Pressable>
       <Text style={styles.label}>
         我已阅读并同意
-        <Text style={styles.link}>《用户协议》</Text>
+        <Text
+          style={styles.link}
+          onPress={() => onAgreementPress?.('user')}
+          accessibilityRole="link"
+        >
+          《用户协议》
+        </Text>
         、
-        <Text style={styles.link}>《隐私协议》</Text>
+        <Text
+          style={styles.link}
+          onPress={() => onAgreementPress?.('privacy')}
+          accessibilityRole="link"
+        >
+          《隐私协议》
+        </Text>
         和
-        <Text style={styles.link}>《儿童隐私政策》</Text>
+        <Text
+          style={styles.link}
+          onPress={() => onAgreementPress?.('children')}
+          accessibilityRole="link"
+        >
+          《儿童隐私政策》
+        </Text>
       </Text>
-    </Pressable>
+    </View>
   );
 }
 
