@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import type { AgreementType } from '../data/agreements';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
 import { AccountAgreement } from './AccountAgreement';
 import { PersonalForm } from './PersonalForm';
@@ -15,9 +16,9 @@ type LoginViewProps = {
   isSubmitting: boolean;
   agreed: boolean;
   onAgreementChange: (checked: boolean) => void;
+  onAgreementPress?: (type: AgreementType) => void;
   smsCountdown: number;
   onSendSms: (phone: string) => void;
-  onWechatLoginPress: () => void;
   onPersonalSubmit: (phone: string, credential: string, mode: FamilyLoginMode) => void;
   onSchoolSubmit: (digitalId: string, password: string) => void;
   onForgotPassword: () => void;
@@ -30,9 +31,9 @@ export function LoginView({
   isSubmitting,
   agreed,
   onAgreementChange,
+  onAgreementPress,
   smsCountdown,
   onSendSms,
-  onWechatLoginPress,
   onPersonalSubmit,
   onSchoolSubmit,
   onForgotPassword,
@@ -78,7 +79,6 @@ export function LoginView({
                 isSubmitting={isSubmitting}
                 smsCountdown={smsCountdown}
                 onSendSms={onSendSms}
-                onWechatLoginPress={onWechatLoginPress}
                 onSubmit={onPersonalSubmit}
               />
             ) : (
@@ -95,6 +95,7 @@ export function LoginView({
           <AccountAgreement
             checked={agreed}
             onChange={onAgreementChange}
+            onAgreementPress={onAgreementPress}
             disabled={isSubmitting}
           />
         </View>

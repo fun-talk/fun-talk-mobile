@@ -1,15 +1,12 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { LANDSCAPE_MODAL_ORIENTATIONS } from '@/constants/orientation';
-import type { QrLoginState } from '../hooks/useWechatQrLogin';
 import { isWechatLoginSupported } from '../services/wechatNative';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
-import { WechatQrBox } from './WechatQrBox';
 
 type WechatModalProps = {
   visible: boolean;
   isSubmitting: boolean;
-  qrLogin: QrLoginState & { refresh: () => void };
   onClose: () => void;
   onWechatLogin: () => void;
 };
@@ -17,7 +14,6 @@ type WechatModalProps = {
 export function WechatModal({
   visible,
   isSubmitting,
-  qrLogin,
   onClose,
   onWechatLogin,
 }: WechatModalProps) {
@@ -38,24 +34,13 @@ export function WechatModal({
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>微信登录</Text>
               </View>
-              <Text style={styles.title}>扫码进入课程大厅</Text>
-              <Text style={styles.subtitle}>使用另一台手机微信扫一扫，授权后本机自动登录</Text>
+              <Text style={styles.title}>微信授权登录</Text>
+              <Text style={styles.subtitle}>点击下方按钮，打开微信完成授权</Text>
             </View>
 
             <Pressable style={styles.closeBtn} onPress={onClose} disabled={isSubmitting}>
               <Text style={styles.closeBtnText}>×</Text>
             </Pressable>
-          </View>
-
-          <View style={styles.qrPanel}>
-            <WechatQrBox
-              qrUrl={qrLogin.qrUrl}
-              status={qrLogin.status}
-              expiresIn={qrLogin.expiresIn}
-              size={204}
-              onRefresh={qrLogin.refresh}
-              showMeta={false}
-            />
           </View>
 
           {wechatSupported ? (
@@ -65,14 +50,14 @@ export function WechatModal({
               disabled={isSubmitting}>
               <Text style={styles.wechatLoginBtnText}>打开微信授权</Text>
             </Pressable>
-          ) : null}
+          ) : (
+            <View style={styles.unsupportedNote}>
+              <Text style={styles.unsupportedNoteText}>当前环境不支持微信登录</Text>
+            </View>
+          )}
 
           <View style={styles.note}>
-            <Text style={styles.noteText}>
-              {wechatSupported
-                ? '扫码和按钮都可以登录；扫码适合家长用自己的手机授权。'
-                : '请使用微信扫一扫二维码完成授权。'}
-            </Text>
+            <Text style={styles.noteText}>微信授权后，本机将自动完成登录。</Text>
           </View>
         </View>
       </View>
@@ -157,22 +142,16 @@ const styles = StyleSheet.create({
     color: LoginColors.textMuted,
     textAlign: 'left',
   },
-  qrPanel: {
-    width: 252,
-    aspectRatio: 1,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: LoginColors.panelBorder,
-    borderRadius: LoginSizes.panelBorderRadius,
-    backgroundColor: LoginColors.white,
-    overflow: 'hidden',
+  unsupportedNote: {
+    width: '100%',
+    paddingVertical: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: LoginColors.cardShadow,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.06,
-    shadowRadius: 24,
-    elevation: 4,
+  },
+  unsupportedNoteText: {
+    fontSize: LoginSizes.captionFontSize,
+    fontWeight: LoginWeights.semiBold,
+    color: LoginColors.textMuted,
   },
   wechatLoginBtn: {
     marginTop: 18,

@@ -12,27 +12,24 @@ import {
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 
+import type { AgreementType } from '../data/agreements';
+
 import { ApiRequestError } from '@/lib/api/client';
 import { buildFtAuthFromStudentLogin, buildFtAuthFromHomeLogin } from '@/lib/auth/session';
 import { showErrorToast, showSuccessToast } from '@/lib/toast';
 
 import { useAuth } from '../AuthProvider';
 import { loginImages } from '../assets/loginAssets';
-import { useWechatQrLogin } from '../hooks/useWechatQrLogin';
-import type { FtAuthRecord } from '@/lib/auth/types';
 import { LoginError } from '../services/login';
 import {
   loginHomePhone,
-  loginHomeWechat,
   loginStudent,
   requestStudentPasswordReset,
   sendAccountSmsCode,
   type HomePhoneLoginMethod,
 } from '../services/accountApi';
-import { requestWechatAuthCode } from '../services/wechatNative';
 import { LoginColors } from './LoginConstants';
 import { LoginView } from './LoginView';
-import { WechatModal } from './WechatModal';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
 
 type LoginTab = 'home' | 'school';
@@ -56,7 +53,6 @@ export function LoginScreen() {
   const [activeTab, setActiveTab] = useState<LoginTab>('school');
   const [agreed, setAgreed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [wechatModalVisible, setWechatModalVisible] = useState(false);
   const [forgotModalVisible, setForgotModalVisible] = useState(false);
   const [smsCountdown, setSmsCountdown] = useState(0);
 
@@ -175,55 +171,17 @@ export function LoginScreen() {
     [apiClient, saveAuth, finishLogin, requireAgreement],
   );
 
-  /* ---- QR scan login callbacks ---- */
-  const handleQrLoginSuccess = useCallback(
-    async (auth: FtAuthRecord) => {
-      await saveAuth(auth);
-      showSuccessToast('扫码登录成功，正在进入...');
-      router.replace(COURSES_ROUTE);
-    },
-    [saveAuth, router],
-  );
-
-  const handleQrLoginError = useCallback((error: string) => {
-    showErrorToast(error);
-  }, []);
-
-  const qrLogin = useWechatQrLogin(apiClient, {
-    rememberMe: true,
-    autoLoad: false,
-    onLoginSuccess: handleQrLoginSuccess,
-    onLoginError: handleQrLoginError,
-  });
-
-  /* ---- WeChat native login ---- */
-  const handleWechatLoginPress = useCallback(() => {
-    if (!requireAgreement()) return;
-    qrLogin.refresh();
-    setWechatModalVisible(true);
-  }, [qrLogin, requireAgreement]);
-
-  const handleWechatLogin = useCallback(() => {
-    setWechatModalVisible(false);
-
-    void finishLogin(async () => {
-      const code = await requestWechatAuthCode();
-      const result = await loginHomeWechat(apiClient, { wechat_openid: code });
-      const auth = buildFtAuthFromHomeLogin(
-        result.token,
-        result.expires_in,
-        '',
-        code,
-        true,
-      );
-      await saveAuth(auth);
-    });
-  }, [apiClient, saveAuth, finishLogin]);
-
   /* ---- Forgot Password ---- */
   const handleForgotPassword = useCallback(() => {
     setForgotModalVisible(true);
   }, []);
+
+  const handleAgreementPress = useCallback(
+    (type: AgreementType) => {
+      router.push(`/(auth)/agreement?type=${type}` as Href);
+    },
+    [router],
+  );
 
   const handleForgotSubmit = useCallback(
     async (digitalId: string): Promise<{ message: string }> => {
@@ -283,9 +241,9 @@ export function LoginScreen() {
               isSubmitting={isSubmitting}
               agreed={agreed}
               onAgreementChange={setAgreed}
+              onAgreementPress={handleAgreementPress}
               smsCountdown={smsCountdown}
               onSendSms={handleSendSms}
-              onWechatLoginPress={handleWechatLoginPress}
               onPersonalSubmit={handlePersonalSubmit}
               onSchoolSubmit={handleSchoolSubmit}
               onForgotPassword={handleForgotPassword}
@@ -293,14 +251,6 @@ export function LoginScreen() {
           </View>
         </ScrollView>
       </View>
-
-      <WechatModal
-        visible={wechatModalVisible}
-        isSubmitting={isSubmitting}
-        qrLogin={qrLogin}
-        onClose={() => setWechatModalVisible(false)}
-        onWechatLogin={handleWechatLogin}
-      />
 
       <ForgotPasswordModal
         visible={forgotModalVisible}
