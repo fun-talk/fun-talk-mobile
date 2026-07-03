@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 
 import { useAuth } from '@/features/auth';
 import {
   ADMIN_TEACHERS_ROUTE,
-  COURSES_ROUTE,
   TEACHER_STUDENTS_ROUTE,
   isAdminTeacher,
 } from '@/lib/auth/accountRoutes';
 import { LoginColors, LoginWeights } from '@/features/auth/components/LoginConstants';
+import { loginImages } from '@/features/auth/assets/loginAssets';
 
 type AccountConsoleShellProps = {
   title: string;
@@ -24,6 +25,9 @@ export function AccountConsoleShell({ title, active, children }: AccountConsoleS
   const router = useRouter();
   const { auth, logout } = useAuth();
   const isAdmin = isAdminTeacher(auth);
+  const { width } = useWindowDimensions();
+  const compact = width < 760;
+  const collapsedSidebar = !compact && width < 1200;
 
   const navItems = isAdmin
     ? [
@@ -39,38 +43,63 @@ export function AccountConsoleShell({ title, active, children }: AccountConsoleS
   };
 
   return (
-    <View style={styles.root}>
-      <View style={styles.topbar}>
-        <View>
-          <Text style={styles.brand}>欧波开心学</Text>
-          <Text style={styles.meta}>
-            {auth?.schoolName || '学校后台'} · {isAdmin ? '管理员' : '教学老师'}
+    <View style={[styles.root, compact && styles.rootCompact]}>
+      <Image source={loginImages.background} style={styles.backgroundImage} contentFit="cover" />
+      <View style={[styles.sidebar, collapsedSidebar && styles.sidebarCollapsed, compact && styles.sidebarCompact]}>
+        <View style={[styles.brandBlock, collapsedSidebar && styles.brandBlockCollapsed]}>
+          <Image source={loginImages.logo} style={styles.brandLogo} contentFit="contain" />
+          <View style={[styles.brandText, collapsedSidebar && styles.hidden]}>
+            <Text style={styles.brand}>{isAdmin ? '管理员后台' : '教学老师后台'}</Text>
+            <Text style={styles.meta}>{auth?.schoolName || '学校后台'}</Text>
+          </View>
+        </View>
+
+        <View style={[styles.nav, compact && styles.navCompact]}>
+          {navItems.map((item) => (
+            <Pressable
+              key={item.key}
+              style={[
+                styles.navItem,
+                collapsedSidebar && styles.navItemCollapsed,
+                active === item.key && styles.navItemActive,
+              ]}
+              onPress={() => router.replace(item.href as Href)}
+            >
+              <Text
+                style={[
+                  styles.navText,
+                  collapsedSidebar && styles.navTextCollapsed,
+                  active === item.key && styles.navTextActive,
+                ]}
+              >
+                {collapsedSidebar ? item.label.slice(0, 2) : item.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={[styles.sidebarFooter, collapsedSidebar && styles.sidebarFooterCollapsed, compact && styles.sidebarFooterCompact]}>
+          <Text style={[styles.userName, collapsedSidebar && styles.hidden]} numberOfLines={1}>
+            {auth?.username || auth?.phone || '教师账号'} ({isAdmin ? '管理员' : '老师'})
           </Text>
-        </View>
-        <View style={styles.topbarActions}>
-          <Pressable style={styles.secondaryBtn} onPress={() => router.replace(COURSES_ROUTE as Href)}>
-            <Text style={styles.secondaryBtnText}>返回大厅</Text>
-          </Pressable>
-          <Pressable style={styles.secondaryBtn} onPress={handleLogout}>
-            <Text style={styles.secondaryBtnText}>退出登录</Text>
-          </Pressable>
+          <View style={styles.footerActions}>
+            <Pressable onPress={handleLogout}>
+              <Text style={styles.linkBtn}>{collapsedSidebar ? '退出' : '退出登录'}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 
-      <View style={styles.nav}>
-        {navItems.map((item) => (
-          <Pressable
-            key={item.key}
-            style={[styles.navItem, active === item.key && styles.navItemActive]}
-            onPress={() => router.replace(item.href as Href)}
-          >
-            <Text style={[styles.navText, active === item.key && styles.navTextActive]}>{item.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>{title}</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          collapsedSidebar && styles.contentWithCollapsedSidebar,
+          compact && styles.contentCompact,
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.screenReaderTitle}>{title}</Text>
         {children}
       </ScrollView>
     </View>
@@ -126,101 +155,193 @@ export function StatusTag({ label, tone }: { label: string; tone: 'ok' | 'muted'
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#eef6ff',
-  },
-  topbar: {
+    backgroundColor: '#dff4ff',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 18,
-    paddingBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderBottomWidth: 1,
+  },
+  backgroundImage: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  rootCompact: {
+    flexDirection: 'column',
+  },
+  sidebar: {
+    width: 220,
+    backgroundColor: 'rgba(240, 249, 255, 0.82)',
+    borderRightWidth: 1.5,
     borderBottomColor: LoginColors.line,
-    gap: 16,
+    borderRightColor: LoginColors.line,
+    paddingHorizontal: 20,
+    paddingVertical: 56,
+  },
+  sidebarCollapsed: {
+    width: 84,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  sidebarCompact: {
+    width: '100%',
+    borderRightWidth: 0,
+    borderBottomWidth: 1.5,
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  brandBlock: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 40,
+  },
+  brandBlockCollapsed: {
+    justifyContent: 'center',
+  },
+  brandLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 0,
+  },
+  brandText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  hidden: {
+    display: 'none',
   },
   brand: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: LoginWeights.extraBold,
     color: LoginColors.text,
   },
   meta: {
     marginTop: 4,
+    fontSize: 11,
+    fontWeight: LoginWeights.bold,
+    color: '#94a3b8',
+  },
+  nav: {
+    gap: 8,
+  },
+  navCompact: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  sidebarFooter: {
+    marginTop: 'auto',
+    borderTopWidth: 1.5,
+    borderTopColor: LoginColors.line,
+    paddingTop: 24,
+    gap: 6,
+  },
+  sidebarFooterCollapsed: {
+    alignItems: 'center',
+    paddingTop: 18,
+  },
+  sidebarFooterCompact: {
+    marginTop: 14,
+    paddingTop: 12,
+  },
+  userName: {
+    color: LoginColors.textLabel,
+    fontSize: 14,
+    fontWeight: LoginWeights.bold,
+  },
+  footerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  linkBtn: {
+    color: '#64748b',
     fontSize: 13,
+    fontWeight: LoginWeights.bold,
+    textDecorationLine: 'underline',
+  },
+  navItem: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  navItemCollapsed: {
+    width: 56,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  navItemActive: {
+    backgroundColor: LoginColors.white,
+    borderWidth: 1.5,
+    borderColor: LoginColors.line,
+    shadowColor: LoginColors.cardShadow,
+    shadowOpacity: 0.08,
+    shadowRadius: 25,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  navText: {
+    fontSize: 15,
     fontWeight: LoginWeights.bold,
     color: LoginColors.textMuted,
   },
-  topbarActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  nav: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(248,250,252,0.96)',
-  },
-  navItem: {
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    backgroundColor: LoginColors.secondaryBg,
-    borderWidth: 1,
-    borderColor: LoginColors.secondaryBorder,
-  },
-  navItemActive: {
-    backgroundColor: LoginColors.text,
-    borderColor: LoginColors.text,
-  },
-  navText: {
-    fontSize: 14,
-    fontWeight: LoginWeights.bold,
-    color: LoginColors.secondaryText,
+  navTextCollapsed: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 17,
   },
   navTextActive: {
-    color: LoginColors.white,
+    color: LoginColors.text,
   },
   scroll: {
     flex: 1,
   },
   content: {
-    padding: 24,
-    gap: 18,
+    paddingHorizontal: 70,
+    paddingVertical: 70,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: LoginWeights.extraBold,
-    color: LoginColors.text,
+  contentWithCollapsedSidebar: {
+    paddingHorizontal: 48,
+  },
+  contentCompact: {
+    padding: 18,
+  },
+  screenReaderTitle: {
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
   panel: {
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderWidth: 1,
-    borderColor: LoginColors.line,
-    padding: 18,
-    gap: 14,
+    borderColor: LoginColors.cardBorder,
+    padding: 32,
+    gap: 24,
+    shadowColor: LoginColors.cardShadow,
+    shadowOpacity: 0.04,
+    shadowRadius: 50,
+    shadowOffset: { width: 0, height: 20 },
   },
   primaryBtn: {
     borderRadius: 999,
     backgroundColor: LoginColors.primaryStart,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     alignItems: 'center',
+    shadowColor: LoginColors.primaryStart,
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
   },
   primaryBtnText: {
     color: LoginColors.white,
     fontWeight: LoginWeights.extraBold,
-    fontSize: 14,
+    fontSize: 15,
   },
   secondaryBtn: {
     borderRadius: 999,
     backgroundColor: LoginColors.secondaryBg,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: LoginColors.secondaryBorder,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     alignItems: 'center',
   },
   secondaryBtnText: {

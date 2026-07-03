@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -21,6 +22,7 @@ import { showErrorToast, showInfoToast, showSuccessToast } from '@/lib/toast';
 import { AccountConsoleShell, Panel, PrimaryButton, SecondaryButton, StatusTag } from './AccountConsoleShell';
 import { getAccountLoginUrl, printOrShareAccountCards, shareExportFile } from './accountFiles';
 import {
+  deleteManagedStudent,
   exportAdminStudents,
   exportTeacherStudents,
   fetchAdminStudents,
@@ -38,12 +40,15 @@ type StudentManagementScreenProps = {
   role: 'admin' | 'teacher';
 };
 
+const STUDENTS_PAGE_SIZE = 10;
+
 export function StudentManagementScreen({ role }: StudentManagementScreenProps) {
   const router = useRouter();
   const { apiClient } = useAuth();
   const [students, setStudents] = useState<AdminStudentRow[]>([]);
   const [resetRequests, setResetRequests] = useState<PasswordResetRequestRow[]>([]);
   const [selectedClass, setSelectedClass] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [resetPasswords, setResetPasswords] = useState<Record<number, string>>({});
   const [resetTarget, setResetTarget] = useState<AdminStudentRow | null>(null);
@@ -52,6 +57,7 @@ export function StudentManagementScreen({ role }: StudentManagementScreenProps) 
   const [nicknameDraft, setNicknameDraft] = useState('');
   const [resetting, setResetting] = useState(false);
   const [savingNickname, setSavingNickname] = useState(false);
+  const [deletingStudentId, setDeletingStudentId] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
 
@@ -87,6 +93,18 @@ export function StudentManagementScreen({ role }: StudentManagementScreenProps) 
         : students.filter((student) => student.class_name === selectedClass),
     [selectedClass, students],
   );
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / STUDENTS_PAGE_SIZE));
+  const pageStart = (currentPage - 1) * STUDENTS_PAGE_SIZE;
+  const pageStudents = filteredStudents.slice(pageStart, pageStart + STUDENTS_PAGE_SIZE);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
+  const handleSelectClass = (className: string) => {
+    setSelectedClass(className);
+    setCurrentPage(1);
+  };
 
   const handleOpenReset = (student: AdminStudentRow) => {
     setCustomPassword('');
@@ -143,6 +161,38 @@ export function StudentManagementScreen({ role }: StudentManagementScreenProps) 
 
   const handleViewHomeData = (student: AdminStudentRow) => {
     showInfoToast(`正在查看学生 ${student.digital_id}（${student.nickname_label}）的家庭学习数据`);
+  };
+
+  const handleDelete = (student: AdminStudentRow) => {
+    Alert.alert(
+      '删除学生账号',
+      `确认删除学生 ${student.digital_id}（${student.nickname_label}）？删除后该学生将无法继续登录，列表、导出和打印中也不会再显示。`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '删除',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingStudentId(student.id);
+            try {
+              await deleteManagedStudent(apiClient, student.id);
+              setStudents((current) => current.filter((item) => item.id !== student.id));
+              setResetRequests((current) => current.filter((item) => item.student_id !== student.id));
+              setResetPasswords((current) => {
+                const next = { ...current };
+                delete next[student.id];
+                return next;
+              });
+              showSuccessToast(`已删除学生 ${student.digital_id}`);
+            } catch (error) {
+              showErrorToast(error instanceof Error ? error.message : '删除失败');
+            } finally {
+              setDeletingStudentId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleExport = async () => {
@@ -213,13 +263,13 @@ export function StudentManagementScreen({ role }: StudentManagementScreenProps) 
         <View style={styles.classFilter}>
           <Text style={styles.filterLabel}>班级：</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.classOptions}>
-            <ClassChip label="全部班级" active={selectedClass === 'all'} onPress={() => setSelectedClass('all')} />
+            <ClassChip label="全部班级" active={selectedClass === 'all'} onPress={() => handleSelectClass('all')} />
             {classNames.map((className) => (
               <ClassChip
                 key={className}
                 label={className}
                 active={selectedClass === className}
-                onPress={() => setSelectedClass(className)}
+                onPress={() => handleSelectClass(className)}
               />
             ))}
           </ScrollView>
@@ -243,11 +293,19 @@ export function StudentManagementScreen({ role }: StudentManagementScreenProps) 
           </View>
         ) : (
           <StudentTable
-            students={filteredStudents}
+            students={pageStudents}
+            totalStudents={filteredStudents.length}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={STUDENTS_PAGE_SIZE}
             resetPasswords={resetPasswords}
+            deletingStudentId={deletingStudentId}
+            onPreviousPage={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            onNextPage={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
             onReset={handleOpenReset}
             onEditNickname={handleOpenNickname}
             onViewHomeData={handleViewHomeData}
+            onDelete={handleDelete}
           />
         )}
       </Panel>
@@ -331,79 +389,126 @@ function ClassChip({ label, active, onPress }: { label: string; active: boolean;
 
 function StudentTable({
   students,
+  totalStudents,
+  currentPage,
+  totalPages,
+  pageSize,
   resetPasswords,
+  deletingStudentId,
+  onPreviousPage,
+  onNextPage,
   onReset,
   onEditNickname,
   onViewHomeData,
+  onDelete,
 }: {
   students: AdminStudentRow[];
+  totalStudents: number;
+  currentPage: number;
+  totalPages: number;
+  pageSize: number;
   resetPasswords: Record<number, string>;
+  deletingStudentId: number | null;
+  onPreviousPage: () => void;
+  onNextPage: () => void;
   onReset: (student: AdminStudentRow) => void;
   onEditNickname: (student: AdminStudentRow) => void;
   onViewHomeData: (student: AdminStudentRow) => void;
+  onDelete: (student: AdminStudentRow) => void;
 }) {
-  if (students.length === 0) {
+  if (totalStudents === 0) {
     return <Text style={styles.empty}>暂无学生账号</Text>;
   }
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator>
-      <View style={styles.table}>
-        <View style={[styles.tableRow, styles.tableHeader]}>
-          {['数字 ID', '昵称', '班级', '班级 ID 后 2 位', '密码', '学校与家庭数据绑定', '操作'].map((title) => (
-            <Text key={title} style={[styles.cell, styles.headerCell]}>
-              {title}
-            </Text>
-          ))}
-        </View>
-        {students.map((student) => {
-          const temporaryPassword = resetPasswords[student.id];
-          const displayPassword = temporaryPassword || student.password || '••••••';
-          return (
-            <View key={student.id} style={[styles.tableRow, student.pending_password_reset && styles.warnRow]}>
-              <View style={styles.cell}>
-                <Text selectable style={styles.boldText}>
-                  {student.digital_id}
-                </Text>
-                {student.pending_password_reset ? <StatusTag label="待重置" tone="warn" /> : null}
-              </View>
-              <View style={styles.cell}>
-                <Text style={student.nickname_label === '未设置' ? styles.mutedText : styles.boldText}>
-                  {student.nickname_label}
-                </Text>
-                <Pressable onPress={() => onEditNickname(student)}>
-                  <Text style={styles.linkText}>修改</Text>
-                </Pressable>
-              </View>
-              <Text style={styles.cell}>{student.class_name}</Text>
-              <Text selectable style={styles.cell}>
-                {student.class_suffix}
+    <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator>
+        <View style={styles.table}>
+          <View style={[styles.tableRow, styles.tableHeader]}>
+            {['数字 ID', '昵称', '班级', '班级 ID 后 2 位', '密码', '学校与家庭数据绑定', '操作'].map((title) => (
+              <Text key={title} style={[styles.cell, styles.headerCell]}>
+                {title}
               </Text>
-              <View style={styles.cell}>
-                <Text selectable style={styles.passwordText}>
-                  {displayPassword}
-                </Text>
-                <Pressable onPress={() => onReset(student)}>
-                  <Text style={styles.linkText}>重置</Text>
-                </Pressable>
-              </View>
-              <View style={styles.cell}>
-                <StatusTag label={student.has_home_binding ? '已绑定' : '未绑定'} tone={student.has_home_binding ? 'ok' : 'muted'} />
-              </View>
-              <View style={styles.cell}>
-                {student.home_data_authorized ? (
-                  <Pressable onPress={() => onViewHomeData(student)}>
-                    <Text style={styles.linkText}>查看家庭数据</Text>
+            ))}
+          </View>
+          {students.map((student) => {
+            const temporaryPassword = resetPasswords[student.id];
+            const displayPassword = temporaryPassword || student.password || '••••••';
+            const deleting = deletingStudentId === student.id;
+            return (
+              <View key={student.id} style={[styles.tableRow, student.pending_password_reset && styles.warnRow]}>
+                <View style={styles.cell}>
+                  <Text selectable style={styles.boldText}>
+                    {student.digital_id}
+                  </Text>
+                  {student.pending_password_reset ? <StatusTag label="待重置" tone="warn" /> : null}
+                </View>
+                <View style={styles.cell}>
+                  <Text style={student.nickname_label === '未设置' ? styles.mutedText : styles.boldText}>
+                    {student.nickname_label}
+                  </Text>
+                  <Pressable onPress={() => onEditNickname(student)}>
+                    <Text style={styles.linkText}>修改</Text>
                   </Pressable>
-                ) : (
-                  <Text style={styles.mutedText}>无</Text>
-                )}
+                </View>
+                <Text style={styles.cell}>{student.class_name}</Text>
+                <Text selectable style={styles.cell}>
+                  {student.class_suffix}
+                </Text>
+                <View style={styles.cell}>
+                  <Text selectable style={styles.passwordText}>
+                    {displayPassword}
+                  </Text>
+                  <Pressable onPress={() => onReset(student)}>
+                    <Text style={styles.linkText}>重置</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.cell}>
+                  <StatusTag label={student.has_home_binding ? '已绑定' : '未绑定'} tone={student.has_home_binding ? 'ok' : 'muted'} />
+                </View>
+                <View style={styles.cell}>
+                  {student.home_data_authorized ? (
+                    <Pressable onPress={() => onViewHomeData(student)}>
+                      <Text style={styles.linkText}>查看家庭数据</Text>
+                    </Pressable>
+                  ) : null}
+                  <Pressable disabled={deleting} onPress={() => onDelete(student)}>
+                    <Text style={[styles.dangerLinkText, deleting && styles.disabledLinkText]}>
+                      {deleting ? '删除中...' : '删除'}
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-          );
-        })}
+            );
+          })}
+        </View>
+      </ScrollView>
+      <View style={styles.pagination}>
+        <Text style={styles.paginationSummary}>
+          共 {totalStudents} 个学生，每页 {pageSize} 个，第 {currentPage} / {totalPages} 页
+        </Text>
+        <View style={styles.paginationActions}>
+          <Pressable
+            disabled={currentPage <= 1}
+            style={[styles.paginationButton, currentPage <= 1 && styles.paginationButtonDisabled]}
+            onPress={onPreviousPage}
+          >
+            <Text style={[styles.paginationButtonText, currentPage <= 1 && styles.paginationButtonTextDisabled]}>
+              上一页
+            </Text>
+          </Pressable>
+          <Pressable
+            disabled={currentPage >= totalPages}
+            style={[styles.paginationButton, currentPage >= totalPages && styles.paginationButtonDisabled]}
+            onPress={onNextPage}
+          >
+            <Text style={[styles.paginationButtonText, currentPage >= totalPages && styles.paginationButtonTextDisabled]}>
+              下一页
+            </Text>
+          </Pressable>
+        </View>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -533,7 +638,54 @@ const styles = StyleSheet.create({
     fontWeight: LoginWeights.extraBold,
     textDecorationLine: 'underline',
   },
+  dangerLinkText: {
+    color: '#dc2626',
+    fontWeight: LoginWeights.extraBold,
+    textDecorationLine: 'underline',
+  },
+  disabledLinkText: {
+    color: LoginColors.textMuted,
+    textDecorationLine: 'none',
+  },
   mutedText: {
+    color: LoginColors.textMuted,
+  },
+  pagination: {
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: LoginColors.line,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    backgroundColor: '#f8fafc',
+    padding: 14,
+    gap: 10,
+  },
+  paginationSummary: {
+    color: LoginColors.textMuted,
+    fontSize: 13,
+    fontWeight: LoginWeights.bold,
+  },
+  paginationActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  paginationButton: {
+    borderWidth: 1,
+    borderColor: LoginColors.secondaryBorder,
+    borderRadius: 999,
+    backgroundColor: LoginColors.white,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#f1f5f9',
+  },
+  paginationButtonText: {
+    color: LoginColors.secondaryText,
+    fontSize: 13,
+    fontWeight: LoginWeights.extraBold,
+  },
+  paginationButtonTextDisabled: {
     color: LoginColors.textMuted,
   },
   modalBackdrop: {
