@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -21,6 +21,7 @@ import { showErrorToast, showSuccessToast } from '@/lib/toast';
 
 import { useAuth } from '../AuthProvider';
 import { loginImages } from '../assets/loginAssets';
+import type { AgreementType } from '../data/agreements';
 import { loginTeacher, registerTeacher, sendAccountSmsCode } from '../services/accountApi';
 import { validatePasswordPair } from '../passwordPolicy';
 import { AccountAgreement } from './AccountAgreement';
@@ -56,6 +57,44 @@ export function TeacherAuthScreen() {
   const [email, setEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // When the virtual keyboard opens on a tablet/phone, we add bottom padding to
+  // the scroll content and scroll down so that the focused password field stays
+  // visible above the keyboard.
+  const scrollForKeyboard = useCallback(
+    (openHeight: number) => {
+      if (!scrollViewRef.current || openHeight <= 0) return;
+      const targetY = Math.round(openHeight * 0.55);
+      scrollViewRef.current.scrollTo({ y: targetY, animated: true });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(showEvent, (event) => {
+      const openHeight = event.endCoordinates.height;
+      setKeyboardHeight(openHeight);
+      scrollForKeyboard(openHeight);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [scrollForKeyboard]);
+
+  const handlePasswordFocus = useCallback(() => {
+    scrollForKeyboard(keyboardHeight);
+  }, [keyboardHeight, scrollForKeyboard]);
 
   useEffect(() => {
     if (smsCountdown <= 0) return undefined;
@@ -175,13 +214,26 @@ export function TeacherAuthScreen() {
     setConfirmPassword('');
   };
 
+  const handleAgreementPress = useCallback(
+    (type: AgreementType) => {
+      router.push(`/(auth)/agreement?type=${type}` as Href);
+    },
+    [router],
+  );
+
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={styles.root}>
       <Image source={loginImages.background} style={styles.background} contentFit="cover" />
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { minHeight: height }]}
+        contentContainerStyle={[
+          styles.content,
+          { minHeight: height },
+          keyboardHeight > 0 && { paddingBottom: keyboardHeight },
+        ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         <Image
           source={loginImages.logo}
@@ -201,7 +253,17 @@ export function TeacherAuthScreen() {
           <Text style={styles.topbarButtonText}>{mode === 'login' ? '没有账号，去注册' : '已有账号，去登录'}</Text>
         </Pressable>
 
-        <View style={[styles.card, isWide && styles.cardWide]}>
+        <View
+          style={[
+            styles.card,
+            isWide && styles.cardWide,
+            keyboardHeight > 0 &&
+              !isWide && {
+                marginTop: Math.max(12, 80 - keyboardHeight * 0.35),
+                marginBottom: Math.min(keyboardHeight * 0.2, 60),
+              },
+          ]}
+        >
           <Text style={styles.title}>{mode === 'register' ? '老师注册' : '老师登录'}</Text>
 
           <Field label="手机号">
@@ -298,6 +360,7 @@ export function TeacherAuthScreen() {
                 showPassword={showPassword}
                 onToggle={() => setShowPassword((value) => !value)}
                 editable={!submitting}
+                onFocus={handlePasswordFocus}
               />
             </Field>
           ) : null}
@@ -311,11 +374,17 @@ export function TeacherAuthScreen() {
                 showPassword={showConfirmPassword}
                 onToggle={() => setShowConfirmPassword((value) => !value)}
                 editable={!submitting}
+                onFocus={handlePasswordFocus}
               />
             </Field>
           ) : null}
 
-          <AccountAgreement checked={agreed} onChange={setAgreed} disabled={submitting} />
+          <AccountAgreement
+            checked={agreed}
+            onChange={setAgreed}
+            onAgreementPress={handleAgreementPress}
+            disabled={submitting}
+          />
 
           <Pressable
             style={[styles.submitButton, submitting && styles.disabled]}
@@ -334,7 +403,7 @@ export function TeacherAuthScreen() {
           </Pressable>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -354,6 +423,7 @@ function PasswordInput({
   showPassword,
   onToggle,
   editable,
+  onFocus,
 }: {
   value: string;
   onChangeText: (value: string) => void;
@@ -361,6 +431,7 @@ function PasswordInput({
   showPassword: boolean;
   onToggle: () => void;
   editable: boolean;
+  onFocus?: () => void;
 }) {
   return (
     <View style={styles.inputWrap}>
@@ -369,6 +440,7 @@ function PasswordInput({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
+        onFocus={onFocus}
         placeholderTextColor={LoginColors.inputPlaceholder}
         secureTextEntry={!showPassword}
         editable={editable}

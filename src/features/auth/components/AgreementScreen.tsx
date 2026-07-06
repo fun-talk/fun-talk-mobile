@@ -14,6 +14,29 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
 import { AgreementType, getAgreement } from '../data/agreements';
 
+const SENSITIVE_OPEN = '<sensitive>';
+const SENSITIVE_CLOSE = '</sensitive>';
+
+function renderAgreementBody(content: string) {
+  const parts = content.split(
+    new RegExp(`(${SENSITIVE_OPEN}.*?${SENSITIVE_CLOSE})`, 'g'),
+  );
+  return parts.map((part, index) => {
+    if (part.startsWith(SENSITIVE_OPEN) && part.endsWith(SENSITIVE_CLOSE)) {
+      const text = part.slice(
+        SENSITIVE_OPEN.length,
+        part.length - SENSITIVE_CLOSE.length,
+      );
+      return (
+        <Text key={index} style={styles.sensitive}>
+          {text}
+        </Text>
+      );
+    }
+    return <Text key={index}>{part}</Text>;
+  });
+}
+
 const validAgreementType = (value: unknown): AgreementType | null => {
   if (typeof value !== 'string') return null;
   if (value === 'user' || value === 'privacy' || value === 'children') return value;
@@ -49,7 +72,9 @@ export function AgreementScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator
       >
-        <Text style={styles.body}>{agreement?.content ?? ''}</Text>
+        <Text style={styles.body}>
+          {renderAgreementBody(agreement?.content ?? '')}
+        </Text>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -99,6 +124,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     color: LoginColors.text,
+  },
+  sensitive: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: LoginWeights.bold,
+    color: LoginColors.error,
   },
   footer: {
     flexDirection: 'row',

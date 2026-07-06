@@ -13,9 +13,10 @@ type SchoolFormProps = {
   isSubmitting: boolean;
   onSubmit: (digitalId: string, password: string) => void;
   onForgotPassword?: () => void;
+  onPasswordFocus?: () => void;
 };
 
-export function SchoolForm({ isSubmitting, onSubmit, onForgotPassword }: SchoolFormProps) {
+export function SchoolForm({ isSubmitting, onSubmit, onForgotPassword, onPasswordFocus }: SchoolFormProps) {
   const [digitalId, setDigitalId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -53,6 +54,7 @@ export function SchoolForm({ isSubmitting, onSubmit, onForgotPassword }: SchoolF
             placeholderTextColor={LoginColors.inputPlaceholder}
             secureTextEntry={!showPassword}
             editable={!isSubmitting}
+            onFocus={onPasswordFocus}
           />
           <Pressable
             style={styles.eyeBtn}
