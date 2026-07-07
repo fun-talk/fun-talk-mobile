@@ -32,6 +32,7 @@ import {
 } from '../layout/courseHomeLayout';
 
 const PROFILE_ROUTE = '/(app)/profile' as Href;
+const REVIEW_TIP_Y = 353;
 
 export function CourseHomeScreen() {
   const { width, height } = useWindowDimensions();
@@ -226,7 +227,7 @@ export function CourseHomeScreen() {
               styles.tip,
               {
                 left: mapPixelWidth * 0.318,
-                top: mapPixelHeight * 0.132,
+                top: (REVIEW_TIP_Y / mapHeight) * mapPixelHeight,
                 width: tipWidth,
               },
             ]}
