@@ -2,11 +2,15 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect, Stack, type Href } from 'expo-router';
 
 import { useAuth } from '@/features/auth';
+import { useReportPolling } from '@/features/report';
 
 const LOGIN_ROUTE = '/(auth)/login' as Href;
 
 export default function AppLayout() {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, apiClient } = useAuth();
+
+  // Poll for report status updates whenever the user is authenticated.
+  useReportPolling(apiClient, 60_000, isAuthenticated);
 
   if (isLoading) {
     return (

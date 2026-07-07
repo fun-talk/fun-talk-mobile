@@ -21,6 +21,7 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "FunTalk needs microphone access for speaking exercises in lessons.",
         "NSCameraUsageDescription": "FunTalk may use the camera during interactive lessons.",
+        "NSPhotoLibraryUsageDescription": "FunTalk needs photo library access so you can upload screenshots when submitting a report.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -51,7 +52,13 @@
         }
       ],
       "expo-wechat-no-pay",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "允许欧波开心学访问您的相册，以便您在提交投诉与建议时上传相关截图。"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
