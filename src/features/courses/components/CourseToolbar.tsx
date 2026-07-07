@@ -14,6 +14,7 @@ type CourseToolbarProps = {
   isLoggingOut: boolean;
   onLogout: () => void;
   onReportPress?: () => void;
+  onProfilePress?: () => void;
 };
 
 export function CourseToolbar({
@@ -25,6 +26,7 @@ export function CourseToolbar({
   isLoggingOut,
   onLogout,
   onReportPress,
+  onProfilePress,
 }: CourseToolbarProps) {
   const insets = useSafeAreaInsets();
   const reportWidth = landscapeTablet
@@ -77,6 +79,21 @@ export function CourseToolbar({
             {userName}，继续学习第 {currentCourseNumber} 课
           </Text>
         </View>
+        {onProfilePress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="个人中心"
+            onPress={onProfilePress}
+            style={({ pressed }) => [
+              styles.profileButton,
+              pressed && styles.profilePressed,
+            ]}
+          >
+            <Text style={[styles.profileText, { fontSize: logoutFontSize }]}>
+              个人中心
+            </Text>
+          </Pressable>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           onPress={onLogout}
@@ -184,6 +201,27 @@ const styles = StyleSheet.create({
     transform: [{ translateY: -2 }],
   },
   logoutText: {
+    color: '#ffffff',
+    fontWeight: '900',
+  },
+  profileButton: {
+    minHeight: 44,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.86)',
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    backgroundColor: 'rgba(47, 145, 238, 0.88)',
+    justifyContent: 'center',
+    shadowColor: '#0f59a4',
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 3,
+  },
+  profilePressed: {
+    transform: [{ translateY: -2 }],
+  },
+  profileText: {
     color: '#ffffff',
     fontWeight: '900',
   },

@@ -4,38 +4,33 @@
     "slug": "fun-talk-mobile",
     "version": "1.0.0",
     "orientation": "landscape",
-    "icon": "./assets/images/icon.png",
+    "icon": "./icons/png216x216.png",
     "scheme": [
       "funtalkmobile",
       "wx4f3da33035cc1d14"
     ],
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./icons/png216x216.png",
       "bundleIdentifier": "com.anonymous.funtalkmobile",
       "requireFullScreen": true,
       "associatedDomains": [
+        "applinks:ai-fun-talk.com",
         "applinks:ai-fun-talk.com"
       ],
       "infoPlist": {
         "NSMicrophoneUsageDescription": "FunTalk needs microphone access for speaking exercises in lessons.",
-        "NSCameraUsageDescription": "FunTalk may use the camera during interactive lessons."
+        "NSCameraUsageDescription": "FunTalk may use the camera during interactive lessons.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-
+      "icon": "./icons/png216x216.png",
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-
       "predictiveBackGestureEnabled": false,
       "package": "com.funtalk"
     },

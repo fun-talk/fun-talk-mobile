@@ -15,7 +15,7 @@ This repository is the **Expo / React Native mobile client** for Fun Talk. It is
 | Bundler | Metro (via Expo CLI) | — |
 | JS Engine | Hermes | enabled (`hermesEnabled=true`) |
 | Architecture | New Architecture (TurboModules / Fabric) | enabled (`newArchEnabled=true`) |
-| Package Manager | npm / pnpm | both `package-lock.json` and `pnpm-lock.yaml` exist; `pnpm-workspace.yaml` is configured |
+| Package Manager | npm | `package-lock.json` is the source of truth |
 | Testing | Node built-in test runner (`node:test` + `node:assert/strict`) | executed via `tsx` |
 | Patching | `patch-package` | — |
 
@@ -211,11 +211,9 @@ Install dependencies:
 
 ```bash
 npm install
-# or
-pnpm install
 ```
 
-> Both `package-lock.json` and `pnpm-lock.yaml` are present in the repository. Keep them in sync if you switch package managers.
+Use npm for dependency installs so EAS and local builds resolve the same lockfile.
 
 Run the dev server (always on port `19002`):
 

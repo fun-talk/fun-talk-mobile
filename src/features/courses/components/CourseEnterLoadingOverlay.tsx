@@ -9,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useEffect } from 'react';
 
+import { LANDSCAPE_MODAL_ORIENTATIONS } from '@/constants/orientation';
 import { courseHomeImages } from '../assets/courseHomeAssets';
 import { clampByViewport } from '../layout/courseHomeLayout';
 
@@ -58,7 +59,13 @@ export function CourseEnterLoadingOverlay({
   const labelSize = clampByViewport({ min: 16, vw: 0.024, max: 22 }, viewportWidth);
 
   return (
-    <Modal transparent visible animationType="fade" statusBarTranslucent>
+    <Modal
+      transparent
+      visible
+      animationType="fade"
+      statusBarTranslucent
+      supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
+    >
       <View style={styles.backdrop}>
         <View style={styles.panel}>
           <Animated.View

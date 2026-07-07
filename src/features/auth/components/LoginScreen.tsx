@@ -1,39 +1,41 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 
+import type { AgreementType } from '../data/agreements';
+
 import { ApiRequestError } from '@/lib/api/client';
-import { readRememberMePreference, writeRememberMePreference } from '@/lib/auth/preferences';
-import { getApiHost } from '@/lib/env';
+import { buildFtAuthFromStudentLogin, buildFtAuthFromHomeLogin } from '@/lib/auth/session';
+import { showErrorToast, showSuccessToast } from '@/lib/toast';
 
 import { useAuth } from '../AuthProvider';
 import { loginImages } from '../assets/loginAssets';
-import { useWechatQrLogin } from '../hooks/useWechatQrLogin';
-import type { FtAuthRecord } from '@/lib/auth/types';
+import { LoginError } from '../services/login';
 import {
-  LoginError,
-  loginWithFrontpage,
-  loginWithWechatCode,
-  checkSession,
-} from '../services/login';
-import { requestWechatAuthCode } from '../services/wechatNative';
+  loginHomePhone,
+  loginStudent,
+  requestStudentPasswordReset,
+  sendAccountSmsCode,
+  type HomePhoneLoginMethod,
+} from '../services/accountApi';
 import { LoginColors } from './LoginConstants';
-import { LandingView } from './LandingView';
 import { LoginView } from './LoginView';
-import { WechatModal } from './WechatModal';
+import { ForgotPasswordModal } from './ForgotPasswordModal';
 
-type ViewMode = 'landing' | 'login';
-type LoginTab = 'personal' | 'school';
+type LoginTab = 'home' | 'school';
 
 const COURSES_ROUTE = '/(app)/courses' as Href;
+const SMS_COOLDOWN = 60;
 
 export function LoginScreen() {
   const router = useRouter();
@@ -41,7 +43,6 @@ export function LoginScreen() {
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const shortestSide = Math.min(windowWidth, windowHeight);
 
-  // Treat only true tablet/desktop layouts as desktop so landscape phones keep the compact mobile card.
   const isDesktopLayout = shortestSide >= 760;
   const logoHeight = isDesktopLayout
     ? Math.min(56, Math.max(36, windowWidth * 0.04))
@@ -49,37 +50,27 @@ export function LoginScreen() {
   const logoLeft = isDesktopLayout ? 28 : 18;
   const logoTop = isDesktopLayout ? 56 - logoHeight / 2 : 40;
 
-  const [viewMode, setViewMode] = useState<ViewMode>('landing');
-  const [activeTab, setActiveTab] = useState<LoginTab>('personal');
-  const [rememberMe, setRememberMe] = useState(true);
-  const [statusMessage, setStatusMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [activeTab, setActiveTab] = useState<LoginTab>('school');
+  const [agreed, setAgreed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [wechatModalVisible, setWechatModalVisible] = useState(false);
+  const [forgotModalVisible, setForgotModalVisible] = useState(false);
+  const [smsCountdown, setSmsCountdown] = useState(0);
 
-  // Keep rememberMe in a ref so finishLogin closures don't go stale
-  const rememberMeRef = useRef(rememberMe);
-  rememberMeRef.current = rememberMe;
-
+  // SMS countdown timer
   useEffect(() => {
-    void readRememberMePreference().then(setRememberMe);
-  }, []);
-
-  const handleRememberMeChange = useCallback(async (value: boolean) => {
-    setRememberMe(value);
-    await writeRememberMePreference(value);
-  }, []);
+    if (smsCountdown <= 0) return;
+    const timer = setTimeout(() => setSmsCountdown((v) => v - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [smsCountdown]);
 
   /* ---- Shared login finish handler ---- */
   const finishLogin = useCallback(
     async (action: () => Promise<void>) => {
       setIsSubmitting(true);
-      setErrorMessage('');
-      setStatusMessage('正在登录...');
 
       try {
         await action();
-        setStatusMessage('登录成功，正在进入...');
+        showSuccessToast('登录成功，正在进入...');
         router.replace(COURSES_ROUTE);
       } catch (error) {
         const message =
@@ -88,12 +79,7 @@ export function LoginScreen() {
           error instanceof Error
             ? error.message
             : '登录失败，请稍后重试';
-        if (error instanceof ApiRequestError) {
-          setStatusMessage(`当前 API：${getApiHost()}`);
-        } else {
-          setStatusMessage('');
-        }
-        setErrorMessage(message);
+        showErrorToast(message);
       } finally {
         setIsSubmitting(false);
       }
@@ -101,122 +87,115 @@ export function LoginScreen() {
     [router],
   );
 
-  /* ---- Landing View Handlers ---- */
-  const handleReturningUser = useCallback(async () => {
-    try {
-      await checkSession(apiClient, null);
-      router.replace(COURSES_ROUTE);
-    } catch {
-      setViewMode('login');
-      setErrorMessage('登录已过期，请重新登录');
+  /* ---- Agreement guard ---- */
+  const requireAgreement = useCallback((): boolean => {
+    if (!agreed) {
+      showErrorToast('请先阅读并同意相关协议');
+      return false;
     }
-  }, [apiClient, router]);
+    return true;
+  }, [agreed]);
 
-  const handleNewUser = useCallback(() => {
-    setActiveTab('personal');
-    setViewMode('login');
-    setErrorMessage('');
-    setStatusMessage('');
-  }, []);
+  /* ---- SMS ---- */
+  const handleSendSms = useCallback(
+    async (phone: string) => {
+      try {
+        const result = await sendAccountSmsCode(apiClient, phone);
+        setSmsCountdown(result.expires_in || SMS_COOLDOWN);
+      } catch (err) {
+        showErrorToast(err instanceof Error ? err.message : '发送验证码失败');
+      }
+    },
+    [apiClient],
+  );
 
-  /* ---- Login View Handlers ---- */
-  const handleHomePress = useCallback(() => {
-    setViewMode('landing');
-    setErrorMessage('');
-    setStatusMessage('');
-  }, []);
-
+  /* ---- Family / Home login ---- */
   const handlePersonalSubmit = useCallback(
-    (phone: string, password: string) => {
-      const trimmedPhone = phone.trim();
-      const trimmedPassword = password.trim();
-      if (!trimmedPhone || !trimmedPassword) {
-        setErrorMessage('请输入手机号和密码');
+    (phone: string, credential: string, mode: HomePhoneLoginMethod) => {
+      if (!phone) {
+        showErrorToast('请输入手机号');
         return;
       }
+      if (!credential) {
+        showErrorToast(mode === 'sms' ? '请输入验证码' : '请输入密码');
+        return;
+      }
+      if (!requireAgreement()) return;
 
       void finishLogin(async () => {
-        const auth = await loginWithFrontpage(apiClient, {
-          mode: 'personal',
-          rememberMe: rememberMeRef.current,
-          payload: {
-            phone: trimmedPhone,
-            name: trimmedPassword,
-          },
+        const result = await loginHomePhone(apiClient, {
+          phone,
+          login_method: mode,
+          ...(mode === 'sms' ? { sms_code: credential } : { password: credential }),
         });
+        const auth = buildFtAuthFromHomeLogin(
+          result.token,
+          result.expires_in,
+          phone,
+          '',
+          true,
+        );
         await saveAuth(auth);
       });
     },
-    [apiClient, saveAuth, finishLogin],
+    [apiClient, saveAuth, finishLogin, requireAgreement],
   );
 
+  /* ---- School / Student login ---- */
   const handleSchoolSubmit = useCallback(
-    (school: string, className: string, studentName: string, schoolCode: string) => {
-      const s = school.trim();
-      const c = className.trim();
-      const n = studentName.trim();
-      const code = schoolCode.trim();
-      if (!s || !c || !n || !code) {
-        setErrorMessage('请完整填写学校、班级、姓名和密码');
+    (digitalId: string, password: string) => {
+      if (!digitalId) {
+        showErrorToast('请输入数字编号');
         return;
       }
+      if (!password) {
+        showErrorToast('请输入密码');
+        return;
+      }
+      if (!requireAgreement()) return;
 
       void finishLogin(async () => {
-        const auth = await loginWithFrontpage(apiClient, {
-          mode: 'school',
-          rememberMe: rememberMeRef.current,
-          payload: {
-            school: s,
-            class_name: c,
-            student_name: n,
-            school_code: code,
-          },
+        const result = await loginStudent(apiClient, {
+          digital_id: digitalId,
+          password,
         });
+        const auth = buildFtAuthFromStudentLogin(
+          result.token,
+          result.expires_in,
+          result.student.digital_id,
+          true,
+        );
         await saveAuth(auth);
       });
     },
-    [apiClient, saveAuth, finishLogin],
+    [apiClient, saveAuth, finishLogin, requireAgreement],
   );
 
-  const handleWechatLoginPress = useCallback(() => {
-    setWechatModalVisible(true);
+  /* ---- Forgot Password ---- */
+  const handleForgotPassword = useCallback(() => {
+    setForgotModalVisible(true);
   }, []);
 
-  const handleWechatLogin = useCallback(() => {
-    setWechatModalVisible(false);
-
-    void finishLogin(async () => {
-      const code = await requestWechatAuthCode();
-      const auth = await loginWithWechatCode(apiClient, code, rememberMeRef.current);
-      await saveAuth(auth);
-    });
-  }, [apiClient, saveAuth, finishLogin]);
-
-  /* ---- QR scan login callbacks ---- */
-  const handleQrLoginSuccess = useCallback(
-    async (auth: FtAuthRecord) => {
-      await saveAuth(auth);
-      setStatusMessage('扫码登录成功，正在进入...');
-      setErrorMessage('');
-      router.replace(COURSES_ROUTE);
+  const handleAgreementPress = useCallback(
+    (type: AgreementType) => {
+      router.push(`/(auth)/agreement?type=${type}` as Href);
     },
-    [saveAuth, router],
+    [router],
   );
 
-  const handleQrLoginError = useCallback((error: string) => {
-    setErrorMessage(error);
-  }, []);
-
-  const qrLogin = useWechatQrLogin(apiClient, {
-    rememberMe,
-    onLoginSuccess: handleQrLoginSuccess,
-    onLoginError: handleQrLoginError,
-  });
+  const handleForgotSubmit = useCallback(
+    async (digitalId: string): Promise<{ message: string }> => {
+      const result = await requestStudentPasswordReset(apiClient, digitalId);
+      return { message: result.message };
+    },
+    [apiClient],
+  );
 
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <View style={styles.page}>
         {/* Background image layer */}
         <Image
@@ -225,14 +204,14 @@ export function LoginScreen() {
           contentFit="cover"
         />
 
-        {/* Scrollable scene (matches web mobile: page overflow:auto, scene position:relative, min-height:100vh) */}
         <ScrollView
           style={styles.sceneScroll}
           contentContainerStyle={styles.sceneContent}
           bounces={false}
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={[styles.scene, { minHeight: windowHeight }]}>
-            {/* Logo — absolute within scene, matches web .brand */}
+            {/* Logo */}
             <Image
               source={loginImages.logo}
               style={[
@@ -241,46 +220,42 @@ export function LoginScreen() {
                   left: logoLeft,
                   top: logoTop,
                   height: logoHeight,
-                  // Estimate width from logo aspect ratio (~3.2:1)
                   width: logoHeight * 3.2,
                 },
               ]}
               contentFit="contain"
             />
 
-            {viewMode === 'landing' ? (
-              <LandingView
-                onReturningUser={handleReturningUser}
-                onNewUser={handleNewUser}
-                windowWidth={windowWidth}
-                windowHeight={windowHeight}
-                qrLogin={qrLogin}
-              />
-            ) : (
-              <LoginView
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                onHomePress={handleHomePress}
-                isDesktopLayout={isDesktopLayout}
-                isSubmitting={isSubmitting}
-                statusMessage={statusMessage}
-                errorMessage={errorMessage}
-                rememberMe={rememberMe}
-                onRememberMeChange={handleRememberMeChange}
-                onWechatLoginPress={handleWechatLoginPress}
-                onPersonalSubmit={handlePersonalSubmit}
-                onSchoolSubmit={handleSchoolSubmit}
-              />
-            )}
+            <Pressable
+              style={styles.teacherAuthButton}
+              onPress={() => router.push('/(auth)/teacher-auth' as Href)}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.teacherAuthButtonText}>老师注册 / 登录</Text>
+            </Pressable>
+
+            <LoginView
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              isDesktopLayout={isDesktopLayout}
+              isSubmitting={isSubmitting}
+              agreed={agreed}
+              onAgreementChange={setAgreed}
+              onAgreementPress={handleAgreementPress}
+              smsCountdown={smsCountdown}
+              onSendSms={handleSendSms}
+              onPersonalSubmit={handlePersonalSubmit}
+              onSchoolSubmit={handleSchoolSubmit}
+              onForgotPassword={handleForgotPassword}
+            />
           </View>
         </ScrollView>
       </View>
 
-      <WechatModal
-        visible={wechatModalVisible}
-        isSubmitting={isSubmitting}
-        onClose={() => setWechatModalVisible(false)}
-        onWechatLogin={handleWechatLogin}
+      <ForgotPasswordModal
+        visible={forgotModalVisible}
+        onClose={() => setForgotModalVisible(false)}
+        onSubmit={handleForgotSubmit}
       />
     </KeyboardAvoidingView>
   );
@@ -296,7 +271,11 @@ const styles = StyleSheet.create({
     backgroundColor: LoginColors.skyBg,
   },
   backgroundImage: {
-    ...StyleSheet.absoluteFill,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     width: '100%',
     height: '100%',
   },
@@ -313,5 +292,22 @@ const styles = StyleSheet.create({
   logoBase: {
     position: 'absolute',
     zIndex: 5,
+  },
+  teacherAuthButton: {
+    position: 'absolute',
+    right: 24,
+    top: 36,
+    zIndex: 6,
+    backgroundColor: LoginColors.secondaryBg,
+    borderWidth: 1,
+    borderColor: LoginColors.secondaryBorder,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  teacherAuthButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: LoginColors.secondaryText,
   },
 });

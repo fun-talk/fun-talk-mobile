@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  buildFtAuthFromAccountSession,
   buildFtAuthFromCheckResponse,
   buildFtAuthFromLoginResponse,
+  buildFtAuthFromTeacherLogin,
 } from './session';
 
 describe('auth session mapping', () => {
@@ -50,5 +52,75 @@ describe('auth session mapping', () => {
     assert.equal(auth.token, 'new-token');
     assert.equal(auth.username, '小红');
     assert.equal(auth.persistent, false);
+  });
+
+  it('maps teacher login response into FtAuthRecord with role metadata', () => {
+    const auth = buildFtAuthFromTeacherLogin(
+      'teacher-token',
+      3600,
+      {
+        id: 7,
+        phone: '13900000000',
+        display_name: '李老师',
+        role: 'admin',
+        school_name: '阳光小学',
+        is_admin: true,
+      },
+      true,
+    );
+
+    assert.equal(auth.userId, '7');
+    assert.equal(auth.token, 'teacher-token');
+    assert.equal(auth.username, '李老师');
+    assert.equal(auth.authType, 'teacher');
+    assert.equal(auth.accountType, 'teacher_account');
+    assert.equal(auth.teacherRole, 'admin');
+    assert.equal(auth.isAdmin, true);
+    assert.equal(auth.schoolName, '阳光小学');
+    assert.equal(auth.teacherProfileRequired, false);
+  });
+
+  it('preserves teacher profile completion requirement from login response', () => {
+    const auth = buildFtAuthFromTeacherLogin(
+      'teacher-token',
+      3600,
+      {
+        id: 9,
+        phone: '13900000001',
+        display_name: '老师0001',
+        role: 'admin',
+        school_name: '',
+        is_admin: true,
+        profile_required: true,
+      },
+      true,
+    );
+
+    assert.equal(auth.teacherProfileRequired, true);
+  });
+
+  it('restores teacher account session without dropping the existing token', () => {
+    const auth = buildFtAuthFromAccountSession(
+      'teacher',
+      undefined,
+      undefined,
+      { token: 'stored-token', persistent: true },
+      {
+        id: 8,
+        phone: '13800000000',
+        display_name: '王老师',
+        role: 'teacher',
+        school_name: '未来学校',
+        is_admin: false,
+      },
+    );
+
+    assert.equal(auth.userId, '8');
+    assert.equal(auth.token, 'stored-token');
+    assert.equal(auth.authType, 'teacher');
+    assert.equal(auth.teacherRole, 'teacher');
+    assert.equal(auth.isAdmin, false);
+    assert.equal(auth.schoolName, '未来学校');
+    assert.equal(auth.teacherProfileRequired, false);
   });
 });

@@ -754,7 +754,6 @@ export function LoginView({
           {/* Agreement footer */}
           <View style={styles.agreement}>
             <Text style={styles.agreementText}>
-              登录即表示同意
               <Text style={styles.agreementLink}>《用户协议》</Text>
               <Text style={styles.agreementLink}>《隐私政策》</Text>
               <Text style={styles.agreementLink}>《儿童隐私保护声明》</Text>

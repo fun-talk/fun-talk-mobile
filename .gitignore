@@ -51,3 +51,7 @@ example
 /fun-talk-web
 /fun-talk-web_backup
 /fun-talk-server
+
+# playwright
+.playwright-cli
+/output

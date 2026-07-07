@@ -7,6 +7,7 @@ import {
   getCourseMapHeight,
   getCoursePosition,
   getPublishedLessons,
+  MAP_BOTTOM_ACTION_SPACE,
   MAP_SEGMENT_HEIGHT,
 } from './courseHomeMap';
 
@@ -28,8 +29,8 @@ describe('courseHomeMap', () => {
   it('extends the map vertically after the base path is full', () => {
     assert.deepEqual(getCoursePosition(22), { x: 2575, y: 1940 });
     assert.deepEqual(getCoursePosition(23), { x: 925, y: 700 + MAP_SEGMENT_HEIGHT });
-    assert.equal(getCourseMapHeight(23), MAP_SEGMENT_HEIGHT);
-    assert.equal(getCourseMapHeight(24), MAP_SEGMENT_HEIGHT * 2);
+    assert.equal(getCourseMapHeight(23), MAP_SEGMENT_HEIGHT + MAP_BOTTOM_ACTION_SPACE);
+    assert.equal(getCourseMapHeight(24), MAP_SEGMENT_HEIGHT * 2 + MAP_BOTTOM_ACTION_SPACE);
   });
 
   it('builds sequential course nodes while preserving backend lesson ids', () => {
