@@ -1,7 +1,6 @@
 import { Image, type ImageSource } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { localImage } from '@/lib/assets/localImage';
 import type { RecordingControllerState } from '../recordingController';
 
 type FreeChatPanelProps = {
@@ -10,7 +9,7 @@ type FreeChatPanelProps = {
 };
 
 const freeChatImages = {
-  mic: localImage(require('@/assets/images/lesson/mic_icon.png')),
+  mic: require('@/assets/images/lesson/mic_icon.png') as ImageSource,
 };
 
 function getFreeChatStatusText(state: RecordingControllerState): string {

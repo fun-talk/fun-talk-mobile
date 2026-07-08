@@ -15,7 +15,6 @@ import type { WebViewNavigation } from 'react-native-webview/lib/WebViewTypes';
 import { useAuth } from '@/features/auth';
 import { getApiHost, getWebBaseUrl } from '@/lib/env';
 import { getDeviceID } from '@/lib/device/deviceId';
-import { mergeAuthRecord } from '@/lib/auth/session';
 
 import {
   buildLessonWebDestination,
@@ -130,7 +129,7 @@ export function LessonWebViewScreen() {
           if (!auth) {
             return;
           }
-          await saveAuth(mergeAuthRecord(auth, update.patch));
+          await saveAuth({ ...auth, ...update.patch });
         }
         return;
       }

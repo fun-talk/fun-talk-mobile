@@ -2,8 +2,6 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
-import { rewriteHostForRuntime } from '@/lib/devHost';
-
 const DEFAULT_API_HOST = 'http://localhost:9000';
 const DEFAULT_WEB_BASE_URL = 'http://localhost:19001';
 const DEFAULT_OSS_BASE_URL = 'https://fun-talk-file.oss-cn-beijing.aliyuncs.com';
@@ -51,7 +49,14 @@ function readPublicEnv(key: PublicEnvKey): string | undefined {
 
 function resolveRuntimeHost(configured: string | undefined, fallback: string): string {
   const host = configured ?? fallback;
-  return rewriteHostForRuntime(host, Platform.OS, Device.isDevice);
+  // ponytail: rewrites 10.0.2.2 → localhost except on Android emulators
+  if (!host.includes('10.0.2.2')) {
+    return host;
+  }
+  if (Platform.OS === 'android' && !Device.isDevice) {
+    return host;
+  }
+  return host.replaceAll('10.0.2.2', 'localhost');
 }
 
 export function getApiHost(): string {

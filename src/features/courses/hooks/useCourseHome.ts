@@ -7,6 +7,7 @@ import type { FtAuthRecord } from '@/lib/auth/types';
 import {
   buildCourseMapNodes,
   getCourseMapHeight,
+  getPublishedLessons,
   type CourseHomeLesson,
   type CourseMapNode,
 } from '@/shared/courseHomeMap';
@@ -22,7 +23,22 @@ import {
 import { getWebBaseUrl } from '@/lib/env';
 
 import { computeMapPixelHeight } from '../layout/courseHomeLayout';
-import { fetchPublishedLessons, postLogout } from '../services/courseHomeApi';
+
+async function fetchPublishedLessons(apiClient: ApiClient): Promise<CourseHomeLesson[]> {
+  const response = await apiClient.get('/api/v1/realtime_lessons?published_only=1');
+  if (!response.ok) {
+    throw new Error(`load realtime lessons failed: ${response.status}`);
+  }
+  const payload = (await response.json()) as { lessons?: CourseHomeLesson[] };
+  return getPublishedLessons(Array.isArray(payload.lessons) ? payload.lessons : []);
+}
+
+async function postLogout(apiClient: ApiClient): Promise<void> {
+  const response = await apiClient.post('/api/v1/logout');
+  if (!response.ok) {
+    console.warn('logout failed:', response.status);
+  }
+}
 
 const LESSON_ROUTE = '/(app)/lesson';
 const LOGIN_ROUTE = '/(auth)/login' as Href;

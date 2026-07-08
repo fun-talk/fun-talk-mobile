@@ -1,8 +1,8 @@
 import { Image } from 'expo-image';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import Animated, {
   Easing,
@@ -22,7 +22,6 @@ import { CourseMapBackground } from './CourseMapBackground';
 import { CourseNode } from './CourseNode';
 import { CourseToolbar } from './CourseToolbar';
 import { useCourseHome } from '../hooks/useCourseHome';
-import { useLogoutTimer } from '../hooks/useLogoutTimer';
 import {
   clampByViewport,
   computeContinueWidth,
@@ -70,11 +69,39 @@ export function CourseHomeScreen() {
     viewportHeight: height,
   });
 
-  const onForceLogout = useCallback(() => {
-    void handleLogout();
-  }, [handleLogout]);
+  // ponytail: inlined useLogoutTimer — polls /api/v1/should_logout every 60s
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const response = await apiClient.get('/api/v1/should_logout');
+        if (response.ok) {
+          const payload = (await response.json()) as { logout?: boolean };
+          if (payload.logout) {
+            void handleLogout();
+          }
+        }
+      } catch {
+        // network error → ignore
+      }
+    };
 
-  useLogoutTimer(apiClient, onForceLogout);
+    void check();
+    timerRef.current = setInterval(check, 60_000);
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void check();
+      }
+    });
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      subscription.remove();
+    };
+  }, [apiClient, handleLogout]);
 
   useFocusEffect(
     useCallback(() => {

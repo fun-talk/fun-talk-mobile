@@ -250,10 +250,3 @@ export function buildFtAuthFromAccountSession(
     logo: previous?.logo || '',
   };
 }
-
-export function mergeAuthRecord(
-  base: FtAuthRecord,
-  patch: Partial<FtAuthRecord>,
-): FtAuthRecord {
-  return { ...base, ...patch };
-}

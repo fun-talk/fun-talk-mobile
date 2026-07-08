@@ -2,7 +2,6 @@ import type { ApiClient } from '@/lib/api/client';
 
 import { normalizeRouteParam } from './buildLessonWebUrl';
 import { NativeLessonUnsupportedError } from './nativeLessonErrors';
-import { assertNativeLessonSupported } from './nativeLessonSupport';
 import type { LessonModeRouteParams } from './lessonMode';
 import type {
   NativeLessonChallenge,
@@ -188,6 +187,22 @@ export function buildNativeRealtimeLessonPath(
     search.set('lesson_id', request.lessonId?.trim() || '413');
   }
   return `/api/v1/realtime_lesson?${search.toString()}`;
+}
+
+function assertNativeLessonSupported(lesson: NativeLessonDefinition): void {
+  const sections = [lesson.story, lesson.teaching] as const;
+  const hasContent = sections.some(
+    (section) => section.enabled !== false && Array.isArray(section.segments) && section.segments.length > 0,
+  );
+  const hasChallenge = lesson.summary.stepCount > 0;
+  const hasFreeChat = Object.keys(lesson.freeChatBridges).length > 0;
+
+  if (!hasContent && !hasChallenge && !hasFreeChat) {
+    throw new NativeLessonUnsupportedError(
+      'empty_lesson_content',
+      '这节课没有可渲染的 story、teaching、challenge 或 free chat 内容。',
+    );
+  }
 }
 
 export function normalizeNativeLessonDefinition(rawLesson: unknown): NativeLessonDefinition {

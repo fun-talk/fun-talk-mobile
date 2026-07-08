@@ -6,7 +6,7 @@ import {
   reduceRecordingController,
 } from '../recordingController';
 import type { SimpleVadConfig } from '../simpleVad';
-import { loadNativeExpoAv } from '../nativeExpoAv';
+import { Audio } from 'expo-av';
 
 type NativeRecordingStatus = {
   isRecording?: boolean;
@@ -52,7 +52,6 @@ export function useNativeLessonRecording(options?: UseNativeLessonRecordingOptio
 
   const start = useCallback(async () => {
     try {
-      const { Audio } = await loadNativeExpoAv();
       const permission = await Audio.requestPermissionsAsync();
       if (!permission.granted) {
         dispatch({ type: 'permission_denied' });

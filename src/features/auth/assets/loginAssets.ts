@@ -1,5 +1,4 @@
 import type { ImageSource } from 'expo-image';
-import { localImage } from '@/lib/assets/localImage';
 import { resolveOssAsset } from '@/lib/assets/ossAssets';
 
 /**
@@ -18,7 +17,7 @@ export const loginImages = {
   /** Brand logo — same OSS asset as web FoxAvatar. */
   logo: resolveOssAsset('images/uploads/2026/06/22/login-logo-180818.png') as unknown as ImageSource,
   /** Landing page fox mascot (local). */
-  foxLogin: localImage(require('@/assets/images/login/fox-login.png')),
+  foxLogin: require('@/assets/images/login/fox-login.png') as ImageSource,
   /** Register page fox mascot (local). */
-  foxRegister: localImage(require('@/assets/images/login/fox-register.png')),
+  foxRegister: require('@/assets/images/login/fox-register.png') as ImageSource,
 } as const satisfies Record<string, ImageSource>;

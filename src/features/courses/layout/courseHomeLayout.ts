@@ -32,10 +32,6 @@ export function computeBackgroundTileCount(viewportWidth: number, totalHeight: n
   return Math.max(1, Math.ceil(totalHeight / tileHeight));
 }
 
-export function computeNodeWidth(viewportWidth: number): number {
-  return Math.max(62, viewportWidth * 0.0662);
-}
-
 export function computeFoxWidth(viewportWidth: number): number {
   return Math.max(70, viewportWidth * 0.0656);
 }
