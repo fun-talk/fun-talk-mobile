@@ -12,7 +12,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./icons/png216x216.png",
-      "bundleIdentifier": "com.anonymous.funtalkmobile",
+      "bundleIdentifier": "com.aifuntalk.funtalk",
       "requireFullScreen": true,
       "associatedDomains": [
         "applinks:ai-fun-talk.com",

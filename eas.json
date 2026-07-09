@@ -13,10 +13,18 @@
       "environment": "production"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "distribution": "store"
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6788751611",
+        "ascApiKeyPath": "./AuthKey_L57J5MPQ9G.p8",
+        "ascApiKeyId": "L57J5MPQ9G",
+        "ascApiKeyIssuerId": "918cf805-7b46-40e0-b764-17130ea52ef8"
+      }
+    }
   }
 }
