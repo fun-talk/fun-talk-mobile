@@ -19,7 +19,8 @@ Phase 5 loads the existing FunTalk web lesson inside `react-native-webview`. Thi
 
 ## Microphone / Camera
 
-- Android/iOS require OS permissions (`RECORD_AUDIO`, etc.) plus WebView `onPermissionRequest` grants.
+- Android/iOS require OS permissions (`RECORD_AUDIO`, etc.) plus WebView media-capture grants.
+- Android auto-grants via `onPermissionRequest`; iOS uses `mediaCapturePermissionGrantType="grant"` so WKWebView does not re-prompt on every `getUserMedia` (follow-up / free chat reopen the mic each turn).
 - Real-device testing is required; emulators often have unreliable microphone capture.
 - Bluetooth headsets and silent-mode behavior vary by OEM WebView.
 

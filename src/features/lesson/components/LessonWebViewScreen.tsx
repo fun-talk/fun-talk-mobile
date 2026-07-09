@@ -192,6 +192,16 @@ export function LessonWebViewScreen() {
         }
       : {};
 
+  // iOS WKWebView defaults to `prompt`, which re-asks on every getUserMedia
+  // (follow-up / free chat reopen the mic each turn). Auto-grant once OS
+  // microphone permission is already approved, matching Android behavior.
+  const iosWebViewProps =
+    Platform.OS === 'ios'
+      ? {
+          mediaCapturePermissionGrantType: 'grant' as const,
+        }
+      : {};
+
   if (!auth?.token) {
     return (
       <View style={styles.centered}>
@@ -261,6 +271,7 @@ export function LessonWebViewScreen() {
           </View>
         )}
         {...androidWebViewProps}
+        {...iosWebViewProps}
       />
     </View>
   );
