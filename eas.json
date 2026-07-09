@@ -15,6 +15,13 @@
     "production": {
       "autoIncrement": true,
       "distribution": "store"
+    },
+    "adhoc": {
+      "autoIncrement": true,
+      "distribution": "internal",
+      "ios": {
+        "credentialsSource": "remote"
+      }
     }
   },
   "submit": {

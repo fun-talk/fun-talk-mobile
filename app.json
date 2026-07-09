@@ -13,6 +13,7 @@
     "ios": {
       "icon": "./icons/png216x216.png",
       "bundleIdentifier": "com.aifuntalk.funtalk",
+      "supportsTablet": true,
       "requireFullScreen": true,
       "associatedDomains": [
         "applinks:ai-fun-talk.com",
