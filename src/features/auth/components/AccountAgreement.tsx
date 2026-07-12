@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
 
 import type { AgreementType } from '../data/agreements';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
@@ -16,6 +17,16 @@ export function AccountAgreement({
   onAgreementPress,
   disabled = false,
 }: AccountAgreementProps) {
+  const router = useRouter();
+
+  const openAgreement = (type: AgreementType) => {
+    if (onAgreementPress) {
+      onAgreementPress(type);
+      return;
+    }
+    router.push(`/(auth)/agreement?type=${type}` as Href);
+  };
+
   return (
     <View style={styles.row}>
       <Pressable
@@ -31,7 +42,7 @@ export function AccountAgreement({
         我已阅读并同意
         <Text
           style={styles.link}
-          onPress={() => onAgreementPress?.('user')}
+          onPress={() => openAgreement('user')}
           accessibilityRole="link"
         >
           《用户协议》
@@ -39,7 +50,7 @@ export function AccountAgreement({
         、
         <Text
           style={styles.link}
-          onPress={() => onAgreementPress?.('privacy')}
+          onPress={() => openAgreement('privacy')}
           accessibilityRole="link"
         >
           《隐私协议》
@@ -47,7 +58,7 @@ export function AccountAgreement({
         和
         <Text
           style={styles.link}
-          onPress={() => onAgreementPress?.('children')}
+          onPress={() => openAgreement('children')}
           accessibilityRole="link"
         >
           《儿童隐私政策》
