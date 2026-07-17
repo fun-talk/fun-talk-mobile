@@ -361,6 +361,11 @@ export async function fetchAccountSession(
   return data as AccountSession;
 }
 
+export async function deleteAccount(apiClient: ApiClient): Promise<void> {
+  const response = await apiClient.request('/account/v1/account', { method: 'DELETE' });
+  if (!response.ok) throw new Error(await readError(response));
+}
+
 /* ================================================================
  *  Teacher / admin console
  * ================================================================ */

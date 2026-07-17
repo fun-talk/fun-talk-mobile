@@ -27,6 +27,7 @@ import {
   bindStudentPhone,
   changeHomePassword,
   changeStudentPassword,
+  deleteAccount,
   fetchAccountSession,
   fetchHomeProfile,
   fetchStudentProfile,
@@ -40,7 +41,7 @@ import {
   type StudentProfile,
 } from '../services/accountApi';
 
-type ProfileView = 'student' | 'home';
+type ProfileView = 'teacher' | 'student' | 'home';
 
 const COURSES_ROUTE = '/(app)/courses' as Href;
 const SMS_COOLDOWN = 60;
@@ -99,6 +100,7 @@ export function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [profileView, setProfileView] = useState<ProfileView | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Student profile
   const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null);
@@ -166,16 +168,14 @@ export function ProfileScreen() {
       try {
         const session = await fetchAccountSession(apiClient);
         if (cancelled) return;
-        if (session.account_type !== 'student' && session.account_type !== 'home') {
-          router.replace(COURSES_ROUTE);
-          return;
-        }
         if (session.account_type === 'student') {
           setProfileView('student');
           await loadStudentProfile();
-        } else {
+        } else if (session.account_type === 'home') {
           setProfileView('home');
           await loadHomeProfile();
+        } else {
+          setProfileView('teacher');
         }
       } catch {
         if (!cancelled) router.replace(COURSES_ROUTE);
@@ -191,6 +191,37 @@ export function ProfileScreen() {
     setIsLoggingOut(true);
     await logout();
     router.replace('/(auth)/login' as Href);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      '永久删除账号？',
+      '账号、个人资料和学习记录将被永久删除，且无法恢复。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '永久删除',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              await deleteAccount(apiClient);
+              Alert.alert('账号已删除', '你的账号和相关数据已永久删除。', [
+                {
+                  text: '确定',
+                  onPress: () => {
+                    void logout().then(() => router.replace('/(auth)/login' as Href));
+                  },
+                },
+              ]);
+            } catch (err) {
+              setIsDeleting(false);
+              showErrorToast(err instanceof Error ? err.message : '删除账号失败');
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleSendSms = async (phone: string, setCountdown: (v: number) => void) => {
@@ -319,11 +350,12 @@ try {
 
   const isHomeView = profileView === 'home';
   const isStudentView = profileView === 'student';
+  const isTeacherView = profileView === 'teacher';
   const hasPhoneBound = isHomeView
     ? Boolean(homeProfile?.has_phone)
     : Boolean(studentProfile?.has_phone_bound);
   const homeChildren = homeProfile?.children ?? [];
-  const title = isHomeView ? '家庭个人中心' : isStudentView ? '学生个人中心' : '个人中心';
+  const title = isHomeView ? '家庭个人中心' : isStudentView ? '学生个人中心' : '老师个人中心';
 
   if (loading) {
     return <ProfileSkeletonScreen topPadding={insets.top + 20} />;
@@ -362,7 +394,7 @@ try {
         </View>
 
         {/* Two-column grid — web .account-profile-grid */}
-        <View style={styles.profileGrid}>
+        {!isTeacherView ? <View style={styles.profileGrid}>
           {/* ===== LEFT: Account Info ===== */}
           <View style={styles.panel}>
             <Text style={styles.sectionTitle}>{isHomeView ? '家庭账号' : '我的个人信息'}</Text>
@@ -517,6 +549,20 @@ try {
               <Text style={styles.infoBoxBlueText}>绑定后默认互相绑定，学校和家长都可以查看该学生的全部学习记录。</Text>
             </View>
           </View>
+        </View> : null}
+
+        <View style={[styles.panel, styles.dangerPanel]}>
+          <Text style={styles.sectionTitle}>删除账号</Text>
+          <Text style={styles.dangerHint}>永久删除账号、个人资料和学习记录。此操作无法撤销。</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="永久删除账号"
+            style={[styles.deleteBtn, isDeleting && styles.disabled]}
+            onPress={handleDeleteAccount}
+            disabled={isDeleting}
+          >
+            {isDeleting ? <ActivityIndicator color={LoginColors.white} size="small" /> : <Text style={styles.deleteBtnText}>永久删除账号</Text>}
+          </Pressable>
         </View>
       </ScrollView>
 
@@ -609,6 +655,10 @@ const styles = StyleSheet.create({
   inlineBtn: { borderWidth: 0, backgroundColor: 'transparent', paddingVertical: 4, paddingHorizontal: 8 },
   inlineBtnText: { fontSize: LoginSizes.noteFontSize, fontWeight: LoginWeights.bold, color: LoginColors.blueSchool },
   unbindText: { color: LoginColors.errorText },
+  dangerPanel: { marginTop: 24, borderColor: LoginColors.errorText },
+  dangerHint: { fontSize: LoginSizes.captionFontSize, color: LoginColors.textMuted, lineHeight: 20, marginBottom: 16 },
+  deleteBtn: { minHeight: 44, borderRadius: LoginSizes.btnBorderRadius, backgroundColor: LoginColors.errorText, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  deleteBtnText: { color: LoginColors.white, fontWeight: LoginWeights.extraBold },
 
   /* ── Info box blue (web .account-info-box-blue) ── */
   infoBoxBlue: { backgroundColor: LoginColors.infoBlueBg, borderWidth: 1, borderColor: LoginColors.infoBlueBorder, borderRadius: LoginSizes.infoBoxRadius, paddingVertical: LoginSizes.infoBoxPaddingV, paddingHorizontal: LoginSizes.infoBoxPaddingH, marginTop: 20 },

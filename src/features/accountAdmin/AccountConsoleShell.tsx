@@ -20,6 +20,7 @@ type AccountConsoleShellProps = {
 
 const ADMIN_STUDENTS_ROUTE = '/(app)/account/admin/students';
 const ADMIN_SCHOOLS_ROUTE = '/(app)/account/admin/schools';
+const PROFILE_ROUTE = '/(app)/profile';
 
 export function AccountConsoleShell({ title, active, children }: AccountConsoleShellProps) {
   const router = useRouter();
@@ -83,6 +84,9 @@ export function AccountConsoleShell({ title, active, children }: AccountConsoleS
             {auth?.username || auth?.phone || '教师账号'} ({isAdmin ? '管理员' : '老师'})
           </Text>
           <View style={styles.footerActions}>
+            <Pressable onPress={() => router.push(PROFILE_ROUTE as Href)}>
+              <Text style={styles.linkBtn}>{collapsedSidebar ? '账号' : '个人中心'}</Text>
+            </Pressable>
             <Pressable onPress={handleLogout}>
               <Text style={styles.linkBtn}>{collapsedSidebar ? '退出' : '退出登录'}</Text>
             </Pressable>
