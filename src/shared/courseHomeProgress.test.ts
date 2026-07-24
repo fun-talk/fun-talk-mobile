@@ -7,6 +7,7 @@ import { createMemoryStorage } from '@/lib/storage/asyncStorage';
 import {
   COURSE_HOME_PROGRESS_KEY,
   fetchCourseHomeProgress,
+  fetchLearningRecords,
   markCourseHomeCourseCompleted,
   parseStoredCourseProgress,
   readCourseProgress,
@@ -72,6 +73,31 @@ describe('course home progress', () => {
         completedCourseNumbers: [1, 2],
         currentCourseNumber: 3,
       });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('loads completed learning records in newest-first order', async () => {
+    const apiClient = createApiClient({
+      baseUrl: 'http://localhost:9000',
+      getDeviceId: async () => 'test-device',
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      Response.json({
+        records: [
+          { course_number: 1, lesson_id: '12', status: 'completed', completed_at: 100 },
+          { course_number: 2, lesson_id: '13', status: 'started', completed_at: 200 },
+          { course_number: 3, lesson_id: '15', status: 'completed', completed_at: 300 },
+        ],
+      });
+
+    try {
+      assert.deepEqual(await fetchLearningRecords(apiClient), [
+        { courseNumber: 3, lessonId: '15', completedAt: 300 },
+        { courseNumber: 1, lessonId: '12', completedAt: 100 },
+      ]);
     } finally {
       globalThis.fetch = originalFetch;
     }

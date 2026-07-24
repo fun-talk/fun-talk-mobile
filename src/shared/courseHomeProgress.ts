@@ -13,6 +13,20 @@ export type CourseProgress = {
 type CourseProgressApiResponse = {
   completed_course_numbers?: number[];
   current_course_number?: number;
+  records?: CourseProgressApiRecord[];
+};
+
+type CourseProgressApiRecord = {
+  course_number?: number;
+  lesson_id?: string;
+  status?: string;
+  completed_at?: number;
+};
+
+export type LearningRecord = {
+  courseNumber: number;
+  lessonId: string;
+  completedAt: number;
 };
 
 export function parseStoredCourseProgress(
@@ -155,6 +169,31 @@ export async function fetchCourseHomeProgress(
   );
   await writeCourseProgress(progress, storage);
   return progress;
+}
+
+export async function fetchLearningRecords(
+  apiClient: ApiClient,
+): Promise<LearningRecord[]> {
+  const response = await apiClient.get('/api/v1/course_progress');
+  if (!response.ok) {
+    throw new Error(`load learning records failed: ${response.status}`);
+  }
+
+  const payload = (await response.json()) as CourseProgressApiResponse;
+  return (payload.records || [])
+    .filter(
+      (record) =>
+        record.status === 'completed' &&
+        Number.isInteger(record.course_number) &&
+        Number(record.course_number) >= 1 &&
+        Number(record.completed_at) > 0,
+    )
+    .map((record) => ({
+      courseNumber: Number(record.course_number),
+      lessonId: String(record.lesson_id || ''),
+      completedAt: Number(record.completed_at),
+    }))
+    .sort((left, right) => right.completedAt - left.completedAt);
 }
 
 export async function saveCourseHomeCourseCompleted(

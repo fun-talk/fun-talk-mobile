@@ -31,6 +31,7 @@ import {
 } from '../layout/courseHomeLayout';
 
 const PROFILE_ROUTE = '/(app)/profile' as Href;
+const STUDY_REPORT_ROUTE = '/(app)/study-report' as Href;
 const REVIEW_TIP_Y = 353;
 
 export function CourseHomeScreen() {
@@ -325,6 +326,7 @@ export function CourseHomeScreen() {
         onLogout={() => {
           void handleLogout();
         }}
+        onReportPress={() => router.push(STUDY_REPORT_ROUTE)}
         onProfilePress={() => router.push(PROFILE_ROUTE)}
       />
 
