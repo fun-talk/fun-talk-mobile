@@ -451,7 +451,7 @@ try {
 
             {/* Password change */}
             <View style={styles.subSection}>
-              <Text style={styles.subTitle}>更改密码</Text>
+              <Text style={styles.subTitle}>设定/更改密码</Text>
               <View style={styles.field}>
                 <Text style={styles.label}>新密码</Text>
                 <View style={styles.inputWrapper}>
@@ -472,7 +472,7 @@ try {
 
           {/* ===== RIGHT: Binding ===== */}
           <View style={styles.panel}>
-            <Text style={styles.sectionTitle}>{isHomeView ? '我的孩子' : '学校账号与家庭账号绑定'}</Text>
+            <Text style={styles.sectionTitle}>{isHomeView ? '学校账号' : '学校账号与家庭账号绑定'}</Text>
 
             {isHomeView ? (
               <>
