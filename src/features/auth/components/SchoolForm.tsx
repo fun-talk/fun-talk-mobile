@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
+import { PasswordVisibilityIcon } from './PasswordVisibilityIcon';
 
 type SchoolFormProps = {
   isSubmitting: boolean;
@@ -56,10 +57,12 @@ export function SchoolForm({ isSubmitting, onSubmit, onForgotPassword }: SchoolF
           />
           <Pressable
             style={styles.eyeBtn}
+            accessibilityRole="button"
+            accessibilityLabel={showPassword ? '隐藏密码' : '显示密码'}
             onPress={() => setShowPassword(!showPassword)}
             hitSlop={8}
           >
-            <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '🙈'}</Text>
+            <PasswordVisibilityIcon visible={showPassword} />
           </Pressable>
         </View>
 
@@ -145,10 +148,6 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     justifyContent: 'center',
-  },
-  eyeIcon: {
-    fontSize: 18,
-    color: LoginColors.inputPlaceholder,
   },
 
   /* ── Forgot password (web .account-forgot-row .account-forgot-inline) ── */

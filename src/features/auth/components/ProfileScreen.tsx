@@ -20,6 +20,7 @@ import { loginImages } from '../assets/loginAssets';
 import { showErrorToast, showSuccessToast } from '@/lib/toast';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
 import { BindConfirmModal } from './BindConfirmModal';
+import { PasswordVisibilityIcon } from './PasswordVisibilityIcon';
 import { validatePasswordPair } from '../passwordPolicy';
 import {
   bindHomePhone,
@@ -456,14 +457,28 @@ try {
                 <Text style={styles.label}>新密码</Text>
                 <View style={styles.inputWrapper}>
                   <TextInput style={[styles.input, styles.inputWithIcon]} value={newPassword} onChangeText={setNewPassword} placeholder="至少 8 位，包含字母和数字" placeholderTextColor={LoginColors.inputPlaceholder} secureTextEntry={!showNewPassword} />
-                  <Pressable style={styles.eyeBtn} onPress={() => setShowNewPassword(!showNewPassword)}><Text style={styles.eyeIcon}>{showNewPassword ? '👁️' : '🙈'}</Text></Pressable>
+                  <Pressable
+                    style={styles.eyeBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={showNewPassword ? '隐藏密码' : '显示密码'}
+                    onPress={() => setShowNewPassword(!showNewPassword)}
+                  >
+                    <PasswordVisibilityIcon visible={showNewPassword} />
+                  </Pressable>
                 </View>
               </View>
               <View style={styles.field}>
                 <Text style={styles.label}>确认密码</Text>
                 <View style={styles.inputWrapper}>
                   <TextInput style={[styles.input, styles.inputWithIcon]} value={confirmPassword} onChangeText={setConfirmPassword} placeholder="请再次输入" placeholderTextColor={LoginColors.inputPlaceholder} secureTextEntry={!showConfirmPassword} />
-                  <Pressable style={styles.eyeBtn} onPress={() => setShowConfirmPassword(!showConfirmPassword)}><Text style={styles.eyeIcon}>{showConfirmPassword ? '👁️' : '🙈'}</Text></Pressable>
+                  <Pressable
+                    style={styles.eyeBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={showConfirmPassword ? '隐藏密码' : '显示密码'}
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    <PasswordVisibilityIcon visible={showConfirmPassword} />
+                  </Pressable>
                 </View>
               </View>
               <SubmitBtn onPress={handlePasswordSave} disabled={savingPassword} label={savingPassword ? '提交中...' : '修改密码'} />
@@ -618,7 +633,6 @@ const styles = StyleSheet.create({
   readonlyText: { fontSize: LoginSizes.inputFontSize, color: LoginColors.inputReadonlyText, fontWeight: '600' },
   hint: { fontSize: LoginSizes.captionFontSize, color: LoginColors.textMuted, fontWeight: '500', marginTop: 10, lineHeight: 19 },
   eyeBtn: { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
-  eyeIcon: { fontSize: 18, color: LoginColors.inputPlaceholder },
 
   /* ── SMS button ── */
   smsBtn: { position: 'absolute', right: 4, top: 4, bottom: 4, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12, borderRadius: 11, backgroundColor: LoginColors.primaryStart },
@@ -656,7 +670,7 @@ const styles = StyleSheet.create({
   inlineBtnText: { fontSize: LoginSizes.noteFontSize, fontWeight: LoginWeights.bold, color: LoginColors.blueSchool },
   unbindText: { color: LoginColors.errorText },
   dangerPanel: { marginTop: 24, borderColor: LoginColors.errorText },
-  dangerHint: { fontSize: LoginSizes.captionFontSize, color: LoginColors.textMuted, lineHeight: 20, marginBottom: 16 },
+  dangerHint: { fontSize: LoginSizes.captionFontSize, color: LoginColors.textMuted, lineHeight: 20, marginBottom: 16, textAlign: 'left' },
   deleteBtn: { minHeight: 44, borderRadius: LoginSizes.btnBorderRadius, backgroundColor: LoginColors.errorText, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   deleteBtnText: { color: LoginColors.white, fontWeight: LoginWeights.extraBold },
 
