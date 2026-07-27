@@ -9,7 +9,8 @@ function joinOssPath(path: string): string {
 /** Remote-only assets hosted on OSS (large backgrounds, lesson media, etc.). */
 export const ossAssets = {
   images: {
-    homeBackground: joinOssPath('images/home/background.png'),
+    homeBackground: joinOssPath('images/home/course-hall-background-765629c539ed.png?v=765629c539ed'),
+    homePath: joinOssPath('images/home/course-hall-path-cc1f7e68abd6.png'),
     loginBackground: joinOssPath('images/login/background.png'),
     /** Web PR#179 login background — same asset as web AccountBackground. */
     loginBackgroundV1: joinOssPath('images/uploads/2026/06/22/login-background-180932.png'),

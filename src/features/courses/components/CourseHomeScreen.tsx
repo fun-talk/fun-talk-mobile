@@ -14,7 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { useAuth } from '@/features/auth';
-import { MAP_WIDTH } from '@/shared/courseHomeMap';
+import { getCourseMapSegmentCount, MAP_WIDTH } from '@/shared/courseHomeMap';
 
 import { courseHomeImages } from '../assets/courseHomeAssets';
 import { CourseEnterLoadingOverlay, CourseHomeLoadingState } from './CourseEnterLoadingOverlay';
@@ -115,6 +115,7 @@ export function CourseHomeScreen() {
     : lessonLoadFailed
       ? '课程加载失败，请稍后重试'
       : `共 ${totalCourses} 节课程`;
+  const mapSegmentCount = getCourseMapSegmentCount(totalCourses);
 
   const continueWidth = computeContinueWidth(width);
   const tipWidth = computeTipWidth(width);
@@ -248,6 +249,7 @@ export function CourseHomeScreen() {
           <CourseMapBackground
             width={mapPixelWidth}
             height={mapPixelHeight}
+            segmentCount={mapSegmentCount}
           />
 
           <View

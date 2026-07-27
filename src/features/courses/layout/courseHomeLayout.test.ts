@@ -9,7 +9,7 @@ import {
 
 describe('courseHomeLayout', () => {
   it('keeps each repeated background tile at the base map segment aspect ratio', () => {
-    assert.equal(computeBackgroundTileHeight(3325), 2155);
+    assert.equal(computeBackgroundTileHeight(3325), 4988);
   });
 
   it('adds more background tiles as the course map grows taller', () => {
@@ -23,8 +23,8 @@ describe('courseHomeLayout', () => {
   it('lets tall maps extend beyond the viewport so long course lists can scroll', () => {
     const viewportWidth = 665;
     const viewportHeight = 900;
-    const tallMapHeight = 2155 * 5;
+    const tallMapHeight = 4988 * 5;
 
-    assert.equal(computeMapPixelHeight(viewportWidth, viewportHeight, tallMapHeight), 2155);
+    assert.equal(computeMapPixelHeight(viewportWidth, viewportHeight, tallMapHeight), 4988);
   });
 });
