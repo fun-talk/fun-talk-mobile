@@ -2,7 +2,7 @@
   "expo": {
     "name": "欧波开心学",
     "slug": "fun-talk-mobile",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "landscape",
     "icon": "./icons/png216x216.png",
     "scheme": [
