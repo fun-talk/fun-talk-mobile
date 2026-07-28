@@ -671,7 +671,7 @@ const styles = StyleSheet.create({
   unbindText: { color: LoginColors.errorText },
   dangerPanel: { marginTop: 24, borderColor: LoginColors.errorText },
   dangerHint: { fontSize: LoginSizes.captionFontSize, color: LoginColors.textMuted, lineHeight: 20, marginBottom: 16, textAlign: 'left' },
-  deleteBtn: { minHeight: 44, borderRadius: LoginSizes.btnBorderRadius, backgroundColor: LoginColors.errorText, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  deleteBtn: { alignSelf: 'flex-start', minHeight: 44, borderRadius: LoginSizes.btnBorderRadius, backgroundColor: LoginColors.errorText, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 12 },
   deleteBtnText: { color: LoginColors.white, fontWeight: LoginWeights.extraBold },
 
   /* ── Info box blue (web .account-info-box-blue) ── */

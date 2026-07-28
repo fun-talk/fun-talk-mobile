@@ -2,6 +2,11 @@ import type { KeyValueStorage } from '@/lib/storage/asyncStorage';
 
 import { isAuthExpired, parseFtAuthProfile, type FtAuthRecord } from './types';
 
+const ACCOUNT_SCOPED_COURSE_KEYS = [
+  'fun-talk-course-home-progress-v1',
+  'fun-talk-course-home-fox-move-v1',
+];
+
 export type TokenStore = {
   get: () => Promise<string | null>;
   set: (value: string | null) => Promise<void>;
@@ -40,10 +45,18 @@ export async function setFtAuthToStores(
   profileStorage: KeyValueStorage,
 ): Promise<void> {
   const { token, ...profile } = auth;
+  const previous = parseFtAuthProfile(await profileStorage.getItem('ft_auth_profile'));
+  const scope = (record: FtAuthRecord) =>
+    `${record.accountType || record.authType || ''}:${record.userId || record.phone || ''}`;
+  const clearCourseState =
+    !previous || scope(previous) !== scope(auth)
+      ? ACCOUNT_SCOPED_COURSE_KEYS.map((key) => profileStorage.removeItem(key))
+      : [];
 
   await Promise.all([
     tokenStore.set(token ?? null),
     profileStorage.setItem('ft_auth_profile', JSON.stringify(profile)),
+    ...clearCourseState,
   ]);
 }
 
@@ -51,5 +64,9 @@ export async function clearFtAuthFromStores(
   tokenStore: TokenStore,
   profileStorage: KeyValueStorage,
 ): Promise<void> {
-  await Promise.all([tokenStore.set(null), profileStorage.removeItem('ft_auth_profile')]);
+  await Promise.all([
+    tokenStore.set(null),
+    profileStorage.removeItem('ft_auth_profile'),
+    ...ACCOUNT_SCOPED_COURSE_KEYS.map((key) => profileStorage.removeItem(key)),
+  ]);
 }

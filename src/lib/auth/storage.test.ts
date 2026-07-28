@@ -64,4 +64,30 @@ describe('auth storage core', () => {
     await clearFtAuthFromStores(tokenStore, storage);
     assert.equal(await getFtAuthFromStores(tokenStore, storage), null);
   });
+
+  it('clears cached course progress only when the account changes', async () => {
+    await setFtAuthToStores(
+      { token: 'old-token', userId: 'student-a', accountType: 'school_student' },
+      tokenStore,
+      storage,
+    );
+    await storage.setItem('fun-talk-course-home-progress-v1', 'cached-progress');
+
+    await setFtAuthToStores(
+      { token: 'new-token', userId: 'student-a', accountType: 'school_student' },
+      tokenStore,
+      storage,
+    );
+    assert.equal(
+      await storage.getItem('fun-talk-course-home-progress-v1'),
+      'cached-progress',
+    );
+
+    await setFtAuthToStores(
+      { token: 'other-token', userId: 'student-b', accountType: 'school_student' },
+      tokenStore,
+      storage,
+    );
+    assert.equal(await storage.getItem('fun-talk-course-home-progress-v1'), null);
+  });
 });
