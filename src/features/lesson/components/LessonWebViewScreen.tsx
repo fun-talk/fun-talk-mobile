@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { ResizeMode, Video } from 'expo-av';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { WebViewNavigation } from 'react-native-webview/lib/WebViewTypes';
 
@@ -29,12 +30,15 @@ import {
   parseWebViewBridgeMessage,
   resolveAdvancingWebViewCourseProgressUpdate,
   resolveWebViewAuthUpdate,
+  resolveWebViewNativeFoxUpdate,
+  type WebViewNativeFoxUpdate,
 } from '../webViewMessages';
 import { readCourseProgress, writeMergedCourseProgress } from '@/shared/courseHomeProgress';
 import { writeCourseHomeFoxMove } from '@/shared/courseHomeFoxMove';
 
 const COURSES_ROUTE = '/(app)/courses' as Href;
 const LOGIN_ROUTE = '/(auth)/login' as Href;
+const IOS_FOX_VIDEO = require('@/assets/fox.mov');
 
 export function LessonWebViewScreen() {
   const router = useRouter();
@@ -46,6 +50,7 @@ export function LessonWebViewScreen() {
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [webError, setWebError] = useState<string | null>(null);
+  const [nativeFox, setNativeFox] = useState<WebViewNativeFoxUpdate | null>(null);
 
   const webBaseUrl =
     normalizeRouteParam(params.web_base_url)?.trim() || getWebBaseUrl();
@@ -64,6 +69,7 @@ export function LessonWebViewScreen() {
       auth,
       deviceId,
       apiHost,
+      useIosNativeFox: Platform.OS === 'ios',
     });
   }, [apiHost, auth, deviceId]);
 
@@ -109,6 +115,12 @@ export function LessonWebViewScreen() {
     async (event: WebViewMessageEvent) => {
       const message = parseWebViewBridgeMessage(event.nativeEvent.data);
       if (!message) {
+        return;
+      }
+
+      const foxUpdate = resolveWebViewNativeFoxUpdate(message);
+      if (foxUpdate) {
+        setNativeFox(foxUpdate.visible ? foxUpdate : null);
         return;
       }
 
@@ -249,6 +261,7 @@ export function LessonWebViewScreen() {
         style={styles.webview}
         injectedJavaScriptBeforeContentLoaded={bootstrapScript}
         onMessage={handleBridgeMessage}
+        onLoadStart={() => setNativeFox(null)}
         onNavigationStateChange={handleNavigationChange}
         onError={() => setWebError('课程页面加载失败，请检查 Web 服务是否已启动')}
         onHttpError={() => setWebError('课程页面加载失败，请检查 Web 服务是否已启动')}
@@ -273,6 +286,38 @@ export function LessonWebViewScreen() {
         {...androidWebViewProps}
         {...iosWebViewProps}
       />
+      {Platform.OS === 'ios' && nativeFox ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.nativeFox,
+            {
+              left: nativeFox.left,
+              top: nativeFox.top,
+              width: nativeFox.width,
+              height: nativeFox.height,
+            },
+          ]}
+        >
+          <Video
+            source={IOS_FOX_VIDEO}
+            style={styles.nativeFoxVideo}
+            resizeMode={ResizeMode.CONTAIN}
+            shouldPlay={nativeFox.playing}
+            isLooping
+            isMuted
+            useNativeControls={false}
+            onError={() => {
+              setNativeFox(null);
+              webViewRef.current?.injectJavaScript(`
+                window.__FUNTALK_IOS_NATIVE_FOX__ = false;
+                window.dispatchEvent(new Event('funtalk-native-fox-failed'));
+                true;
+              `);
+            }}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -285,6 +330,14 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
     backgroundColor: '#020617',
+  },
+  nativeFox: {
+    position: 'absolute',
+    zIndex: 10,
+  },
+  nativeFoxVideo: {
+    width: '100%',
+    height: '100%',
   },
   webviewLoading: {
     position: 'absolute',

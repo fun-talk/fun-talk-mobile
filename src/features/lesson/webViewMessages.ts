@@ -19,6 +19,15 @@ export type WebViewCourseProgressUpdate = {
   completedCourseNumbers: number[];
 };
 
+export type WebViewNativeFoxUpdate = {
+  visible: boolean;
+  playing: boolean;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
 export function parseWebViewBridgeMessage(raw: string): WebViewBridgeMessage | null {
   try {
     const parsed = JSON.parse(raw) as WebViewBridgeMessage;
@@ -134,6 +143,37 @@ export function resolveWebViewCourseProgressUpdate(
     totalCourses,
     currentCourseNumber,
     completedCourseNumbers,
+  };
+}
+
+export function resolveWebViewNativeFoxUpdate(
+  message: WebViewBridgeMessage,
+): WebViewNativeFoxUpdate | null {
+  if (message.messageType !== 91) {
+    return null;
+  }
+  const payload = parsePayloadObject(message.payload);
+  if (!payload) {
+    return null;
+  }
+
+  const values = ['left', 'top', 'width', 'height'].map((key) => Number(payload[key]));
+  if (
+    values.some((value) => !Number.isFinite(value)) ||
+    values[2] < 0 ||
+    values[3] < 0
+  ) {
+    return null;
+  }
+
+  const [left, top, width, height] = values;
+  return {
+    visible: payload.visible === true,
+    playing: payload.playing === true,
+    left,
+    top,
+    width,
+    height,
   };
 }
 

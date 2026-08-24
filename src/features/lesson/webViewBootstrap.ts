@@ -4,6 +4,7 @@ type BootstrapOptions = {
   auth: FtAuthRecord;
   deviceId: string;
   apiHost: string;
+  useIosNativeFox?: boolean;
 };
 
 export function buildWebViewBootstrapScript(options: BootstrapOptions): string {
@@ -59,6 +60,7 @@ export function buildWebViewBootstrapScript(options: BootstrapOptions): string {
     };
 
     window.__FUNTALK_NATIVE_BRIDGE__ = true;
+    window.__FUNTALK_IOS_NATIVE_FOX__ = ${Boolean(options.useIosNativeFox)};
   } catch (error) {
     console.warn('native bootstrap failed', error);
   }

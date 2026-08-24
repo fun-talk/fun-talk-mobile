@@ -16,7 +16,9 @@ import {
   resolveAdvancingWebViewCourseProgressUpdate,
   resolveWebViewCourseProgressUpdate,
   resolveWebViewAuthUpdate,
+  resolveWebViewNativeFoxUpdate,
 } from './webViewMessages.ts';
+import { buildWebViewBootstrapScript } from './webViewBootstrap.ts';
 
 describe('buildLessonWebUrl', () => {
   it('prefers explicit web destination from course home', () => {
@@ -179,5 +181,50 @@ describe('webViewMessages', () => {
       currentCourseNumber: 5,
       completedCourseNumbers: [1, 2, 4],
     });
+  });
+
+  it('parses native fox playback state from the iOS webview bridge', () => {
+    const message = parseWebViewBridgeMessage(
+      JSON.stringify({
+        version: 1,
+        messageType: 91,
+        payload: JSON.stringify({
+          visible: true,
+          playing: false,
+          left: 12,
+          top: 34,
+          width: 320,
+          height: 280,
+        }),
+      }),
+    );
+    assert.ok(message);
+    assert.deepEqual(resolveWebViewNativeFoxUpdate(message!), {
+      visible: true,
+      playing: false,
+      left: 12,
+      top: 34,
+      width: 320,
+      height: 280,
+    });
+  });
+});
+
+describe('webViewBootstrap', () => {
+  it('enables the native fox bridge only when requested by iOS', () => {
+    const baseOptions = {
+      auth: { token: 'abc', username: '', name: '' },
+      deviceId: 'device-1',
+      apiHost: 'https://api.example.com',
+    };
+
+    assert.match(
+      buildWebViewBootstrapScript({ ...baseOptions, useIosNativeFox: true }),
+      /window\.__FUNTALK_IOS_NATIVE_FOX__ = true/,
+    );
+    assert.match(
+      buildWebViewBootstrapScript(baseOptions),
+      /window\.__FUNTALK_IOS_NATIVE_FOX__ = false/,
+    );
   });
 });
