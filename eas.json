@@ -14,7 +14,8 @@
     },
     "production": {
       "autoIncrement": true,
-      "distribution": "store"
+      "distribution": "store",
+      "environment": "production"
     },
     "adhoc": {
       "autoIncrement": true,
