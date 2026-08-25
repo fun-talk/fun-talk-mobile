@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
+import { PasswordVisibilityIcon } from './PasswordVisibilityIcon';
 
 type FamilyLoginMode = 'sms' | 'password';
 
@@ -116,10 +117,12 @@ export function PersonalForm({
             />
             <Pressable
               style={styles.eyeBtn}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? '隐藏密码' : '显示密码'}
               onPress={() => setShowPassword(!showPassword)}
               hitSlop={8}
             >
-              <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '🙈'}</Text>
+              <PasswordVisibilityIcon visible={showPassword} />
             </Pressable>
           </View>
         </View>
@@ -235,10 +238,6 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     justifyContent: 'center',
-  },
-  eyeIcon: {
-    fontSize: 18,
-    color: LoginColors.inputPlaceholder,
   },
 
   /* ── SMS button (web .account-sms-btn) ── */

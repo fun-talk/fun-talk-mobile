@@ -50,7 +50,7 @@ export function LoginScreen() {
   const logoLeft = isDesktopLayout ? 28 : 18;
   const logoTop = isDesktopLayout ? 56 - logoHeight / 2 : 40;
 
-  const [activeTab, setActiveTab] = useState<LoginTab>('school');
+  const [activeTab, setActiveTab] = useState<LoginTab>('home');
   const [agreed, setAgreed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [forgotModalVisible, setForgotModalVisible] = useState(false);
