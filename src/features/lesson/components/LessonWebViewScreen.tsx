@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -12,7 +13,6 @@ import { StatusBar } from 'expo-status-bar';
 import { ResizeMode, Video } from 'expo-av';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { WebViewNavigation } from 'react-native-webview/lib/WebViewTypes';
-
 import { useAuth } from '@/features/auth';
 import { getApiHost, getWebBaseUrl } from '@/lib/env';
 import { getDeviceID } from '@/lib/device/deviceId';
@@ -118,6 +118,17 @@ export function LessonWebViewScreen() {
         return;
       }
 
+      if (message.messageType === 9999) {
+        const payload = message.payload ? JSON.parse(message.payload) : null;
+        const ver = payload?.chromeVersion ?? 0;
+        Alert.alert(
+          '浏览器内核版本过低',
+          `当前设备的 WebView 内核版本为 Chrome ${ver}，课程需要 Chrome 55 以上才能正常运行。\n\n请前往应用商店更新「Android System WebView」或「Google Chrome」。`,
+          [{ text: '知道了' }],
+        );
+        return;
+      }
+
       const foxUpdate = resolveWebViewNativeFoxUpdate(message);
       if (foxUpdate) {
         setNativeFox(foxUpdate.visible ? foxUpdate : null);
@@ -181,6 +192,29 @@ export function LessonWebViewScreen() {
     },
     [router],
   );
+
+  const webViewVersionChecked = useRef(false);
+
+  const checkWebViewVersion = useCallback(() => {
+    if (Platform.OS !== 'android' || webViewVersionChecked.current) return;
+    webViewVersionChecked.current = true;
+    webViewRef.current?.injectJavaScript(`
+      (function() {
+        try {
+          var ua = navigator.userAgent || '';
+          var match = ua.match(/Chrome\\/(\\d+)/);
+          var ver = match ? parseInt(match[1], 10) : 0;
+          if (ver > 0 && ver < 55) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              messageType: 9999,
+              payload: JSON.stringify({ chromeVersion: ver })
+            }));
+          }
+        } catch(e) {}
+      })();
+      true;
+    `);
+  }, []);
 
   const handlePermissionRequest = useCallback(
     (event: {
@@ -262,6 +296,7 @@ export function LessonWebViewScreen() {
         injectedJavaScriptBeforeContentLoaded={bootstrapScript}
         onMessage={handleBridgeMessage}
         onLoadStart={() => setNativeFox(null)}
+        onLoadEnd={checkWebViewVersion}
         onNavigationStateChange={handleNavigationChange}
         onError={() => setWebError('课程页面加载失败，请检查 Web 服务是否已启动')}
         onHttpError={() => setWebError('课程页面加载失败，请检查 Web 服务是否已启动')}

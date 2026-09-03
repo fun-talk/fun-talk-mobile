@@ -53,6 +53,7 @@
     "typescript": "~5.9.2"
   },
   "scripts": {
+    "postinstall": "patch-package",
     "start": "expo start --port 19002",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android --port 19002",

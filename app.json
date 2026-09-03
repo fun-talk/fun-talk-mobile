@@ -39,6 +39,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/withX5WebView",
       "expo-router",
       [
         "expo-splash-screen",

@@ -27,37 +27,42 @@ export function buildWebViewBootstrapScript(options: BootstrapOptions): string {
     var auth = ${authPayload};
     var deviceId = ${JSON.stringify(options.deviceId)};
     var token = ${JSON.stringify(options.auth.token || '')};
-    localStorage.setItem('ft_auth', JSON.stringify(auth));
-    localStorage.setItem('funtalk-device-id', deviceId);
 
-    var nativeFetch = window.fetch.bind(window);
-    window.fetch = function (input, init) {
-      init = init || {};
-      var headers = new Headers(init.headers || {});
-      if (token && !headers.has('Authorization')) {
-        headers.set('Authorization', 'Bearer ' + token);
-      }
+    try { localStorage.setItem('ft_auth', JSON.stringify(auth)); } catch (e) {}
+    try { localStorage.setItem('funtalk-device-id', deviceId); } catch (e) {}
 
-      var requestUrl = typeof input === 'string'
-        ? input
-        : (input && input.url ? input.url : '');
-
-      if (requestUrl && requestUrl.indexOf('deviceID=') === -1) {
-        var joiner = requestUrl.indexOf('?') === -1 ? '?' : '&';
-        var nextUrl = requestUrl + joiner + 'deviceID=' + encodeURIComponent(deviceId);
-        if (typeof input === 'string') {
-          input = nextUrl;
-        } else if (input && input.url) {
-          input = new Request(nextUrl, input);
+    if (typeof window.fetch === 'function' && typeof Headers === 'function') {
+      var nativeFetch = window.fetch.bind(window);
+      window.fetch = function (input, init) {
+        init = init || {};
+        var headers = new Headers(init.headers || {});
+        if (token && !headers.has('Authorization')) {
+          headers.set('Authorization', 'Bearer ' + token);
         }
-      }
 
-      init.headers = headers;
-      if (!init.credentials) {
-        init.credentials = 'include';
-      }
-      return nativeFetch(input, init);
-    };
+        var requestUrl = typeof input === 'string'
+          ? input
+          : (input && input.url ? input.url : '');
+
+        if (requestUrl && requestUrl.indexOf('deviceID=') === -1) {
+          var joiner = requestUrl.indexOf('?') === -1 ? '?' : '&';
+          var nextUrl = requestUrl + joiner + 'deviceID=' + encodeURIComponent(deviceId);
+          if (typeof input === 'string') {
+            input = nextUrl;
+          } else if (typeof Request === 'function' && input && input.url) {
+            input = new Request(nextUrl, input);
+          }
+        }
+
+        init.headers = headers;
+        if (!init.credentials) {
+          init.credentials = 'include';
+        }
+        return nativeFetch(input, init);
+      };
+    } else {
+      window.__FUNTALK_FETCH_UNSUPPORTED__ = true;
+    }
 
     window.__FUNTALK_NATIVE_BRIDGE__ = true;
     window.__FUNTALK_IOS_NATIVE_FOX__ = ${Boolean(options.useIosNativeFox)};
