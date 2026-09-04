@@ -227,4 +227,25 @@ describe('webViewBootstrap', () => {
       /window\.__FUNTALK_IOS_NATIVE_FOX__ = false/,
     );
   });
+
+  it('installs the native microphone getUserMedia polyfill only when requested', () => {
+    const baseOptions = {
+      auth: { token: 'abc', username: '', name: '' },
+      deviceId: 'device-1',
+      apiHost: 'https://api.example.com',
+    };
+
+    const withMic = buildWebViewBootstrapScript({
+      ...baseOptions,
+      useNativeMic: true,
+    });
+    assert.match(withMic, /window\.__FUNTALK_NATIVE_MIC__ = true/);
+    assert.match(withMic, /FunTalkNativeMic\.start/);
+    assert.match(withMic, /setInterval\(pumpNativePcm/);
+    assert.match(withMic, /createBufferSource/);
+    assert.match(withMic, /navigator\.mediaDevices\.getUserMedia = wrap/);
+
+    const withoutMic = buildWebViewBootstrapScript(baseOptions);
+    assert.doesNotMatch(withoutMic, /__FUNTALK_NATIVE_MIC__/);
+  });
 });

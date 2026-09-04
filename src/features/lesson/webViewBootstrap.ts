@@ -1,10 +1,13 @@
 import type { FtAuthRecord } from '@/lib/auth/types';
 
+import { buildNativeMicGetUserMediaPolyfill } from './nativeMicGetUserMediaPolyfill';
+
 type BootstrapOptions = {
   auth: FtAuthRecord;
   deviceId: string;
   apiHost: string;
   useIosNativeFox?: boolean;
+  useNativeMic?: boolean;
 };
 
 export function buildWebViewBootstrapScript(options: BootstrapOptions): string {
@@ -66,6 +69,7 @@ export function buildWebViewBootstrapScript(options: BootstrapOptions): string {
 
     window.__FUNTALK_NATIVE_BRIDGE__ = true;
     window.__FUNTALK_IOS_NATIVE_FOX__ = ${Boolean(options.useIosNativeFox)};
+    ${options.useNativeMic ? buildNativeMicGetUserMediaPolyfill() : ''}
   } catch (error) {
     console.warn('native bootstrap failed', error);
   }

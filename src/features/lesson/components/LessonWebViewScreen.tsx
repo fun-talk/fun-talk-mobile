@@ -26,6 +26,7 @@ import {
 } from '../buildLessonWebUrl';
 import { syncWebViewAuthCookies } from '../syncWebViewCookies';
 import { buildWebViewBootstrapScript } from '../webViewBootstrap';
+import { buildNativeMicGetUserMediaPolyfill } from '../nativeMicGetUserMediaPolyfill';
 import {
   parseWebViewBridgeMessage,
   resolveAdvancingWebViewCourseProgressUpdate,
@@ -70,6 +71,7 @@ export function LessonWebViewScreen() {
       deviceId,
       apiHost,
       useIosNativeFox: Platform.OS === 'ios',
+      useNativeMic: Platform.OS === 'android',
     });
   }, [apiHost, auth, deviceId]);
 
@@ -196,24 +198,29 @@ export function LessonWebViewScreen() {
   const webViewVersionChecked = useRef(false);
 
   const checkWebViewVersion = useCallback(() => {
-    if (Platform.OS !== 'android' || webViewVersionChecked.current) return;
-    webViewVersionChecked.current = true;
-    webViewRef.current?.injectJavaScript(`
-      (function() {
-        try {
-          var ua = navigator.userAgent || '';
-          var match = ua.match(/Chrome\\/(\\d+)/);
-          var ver = match ? parseInt(match[1], 10) : 0;
-          if (ver > 0 && ver < 55) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              messageType: 9999,
-              payload: JSON.stringify({ chromeVersion: ver })
-            }));
-          }
-        } catch(e) {}
-      })();
-      true;
-    `);
+    if (Platform.OS !== 'android') return;
+    if (!webViewVersionChecked.current) {
+      webViewVersionChecked.current = true;
+      webViewRef.current?.injectJavaScript(`
+        (function() {
+          try {
+            var ua = navigator.userAgent || '';
+            var match = ua.match(/Chrome\\/(\\d+)/);
+            var ver = match ? parseInt(match[1], 10) : 0;
+            if (ver > 0 && ver < 55) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                messageType: 9999,
+                payload: JSON.stringify({ chromeVersion: ver })
+              }));
+            }
+          } catch(e) {}
+        })();
+        true;
+      `);
+    }
+    webViewRef.current?.injectJavaScript(
+      `${buildNativeMicGetUserMediaPolyfill()}\ntrue;`,
+    );
   }, []);
 
   const handlePermissionRequest = useCallback(
