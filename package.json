@@ -63,5 +63,10 @@
     "test": "node --import tsx --test src/shared/*.test.ts src/lib/auth/*.test.ts src/features/accountAdmin/*.test.ts src/features/lesson/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
+  "expo": {
+    "autolinking": {
+      "exclude": ["expo-dom-webview", "@expo/dom-webview"]
+    }
+  },
   "private": true
 }

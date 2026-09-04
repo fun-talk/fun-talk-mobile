@@ -58,6 +58,9 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
+    "autolinking": {
+      "exclude": ["expo-dom-webview", "@expo/dom-webview"]
+    },
     "extra": {
       "router": {},
       "eas": {
