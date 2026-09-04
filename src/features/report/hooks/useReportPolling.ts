@@ -13,8 +13,9 @@ const TERMINAL_STATUSES: ReportStatus[] = ['resolved', 'rejected'];
 /**
  * Poll the backend for status updates on locally stored reports.
  *
- * When a report reaches a terminal status (`resolved` or `rejected`), the user
- * is notified and the record is removed from local storage.
+ * When a report reaches a terminal status (`resolved` or `rejected`), the
+ * record is kept in local storage and its status/result fields are updated so
+ * the user can review handled reports in the dedicated results screen.
  *
  * @param apiClient - Authenticated API client used to query statuses.
  * @param intervalMs - Polling interval in milliseconds. Defaults to 60s.
@@ -41,9 +42,13 @@ export function useReportPolling(
       await Promise.all(
         activeReports.map(async (report) => {
           try {
-            const statusResult = await queryReportStatus(report.report_id, apiClient);
+            const statusResult = await queryReportStatus(apiClient, report.report_id);
             if (TERMINAL_STATUSES.includes(statusResult.status)) {
-              await reportStorage.remove(report.report_id);
+              await reportStorage.update(report.report_id, {
+                status: statusResult.status,
+                result_message: statusResult.message,
+                resolved_at: statusResult.resolved_at ?? new Date().toISOString(),
+              });
               showSuccessToast(
                 statusResult.message || '您的举报已有处理结果，请留意反馈',
               );

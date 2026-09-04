@@ -10,7 +10,7 @@ export default function AppLayout() {
   const { isLoading, isAuthenticated, apiClient } = useAuth();
 
   // Poll for report status updates whenever the user is authenticated.
-  useReportPolling(apiClient, 60_000, isAuthenticated);
+  useReportPolling(apiClient, 1_800_000, isAuthenticated);
 
   if (isLoading) {
     return (

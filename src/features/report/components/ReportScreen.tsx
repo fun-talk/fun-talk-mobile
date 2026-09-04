@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { LoginColors, LoginSizes, LoginWeights } from '@/features/auth/components/LoginConstants';
+import { useAuth } from '@/features/auth';
 import { showErrorToast, showSuccessToast } from '@/lib/toast';
 
 import { useReportForm } from '../hooks/useReportForm';
@@ -26,6 +27,7 @@ import { ImagePreview } from './ImagePreview';
 export function ReportScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { apiClient } = useAuth();
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const {
@@ -42,7 +44,7 @@ export function ReportScreen() {
     removeScreenshot,
     submit,
     resetMessages,
-  } = useReportForm();
+  } = useReportForm(apiClient);
 
   const handleAddImage = async () => {
     resetMessages();

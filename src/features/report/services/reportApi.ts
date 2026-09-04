@@ -6,88 +6,84 @@ import type {
   ReportSubmitResult,
 } from '../types';
 
+type BackendReportSubmitResponse = {
+  success: boolean;
+  report_id?: string;
+  message?: string;
+};
+
+type BackendReportResultResponse = {
+  status: 'processing' | 'ok';
+  result: string;
+};
+
+type BackendReportErrorResponse = {
+  detail?: string;
+};
+
+function getBackendErrorMessage(response: Response, body: BackendReportErrorResponse): string {
+  if (body.detail) return body.detail;
+  return `请求失败（${response.status}）`;
+}
+
 /**
  * Submit a user report to the backend.
  *
- * TODO: Replace this placeholder with a real API call once the backend endpoint
- * is ready. The function currently validates the payload shape and simulates a
- * successful submission so the UI flow can be tested end-to-end.
- *
- * Expected backend contract:
- *   POST /api/v1/reports
- *   Content-Type: application/json
- *   Body: ReportSubmitPayload
- *
- * Image data is transmitted as Base64 strings inside `screenshots[].base64`,
- * alongside `mime_type` / `file_name` metadata. The backend can reconstruct the
- * files from the Base64 payload.
- *
- * Expected response:
- *   {
- *     "success": true,
- *     "report_id": "uuid-or-serial",
- *     "message": "举报已提交，我们将在3个工作日内处理。"
- *   }
+ * Endpoint: POST /api/v1/reports
+ * The payload includes Base64-encoded screenshots and client metadata.
  */
 export async function submitReport(
+  apiClient: ApiClient,
   payload: ReportSubmitPayload,
 ): Promise<ReportSubmitResult> {
-  // Placeholder implementation. Replace with real fetch call.
-  // eslint-disable-next-line no-console
-  console.log('[submitReport] payload:', {
-    ...payload,
-    screenshots: payload.screenshots?.map((s) => ({
-      ...s,
-      // Truncate Base64 data in logs to avoid huge output.
-      base64: s.base64 ? `${s.base64.slice(0, 64)}...` : undefined,
-    })),
-  });
+  const response = await apiClient.post('/api/v1/reports', payload);
 
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        success: true,
-        report_id: `report_${Date.now()}`,
-        message: '举报已提交，我们将在3个工作日内处理。',
-      });
-    }, 600);
-  });
+  const body = (await response.json()) as BackendReportSubmitResponse | BackendReportErrorResponse;
+
+  if (!response.ok) {
+    throw new Error(getBackendErrorMessage(response, body as BackendReportErrorResponse));
+  }
+
+  const success = (body as BackendReportSubmitResponse).success ?? true;
+  const message =
+    (body as BackendReportSubmitResponse).message ?? '举报已提交，我们将在3个工作日内处理。';
+
+  return {
+    success,
+    report_id: (body as BackendReportSubmitResponse).report_id,
+    message,
+  };
 }
 
 /**
- * Query the current status of a previously submitted report.
+ * Query the processing result of a previously submitted report.
  *
- * TODO: Replace this placeholder with a real API call.
+ * Endpoint: GET /api/v1/reports/{report_id}/result
  *
- * Expected backend contract:
- *   GET /api/v1/reports/:report_id/status
- *
- * Expected response:
- *   {
- *     "report_id": "uuid-or-serial",
- *     "status": "pending" | "processing" | "resolved" | "rejected",
- *     "message": "处理结果说明（可选）",
- *     "resolved_at": "2026-07-04T16:00:00.000Z"
- *   }
- *
- * @param reportId - The report identifier returned by `submitReport`.
- * @param _apiClient - Authenticated API client; will be used in the real implementation.
+ * The backend returns `status: "processing" | "ok"` and a `result` string.
+ * We map the backend status to the frontend lifecycle status:
+ *   - "processing" -> "processing"
+ *   - "ok"         -> "resolved"
  */
 export async function queryReportStatus(
+  apiClient: ApiClient,
   reportId: string,
-  _apiClient?: ApiClient,
 ): Promise<ReportStatusResult> {
-  // Placeholder implementation. In a real app this would use the apiClient to
-  // fetch the backend.
-  // eslint-disable-next-line no-console
-  console.log('[queryReportStatus] reportId:', reportId);
+  const response = await apiClient.get(`/api/v1/reports/${reportId}/result`);
 
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        report_id: reportId,
-        status: 'pending',
-      });
-    }, 300);
-  });
+  const body = (await response.json()) as BackendReportResultResponse | BackendReportErrorResponse;
+
+  if (!response.ok) {
+    throw new Error(getBackendErrorMessage(response, body as BackendReportErrorResponse));
+  }
+
+  const result = body as BackendReportResultResponse;
+  const status = result.status === 'ok' ? 'resolved' : 'processing';
+
+  return {
+    report_id: reportId,
+    status,
+    message: result.result || undefined,
+  };
 }
+

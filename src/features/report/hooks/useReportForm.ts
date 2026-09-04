@@ -3,6 +3,8 @@ import { Platform } from 'react-native';
 
 import Constants from 'expo-constants';
 
+import type { ApiClient } from '@/lib/api/client';
+
 import { reportStorage } from '../services/reportStorage';
 import { submitReport } from '../services/reportApi';
 import type {
@@ -18,7 +20,7 @@ const isValidPhone = (value: string) => /^1[3-9]\d{9}$/.test(value.trim());
 const isValidEmail = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
-export function useReportForm() {
+export function useReportForm(apiClient: ApiClient) {
   const [form, setForm] = useState<ReportFormData>({
     reportType: null,
     content: '',
@@ -117,7 +119,7 @@ export function useReportForm() {
         },
       };
 
-      const result = await submitReport(payload);
+      const result = await submitReport(apiClient, payload);
       if (result.success && result.report_id) {
         // Persist the report locally so the app can poll for its outcome.
         await reportStorage.save({

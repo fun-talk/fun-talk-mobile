@@ -44,6 +44,7 @@ type ProfileView = 'student' | 'home';
 
 const COURSES_ROUTE = '/(app)/courses' as Href;
 const REPORT_ROUTE = '/(app)/report' as Href;
+const REPORT_RESULTS_ROUTE = '/(app)/report-results' as Href;
 const SMS_COOLDOWN = 60;
 
 function SkeletonBlock({ style }: { style?: StyleProp<ViewStyle> }) {
@@ -355,6 +356,9 @@ try {
           <View style={styles.headerActions}>
             <Pressable style={styles.headerBtn} onPress={() => router.push(REPORT_ROUTE)}>
               <Text style={styles.headerBtnText}>投诉与建议</Text>
+            </Pressable>
+            <Pressable style={styles.headerBtn} onPress={() => router.push(REPORT_RESULTS_ROUTE)}>
+              <Text style={styles.headerBtnText}>举报处理结果</Text>
             </Pressable>
             <Pressable style={styles.headerBtn} onPress={() => router.replace(COURSES_ROUTE)}>
               <Text style={styles.headerBtnText}>返回大厅</Text>

@@ -25,6 +25,12 @@ type ReportHistoryListProps = {
 export function ReportHistoryList({ refreshKey }: ReportHistoryListProps) {
   const { reports, isLoading, refresh } = useLocalReports(refreshKey);
 
+  const activeReports = reports
+    .filter((r) => r.status === 'pending' || r.status === 'processing')
+    .sort(
+      (a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime(),
+    );
+
   if (isLoading) {
     return (
       <View style={styles.loading}>
@@ -33,19 +39,19 @@ export function ReportHistoryList({ refreshKey }: ReportHistoryListProps) {
     );
   }
 
-  if (reports.length === 0) {
+  if (activeReports.length === 0) {
     return null;
   }
 
   return (
     <View style={styles.container}>
       <View style={styles.titleRow}>
-        <Text style={styles.title}>我的举报记录</Text>
+        <Text style={styles.title}>进行中的举报</Text>
         <Pressable onPress={() => refresh()}>
           <Text style={styles.refreshText}>刷新</Text>
         </Pressable>
       </View>
-      {reports.map((report) => {
+      {activeReports.map((report) => {
         const typeLabel =
           REPORT_TYPE_OPTIONS.find((o) => o.value === report.report_type)?.label ||
           report.report_type;

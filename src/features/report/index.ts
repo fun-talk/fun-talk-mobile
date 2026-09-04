@@ -1,4 +1,6 @@
 export { ReportScreen } from './components/ReportScreen';
+export { ReportResultListScreen } from './components/ReportResultListScreen';
+export { ReportResultDetailScreen } from './components/ReportResultDetailScreen';
 export type {
   ReportType,
   ReportImage,
