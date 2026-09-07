@@ -14,7 +14,7 @@ export function buildAccountCardsHtml(cards: AccountPrintCard[]): string {
     .map(
       (card) => `
         <section class="card">
-          <h1>${escapeHtml(card.title || '欧波开心学学生账号')}</h1>
+          <h1>${escapeHtml(card.title || '狐狸开心学学生账号')}</h1>
           <p><strong>数字 ID：</strong>${escapeHtml(card.digital_id)}</p>
           <p><strong>初始密码：</strong>${escapeHtml(card.password)}</p>
           <p class="hint">${escapeHtml(card.hint)}</p>

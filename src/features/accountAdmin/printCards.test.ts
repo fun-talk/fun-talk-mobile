@@ -7,7 +7,7 @@ describe('buildAccountCardsHtml', () => {
   it('renders account card fields and escapes html', () => {
     const html = buildAccountCardsHtml([
       {
-        title: '欧波开心学学生账号',
+        title: '狐狸开心学学生账号',
         digital_id: '83920475',
         password: 'abc<12345',
         hint: '请首次登录后设置昵称并修改密码',
