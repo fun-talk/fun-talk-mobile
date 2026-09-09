@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ResizeMode, Video } from 'expo-av';
+import { Audio, ResizeMode, Video } from 'expo-av';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { WebViewNavigation } from 'react-native-webview/lib/WebViewTypes';
 import { useAuth } from '@/features/auth';
@@ -24,6 +24,7 @@ import {
   normalizeRouteParam,
   type LessonRouteParams,
 } from '../buildLessonWebUrl';
+import { ensureWebViewMicrophonePermission } from '../ensureWebViewMicrophonePermission';
 import { syncWebViewAuthCookies } from '../syncWebViewCookies';
 import { buildWebViewBootstrapScript } from '../webViewBootstrap';
 import { buildNativeMicGetUserMediaPolyfill } from '../nativeMicGetUserMediaPolyfill';
@@ -94,17 +95,34 @@ export function LessonWebViewScreen() {
         }
         setDeviceId(nextDeviceId);
         await syncWebViewAuthCookies(apiHost, auth);
-        if (!cancelled) {
-          setSessionError(null);
-          setIsSessionReady(true);
-        }
       } catch (error) {
         console.warn('prepare lesson webview session failed:', error);
         if (!cancelled) {
           setDeviceId((current) => current ?? '');
-          setSessionError(null);
-          setIsSessionReady(true);
         }
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      try {
+        const microphone = await ensureWebViewMicrophonePermission(Platform.OS, () =>
+          Audio.requestPermissionsAsync(),
+        );
+        if (!microphone.granted) {
+          Alert.alert(
+            '需要麦克风权限',
+            '跟读和口语练习需要使用麦克风。请在系统设置中允许后再重新进入课程。',
+          );
+        }
+      } catch (error) {
+        console.warn('request webview microphone permission failed:', error);
+      }
+
+      if (!cancelled) {
+        setSessionError(null);
+        setIsSessionReady(true);
       }
     })();
 
