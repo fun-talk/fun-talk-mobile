@@ -5,6 +5,7 @@ import {
   ADMIN_STUDENT_CREATE_ROUTE,
   ADMIN_TEACHERS_ROUTE,
   COURSES_ROUTE,
+  TEACHER_AUTH_ROUTE,
   TEACHER_STUDENT_CREATE_ROUTE,
   TEACHER_STUDENTS_ROUTE,
   resolveAuthenticatedHomeRoute,
@@ -23,6 +24,18 @@ describe('account route decisions', () => {
     assert.equal(
       resolveTeacherHomeRoute({ authType: 'teacher', teacherRole: 'teacher', isAdmin: false }),
       TEACHER_STUDENTS_ROUTE,
+    );
+  });
+
+  it('keeps teachers with incomplete profiles on the teacher auth screen', () => {
+    assert.equal(
+      resolveAuthenticatedHomeRoute({
+        authType: 'teacher',
+        teacherRole: 'admin',
+        isAdmin: true,
+        teacherProfileRequired: true,
+      }),
+      TEACHER_AUTH_ROUTE,
     );
   });
 

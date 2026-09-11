@@ -22,6 +22,7 @@ export type TeacherSession = {
   school_id: number;
   school_name?: string | null;
   is_admin: boolean;
+  profile_required?: boolean;
 };
 
 export type StudentSession = {
@@ -323,6 +324,20 @@ export async function loginTeacher(
   const response = await apiClient.post('/account/v1/teacher/login', payload);
   if (!response.ok) throw new Error(await readError(response));
   return response.json() as Promise<TeacherAuthResult>;
+}
+
+export async function completeTeacherProfile(
+  apiClient: ApiClient,
+  payload: {
+    password: string;
+    confirm_password: string;
+    email: string;
+    school_name: string;
+  },
+): Promise<{ teacher: TeacherSession; entry_label: string }> {
+  const response = await apiClient.post('/account/v1/teacher/profile', payload);
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json() as Promise<{ teacher: TeacherSession; entry_label: string }>;
 }
 
 /* ================================================================

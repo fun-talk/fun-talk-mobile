@@ -1,6 +1,7 @@
 import type { FtAuthRecord } from './types';
 
 export const LOGIN_ROUTE = '/(auth)/login';
+export const TEACHER_AUTH_ROUTE = '/(auth)/teacher-auth';
 export const COURSES_ROUTE = '/(app)/courses';
 export const ADMIN_TEACHERS_ROUTE = '/(app)/account/admin/teachers';
 export const TEACHER_STUDENTS_ROUTE = '/(app)/account/teacher/students';
@@ -16,6 +17,9 @@ export function isAdminTeacher(auth: FtAuthRecord | null): boolean {
 }
 
 export function resolveTeacherHomeRoute(auth: FtAuthRecord | null): string {
+  if (auth?.teacherProfileRequired) {
+    return TEACHER_AUTH_ROUTE;
+  }
   return isAdminTeacher(auth) ? ADMIN_TEACHERS_ROUTE : TEACHER_STUDENTS_ROUTE;
 }
 

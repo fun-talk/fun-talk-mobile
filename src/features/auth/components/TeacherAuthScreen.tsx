@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -22,8 +24,14 @@ import { showErrorToast, showSuccessToast } from '@/lib/toast';
 import { useAuth } from '../AuthProvider';
 import { loginImages } from '../assets/loginAssets';
 import type { AgreementType } from '../data/agreements';
-import { loginTeacher, registerTeacher, sendAccountSmsCode } from '../services/accountApi';
-import { validatePasswordPair } from '../passwordPolicy';
+import {
+  completeTeacherProfile,
+  loginTeacher,
+  registerTeacher,
+  sendAccountSmsCode,
+  type TeacherSession,
+} from '../services/accountApi';
+import { validatePasswordStrength } from '../passwordPolicy';
 import { AccountAgreement } from './AccountAgreement';
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
 
@@ -34,7 +42,7 @@ const SMS_COOLDOWN = 60;
 
 export function TeacherAuthScreen() {
   const router = useRouter();
-  const { apiClient, saveAuth } = useAuth();
+  const { apiClient, auth, saveAuth } = useAuth();
   const { width, height } = useWindowDimensions();
   const isWide = Math.min(width, height) >= 760;
   const logoHeight = isWide
@@ -44,7 +52,7 @@ export function TeacherAuthScreen() {
   const logoTop = isWide ? 56 - logoHeight / 2 : 40;
 
   const [mode, setMode] = useState<AuthMode>('login');
-  const [loginMethod, setLoginMethod] = useState<LoginMethod>('password');
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('sms');
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [smsCountdown, setSmsCountdown] = useState(0);
@@ -53,11 +61,15 @@ export function TeacherAuthScreen() {
   const [smsCode, setSmsCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [registerPasswordError, setRegisterPasswordError] = useState('');
+  const [registerConfirmPasswordError, setRegisterConfirmPasswordError] = useState('');
   const [schoolName, setSchoolName] = useState('');
   const [email, setEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [profileTeacher, setProfileTeacher] = useState<TeacherSession | null>(null);
+  const [profileSubmitting, setProfileSubmitting] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   // When the virtual keyboard opens on a tablet/phone, we add bottom padding to
@@ -97,6 +109,25 @@ export function TeacherAuthScreen() {
   }, [keyboardHeight, scrollForKeyboard]);
 
   useEffect(() => {
+    if (!auth?.teacherProfileRequired || !auth.teacherId) return;
+    setProfileTeacher({
+      id: auth.teacherId,
+      phone: auth.phone || '',
+      email: '',
+      display_name: auth.username || auth.phone || '',
+      role: auth.teacherRole || 'admin',
+      school_id: 0,
+      school_name: auth.schoolName || '',
+      is_admin: auth.isAdmin === true,
+      profile_required: true,
+    });
+    setPhone(auth.phone || '');
+    setEmail('');
+    setSchoolName(auth.schoolName || '');
+    setMode('login');
+  }, [auth]);
+
+  useEffect(() => {
     if (smsCountdown <= 0) return undefined;
     const timer = setTimeout(() => setSmsCountdown((value) => value - 1), 1000);
     return () => clearTimeout(timer);
@@ -131,6 +162,18 @@ export function TeacherAuthScreen() {
         const result = await action();
         const auth = buildFtAuthFromTeacherLogin(result.token, result.expires_in, result.teacher, true);
         await saveAuth(auth);
+        if (result.teacher.profile_required) {
+          setProfileTeacher(result.teacher);
+          setPhone(result.teacher.phone);
+          setEmail(result.teacher.email || '');
+          setSchoolName(result.teacher.school_name || '');
+          setPassword('');
+          setConfirmPassword('');
+          setRegisterPasswordError('');
+          setRegisterConfirmPasswordError('');
+          showSuccessToast('手机号已自动注册，请补充注册信息');
+          return;
+        }
         showSuccessToast(mode === 'register' ? '注册成功，正在进入后台...' : '登录成功，正在进入后台...');
         router.replace(resolveTeacherHomeRoute(auth) as Href);
       } catch (error) {
@@ -179,9 +222,15 @@ export function TeacherAuthScreen() {
       showErrorToast('请输入验证码');
       return;
     }
-    const passwordError = validatePasswordPair(password, confirmPassword);
+    setRegisterPasswordError('');
+    setRegisterConfirmPasswordError('');
+    const passwordError = validatePasswordStrength(password);
     if (passwordError) {
-      showErrorToast(passwordError);
+      setRegisterPasswordError(passwordError);
+      return;
+    }
+    if (password.trim() !== confirmPassword.trim()) {
+      setRegisterConfirmPasswordError('两次输入的密码不一致');
       return;
     }
     if (!requireAgreement()) return;
@@ -212,6 +261,8 @@ export function TeacherAuthScreen() {
     setMode((value) => (value === 'login' ? 'register' : 'login'));
     setPassword('');
     setConfirmPassword('');
+    setRegisterPasswordError('');
+    setRegisterConfirmPasswordError('');
   };
 
   const handleAgreementPress = useCallback(
@@ -220,6 +271,67 @@ export function TeacherAuthScreen() {
     },
     [router],
   );
+
+  const handleCompleteProfile = useCallback(() => {
+    if (!profileTeacher || !auth?.token) return;
+    if (!schoolName.trim()) {
+      showErrorToast('请输入学校名');
+      return;
+    }
+    setRegisterPasswordError('');
+    setRegisterConfirmPasswordError('');
+    const passwordError = validatePasswordStrength(password);
+    if (passwordError) {
+      setRegisterPasswordError(passwordError);
+      return;
+    }
+    if (password.trim() !== confirmPassword.trim()) {
+      setRegisterConfirmPasswordError('两次输入的密码不一致');
+      return;
+    }
+
+    void (async () => {
+      setProfileSubmitting(true);
+      try {
+        const result = await completeTeacherProfile(apiClient, {
+          password,
+          confirm_password: confirmPassword,
+          email: email.trim(),
+          school_name: schoolName.trim(),
+        });
+        const nextAuth = {
+          ...auth,
+          userId: String(result.teacher.id),
+          username: result.teacher.display_name || result.teacher.phone,
+          name: result.teacher.display_name || result.teacher.phone,
+          phone: result.teacher.phone,
+          teacherId: result.teacher.id,
+          teacherRole: result.teacher.role,
+          isAdmin: result.teacher.is_admin,
+          schoolName: result.teacher.school_name || '',
+          teacherProfileRequired: false,
+        };
+        await saveAuth(nextAuth);
+        setProfileTeacher(null);
+        showSuccessToast('注册信息已补充，正在进入后台...');
+        router.replace(resolveTeacherHomeRoute(nextAuth) as Href);
+      } catch (error) {
+        showErrorToast(error instanceof Error ? error.message : '补充注册信息失败');
+      } finally {
+        setProfileSubmitting(false);
+      }
+    })();
+  }, [
+    apiClient,
+    auth,
+    confirmPassword,
+    email,
+    password,
+    profileTeacher,
+    router,
+    saveAuth,
+    schoolName,
+  ]);
 
   return (
     <View style={styles.root}>
@@ -355,13 +467,18 @@ export function TeacherAuthScreen() {
             <Field label={mode === 'register' ? '登录密码' : '密码'}>
               <PasswordInput
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  setRegisterPasswordError('');
+                  setRegisterConfirmPasswordError('');
+                }}
                 placeholder="至少 8 位，包含字母和数字"
                 showPassword={showPassword}
                 onToggle={() => setShowPassword((value) => !value)}
                 editable={!submitting}
                 onFocus={handlePasswordFocus}
               />
+              {registerPasswordError ? <FieldError message={registerPasswordError} /> : null}
             </Field>
           ) : null}
 
@@ -369,13 +486,17 @@ export function TeacherAuthScreen() {
             <Field label="确认密码">
               <PasswordInput
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                onChangeText={(value) => {
+                  setConfirmPassword(value);
+                  setRegisterConfirmPasswordError('');
+                }}
                 placeholder="请再次输入密码"
                 showPassword={showConfirmPassword}
                 onToggle={() => setShowConfirmPassword((value) => !value)}
                 editable={!submitting}
                 onFocus={handlePasswordFocus}
               />
+              {registerConfirmPasswordError ? <FieldError message={registerConfirmPasswordError} /> : null}
             </Field>
           ) : null}
 
@@ -403,6 +524,95 @@ export function TeacherAuthScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      <Modal visible={Boolean(profileTeacher)} transparent animationType="fade" onRequestClose={() => undefined}>
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>补充老师注册信息</Text>
+              <Text style={styles.modalSubtitle}>该手机号已自动注册，请补充以下信息后进入后台。</Text>
+
+              <Field label="手机号">
+                <TextInput
+                  style={[styles.input, styles.inputReadonly]}
+                  value={profileTeacher?.phone || ''}
+                  editable={false}
+                />
+              </Field>
+
+              <Field label="学校名">
+                <TextInput
+                  style={styles.input}
+                  value={schoolName}
+                  onChangeText={setSchoolName}
+                  placeholder="请填写学校全名"
+                  placeholderTextColor={LoginColors.inputPlaceholder}
+                  editable={!profileSubmitting}
+                />
+              </Field>
+
+              <Field label="登录密码">
+                <PasswordInput
+                  value={password}
+                  onChangeText={(value) => {
+                    setPassword(value);
+                    setRegisterPasswordError('');
+                    setRegisterConfirmPasswordError('');
+                  }}
+                  placeholder="至少 8 位，包含字母和数字"
+                  showPassword={showPassword}
+                  onToggle={() => setShowPassword((value) => !value)}
+                  editable={!profileSubmitting}
+                />
+                {registerPasswordError ? <FieldError message={registerPasswordError} /> : null}
+              </Field>
+
+              <Field label="确认密码">
+                <PasswordInput
+                  value={confirmPassword}
+                  onChangeText={(value) => {
+                    setConfirmPassword(value);
+                    setRegisterConfirmPasswordError('');
+                  }}
+                  placeholder="请再次输入密码"
+                  showPassword={showConfirmPassword}
+                  onToggle={() => setShowConfirmPassword((value) => !value)}
+                  editable={!profileSubmitting}
+                />
+                {registerConfirmPasswordError ? <FieldError message={registerConfirmPasswordError} /> : null}
+              </Field>
+
+              <Field label="邮箱（可选）">
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="用于辅助找回密码"
+                  placeholderTextColor={LoginColors.inputPlaceholder}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!profileSubmitting}
+                />
+              </Field>
+
+              <Pressable
+                style={[styles.submitButton, profileSubmitting && styles.disabled]}
+                onPress={handleCompleteProfile}
+                disabled={profileSubmitting}
+              >
+                {profileSubmitting ? (
+                  <ActivityIndicator color={LoginColors.white} />
+                ) : (
+                  <Text style={styles.submitText}>完成并进入后台</Text>
+                )}
+              </Pressable>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -414,6 +624,10 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       {children}
     </View>
   );
+}
+
+function FieldError({ message }: { message: string }) {
+  return <Text style={styles.fieldError}>{message}</Text>;
 }
 
 function PasswordInput({
@@ -550,6 +764,13 @@ const styles = StyleSheet.create({
   field: {
     marginBottom: 16,
   },
+  fieldError: {
+    marginTop: 8,
+    color: '#b91c1c',
+    fontSize: 13,
+    fontWeight: LoginWeights.bold,
+    lineHeight: 19,
+  },
   label: {
     fontSize: 14,
     fontWeight: LoginWeights.bold,
@@ -565,6 +786,10 @@ const styles = StyleSheet.create({
     fontSize: LoginSizes.inputFontSize,
     color: LoginColors.inputText,
     backgroundColor: LoginColors.inputBg,
+  },
+  inputReadonly: {
+    backgroundColor: '#f8fafc',
+    color: LoginColors.textMuted,
   },
   inputWrap: {
     position: 'relative',
@@ -628,5 +853,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: LoginWeights.bold,
     color: LoginColors.textMuted,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+  },
+  modalScroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    padding: 24,
+    shadowColor: LoginColors.cardShadow,
+    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 0.16,
+    shadowRadius: 44,
+    elevation: 12,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: LoginWeights.extraBold,
+    color: LoginColors.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: LoginColors.textMuted,
+    textAlign: 'center',
+    marginBottom: 20,
   },
 });

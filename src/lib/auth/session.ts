@@ -35,6 +35,7 @@ export type TeacherAccountSession = {
   school_id?: number;
   school_name?: string | null;
   is_admin: boolean;
+  profile_required?: boolean;
 };
 
 export function buildFtAuthFromLoginResponse(
@@ -170,6 +171,7 @@ export function buildFtAuthFromTeacherLogin(
     teacherId: teacher.id,
     teacherRole: teacher.role,
     isAdmin: teacher.is_admin,
+    teacherProfileRequired: teacher.profile_required === true,
     schoolName: teacher.school_name || '',
     persistent,
     expiresAt: Date.now() + expiresInMs,
@@ -223,6 +225,7 @@ export function buildFtAuthFromAccountSession(
       teacherId: teacher?.id || previous?.teacherId,
       teacherRole: teacher?.role || previous?.teacherRole,
       isAdmin: teacher?.is_admin ?? previous?.isAdmin,
+      teacherProfileRequired: teacher?.profile_required ?? previous?.teacherProfileRequired ?? false,
       schoolName: teacher?.school_name || previous?.schoolName || '',
       persistent,
       expiresAt: Date.now() + expiresInMs,
