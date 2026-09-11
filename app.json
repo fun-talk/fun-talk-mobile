@@ -57,7 +57,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "允许欧波开心学访问您的相册，以便您在提交投诉与建议时上传相关截图。"
+          "photosPermission": "允许狐狸开心学访问您的相册，以便您在提交投诉与建议时上传相关截图。"
         }
       ]
     ],
