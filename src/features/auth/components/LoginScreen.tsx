@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -55,6 +55,48 @@ export function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [forgotModalVisible, setForgotModalVisible] = useState(false);
   const [smsCountdown, setSmsCountdown] = useState(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // When the virtual keyboard opens on a tablet/phone, we add bottom padding to
+  // the scroll content and scroll down so that the focused password field stays
+  // visible above the keyboard. KeyboardAvoidingView alone is not reliable on
+  // Android tablets with adjustResize, so we drive the scroll manually.
+  const scrollForKeyboard = useCallback(
+    (height: number) => {
+      if (!scrollViewRef.current || height <= 0) return;
+      // Scroll the login card up by a bit more than half the keyboard height.
+      // This heuristic keeps the password input near the middle of the visible
+      // area above the keyboard on both phones and tablets.
+      const targetY = Math.round(height * 0.55);
+      scrollViewRef.current.scrollTo({ y: targetY, animated: true });
+    },
+    [],
+  );
+
+  const handlePasswordFocus = useCallback(() => {
+    scrollForKeyboard(keyboardHeight);
+  }, [keyboardHeight, scrollForKeyboard]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(showEvent, (event) => {
+      const height = event.endCoordinates.height;
+      setKeyboardHeight(height);
+      scrollForKeyboard(height);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [scrollForKeyboard]);
 
   // SMS countdown timer
   useEffect(() => {
@@ -192,25 +234,26 @@ export function LoginScreen() {
   );
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={styles.page}>
-        {/* Background image layer */}
-        <Image
-          source={loginImages.background}
-          style={styles.backgroundImage}
-          contentFit="cover"
-        />
+    <View style={styles.root}>
+      {/* Background image layer */}
+      <Image
+        source={loginImages.background}
+        style={styles.backgroundImage}
+        contentFit="cover"
+      />
 
-        <ScrollView
-          style={styles.sceneScroll}
-          contentContainerStyle={styles.sceneContent}
-          bounces={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={[styles.scene, { minHeight: windowHeight }]}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.sceneScroll}
+        contentContainerStyle={[
+          styles.sceneContent,
+          keyboardHeight > 0 && { paddingBottom: keyboardHeight },
+        ]}
+        bounces={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <View style={[styles.scene, { minHeight: windowHeight }]}>
             {/* Logo */}
             <Image
               source={loginImages.logo}
@@ -247,26 +290,23 @@ export function LoginScreen() {
               onPersonalSubmit={handlePersonalSubmit}
               onSchoolSubmit={handleSchoolSubmit}
               onForgotPassword={handleForgotPassword}
+              keyboardHeight={keyboardHeight}
+              onPasswordFocus={handlePasswordFocus}
             />
           </View>
         </ScrollView>
-      </View>
 
       <ForgotPasswordModal
         visible={forgotModalVisible}
         onClose={() => setForgotModalVisible(false)}
         onSubmit={handleForgotSubmit}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    flex: 1,
-    backgroundColor: LoginColors.skyBg,
-  },
-  page: {
     flex: 1,
     backgroundColor: LoginColors.skyBg,
   },

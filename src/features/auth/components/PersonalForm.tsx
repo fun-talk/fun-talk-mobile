@@ -17,6 +17,7 @@ type PersonalFormProps = {
   smsCountdown: number;
   onSendSms: (phone: string) => void;
   onSubmit: (phone: string, credential: string, mode: FamilyLoginMode) => void;
+  onPasswordFocus?: () => void;
 };
 
 export function PersonalForm({
@@ -24,6 +25,7 @@ export function PersonalForm({
   smsCountdown,
   onSendSms,
   onSubmit,
+  onPasswordFocus,
 }: PersonalFormProps) {
   const [phone, setPhone] = useState('');
   const [smsCode, setSmsCode] = useState('');

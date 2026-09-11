@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-const openingImage = require('../../assets/images/opening.png');
+const openingImage = require('../../assets/images/kaixin_opening.png');
 
 type Props = {
   /** Called once the exit animation is complete. */
@@ -19,6 +19,7 @@ type Props = {
 export function OpeningAnimation({ onFinish }: Props) {
   const exitOpacity = useSharedValue(1);
 
+  // Exit: fade everything out after ~2.8s
   useEffect(() => {
     exitOpacity.value = withDelay(
       2800,
@@ -35,8 +36,15 @@ export function OpeningAnimation({ onFinish }: Props) {
   }));
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, styles.root, containerStyle]} pointerEvents="none">
-      <Image source={openingImage} style={StyleSheet.absoluteFill} contentFit="cover" />
+    <Animated.View
+      style={[StyleSheet.absoluteFill, styles.root, containerStyle]}
+      pointerEvents="none"
+    >
+      <Image
+        source={openingImage}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+      />
     </Animated.View>
   );
 }

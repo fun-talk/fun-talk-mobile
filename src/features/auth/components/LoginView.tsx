@@ -22,6 +22,8 @@ type LoginViewProps = {
   onPersonalSubmit: (phone: string, credential: string, mode: FamilyLoginMode) => void;
   onSchoolSubmit: (digitalId: string, password: string) => void;
   onForgotPassword: () => void;
+  keyboardHeight?: number;
+  onPasswordFocus?: () => void;
 };
 
 export function LoginView({
@@ -37,11 +39,22 @@ export function LoginView({
   onPersonalSubmit,
   onSchoolSubmit,
   onForgotPassword,
+  keyboardHeight = 0,
+  onPasswordFocus,
 }: LoginViewProps) {
   return (
     <View style={styles.container}>
       {/* Login Stage — centered card */}
-      <View style={styles.loginStage}>
+      <View
+        style={[
+          styles.loginStage,
+          keyboardHeight > 0 &&
+            !isDesktopLayout && {
+              paddingTop: Math.max(8, 60 - keyboardHeight * 0.35),
+              paddingBottom: 32 + Math.min(keyboardHeight * 0.2, 60),
+            },
+        ]}
+      >
         {/* Glassmorphic card — matches web .account-card-student-login */}
         <View style={[styles.card, isDesktopLayout && styles.cardDesktop]}>
           {/* Heading — matches web .account-student-login-heading */}
@@ -80,12 +93,14 @@ export function LoginView({
                 smsCountdown={smsCountdown}
                 onSendSms={onSendSms}
                 onSubmit={onPersonalSubmit}
+                onPasswordFocus={onPasswordFocus}
               />
             ) : (
               <SchoolForm
                 isSubmitting={isSubmitting}
                 onSubmit={onSchoolSubmit}
                 onForgotPassword={onForgotPassword}
+                onPasswordFocus={onPasswordFocus}
               />
             )}
 
