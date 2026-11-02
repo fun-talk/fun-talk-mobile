@@ -84,6 +84,18 @@ export function NativeLessonScreen() {
     void fetchNativeLessonDefinition(apiClient, lessonRequest)
       .then((lesson) => {
         if (!cancelled) {
+          if (lesson.metadata.isReview) {
+            // 复习课的真实语音结果和练习调度目前由 Web 课程链路统一承接；
+            // Native 只负责普通课程，避免完成后丢失 story_eval 证据。
+            goFallback({
+              title: '正在切换复习课播放器',
+              message: '复习课将使用统一课程播放器，以便完成后生成练习路线。',
+              retryLabel: '重试',
+              fallbackReason: 'review_requires_web_runtime',
+              category: 'unsupported_lesson_shape',
+            });
+            return;
+          }
           setLessonDefinition(lesson);
         }
       })
@@ -102,7 +114,7 @@ export function NativeLessonScreen() {
     return () => {
       cancelled = true;
     };
-  }, [apiClient, auth?.token, lessonRequest, retryCount]);
+  }, [apiClient, auth?.token, goFallback, lessonRequest, retryCount]);
 
   if (!auth?.token) {
     return (

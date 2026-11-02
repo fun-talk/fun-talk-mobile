@@ -223,6 +223,7 @@ export function normalizeNativeLessonDefinition(rawLesson: unknown): NativeLesso
       id: asString(metadata.id, '413'),
       title: asString(metadata.title, 'FunTalk 课程'),
       version: asNumber(metadata.version, 1),
+      isReview: metadata.isReview === true,
       coverImageUrl: asString(metadata.coverImageUrl).trim() || undefined,
       defaultSpeaker: asString(metadata.defaultSpeaker).trim() || undefined,
       botName: asString(metadata.botName).trim() || undefined,

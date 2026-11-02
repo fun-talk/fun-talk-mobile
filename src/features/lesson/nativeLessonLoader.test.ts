@@ -84,10 +84,19 @@ describe('nativeLessonLoader', () => {
     assert.equal(lesson.metadata.id, '413');
     assert.equal(lesson.metadata.title, '动物色彩博物馆');
     assert.equal(lesson.metadata.botName, '欧波');
+    assert.equal(lesson.metadata.isReview, false);
     assert.equal(lesson.summary.challengeCount, 1);
     assert.equal(lesson.summary.stepCount, 2);
     assert.equal(lesson.summary.firstStep?.promptText, 'Look at the duck.');
     assert.equal(lesson.challenges[0]?.steps[2]?.correctOptionId, 'A');
+  });
+
+  it('preserves the review marker so review lessons use the Web runtime', () => {
+    const lesson = normalizeNativeLessonDefinition({
+      ...rawLesson,
+      metadata: { ...rawLesson.metadata, isReview: true },
+    });
+    assert.equal(lesson.metadata.isReview, true);
   });
 
   it('normalizes stage 5 answer fields from challenge steps', () => {

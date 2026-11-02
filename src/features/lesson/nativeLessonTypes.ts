@@ -7,6 +7,7 @@ export type NativeLessonMetadata = {
   id: string;
   title: string;
   version: number;
+  isReview?: boolean;
   coverImageUrl?: string;
   defaultSpeaker?: string;
   botName?: string;
