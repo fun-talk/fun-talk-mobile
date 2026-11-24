@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import Toast from 'react-native-toast-message';
 
 import { AuthProvider } from '@/features/auth';
+import { PrivacyConsentGate } from '@/features/legal';
 import { OpeningAnimation } from '@/components/OpeningAnimation';
 
 export default function RootLayout() {
@@ -19,15 +20,19 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <AuthProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(app)" />
-      </Stack>
-      <StatusBar style="auto" />
-      {showOpening && <OpeningAnimation onFinish={handleFinish} />}
-      <Toast />
-    </AuthProvider>
+    // First-launch privacy popup: nothing that collects data mounts before consent.
+    <PrivacyConsentGate>
+      <AuthProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(app)" />
+          <Stack.Screen name="legal" />
+        </Stack>
+        <StatusBar style="auto" />
+        {showOpening && <OpeningAnimation onFinish={handleFinish} />}
+        <Toast />
+      </AuthProvider>
+    </PrivacyConsentGate>
   );
 }

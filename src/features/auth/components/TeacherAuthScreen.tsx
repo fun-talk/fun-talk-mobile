@@ -95,7 +95,7 @@ export function TeacherAuthScreen() {
 
   const requireAgreement = useCallback(() => {
     if (!agreed) {
-      showErrorToast('请先勾选同意用户协议和隐私协议');
+      showErrorToast('请先勾选同意用户协议和隐私政策');
       return false;
     }
     return true;
