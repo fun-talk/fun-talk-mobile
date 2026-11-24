@@ -60,7 +60,8 @@
     "ios": "expo start --ios --port 19002",
     "web": "expo start --web --port 19002",
     "lint": "expo lint",
-    "test": "node --import tsx --test src/shared/*.test.ts src/lib/auth/*.test.ts src/features/accountAdmin/*.test.ts src/features/lesson/*.test.ts src/features/report/**/*.test.ts",
+    "test": "node --import tsx --test src/shared/*.test.ts src/lib/auth/*.test.ts src/features/accountAdmin/*.test.ts src/features/lesson/*.test.ts src/features/legal/*.test.ts src/features/report/**/*.test.ts",
+    "sync:legal": "node scripts/sync-legal-docs.mjs",
     "typecheck": "tsc --noEmit"
   },
   "private": true

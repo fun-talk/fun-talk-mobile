@@ -12,8 +12,7 @@ import {
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 
-import type { AgreementType } from '../data/agreements';
-
+import type { LegalDocType } from '@/features/legal';
 import { ApiRequestError } from '@/lib/api/client';
 import { buildFtAuthFromStudentLogin, buildFtAuthFromHomeLogin } from '@/lib/auth/session';
 import { showErrorToast, showSuccessToast } from '@/lib/toast';
@@ -219,8 +218,8 @@ export function LoginScreen() {
   }, []);
 
   const handleAgreementPress = useCallback(
-    (type: AgreementType) => {
-      router.push(`/(auth)/agreement?type=${type}` as Href);
+    (type: LegalDocType) => {
+      router.push(`/legal?type=${type}` as Href);
     },
     [router],
   );

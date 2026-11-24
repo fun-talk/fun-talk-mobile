@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { AgreementType } from '../data/agreements';
+import type { LegalDocType } from '@/features/legal';
+
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
 import { AccountAgreement } from './AccountAgreement';
 import { PersonalForm } from './PersonalForm';
@@ -16,7 +17,7 @@ type LoginViewProps = {
   isSubmitting: boolean;
   agreed: boolean;
   onAgreementChange: (checked: boolean) => void;
-  onAgreementPress?: (type: AgreementType) => void;
+  onAgreementPress?: (type: LegalDocType) => void;
   smsCountdown: number;
   onSendSms: (phone: string) => void;
   onPersonalSubmit: (phone: string, credential: string, mode: FamilyLoginMode) => void;

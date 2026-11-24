@@ -23,7 +23,6 @@ import { showErrorToast, showSuccessToast } from '@/lib/toast';
 
 import { useAuth } from '../AuthProvider';
 import { loginImages } from '../assets/loginAssets';
-import type { AgreementType } from '../data/agreements';
 import {
   completeTeacherProfile,
   loginTeacher,
@@ -135,7 +134,7 @@ export function TeacherAuthScreen() {
 
   const requireAgreement = useCallback(() => {
     if (!agreed) {
-      showErrorToast('请先勾选同意用户协议和隐私协议');
+      showErrorToast('请先勾选同意用户协议和隐私政策');
       return false;
     }
     return true;
@@ -264,13 +263,6 @@ export function TeacherAuthScreen() {
     setRegisterPasswordError('');
     setRegisterConfirmPasswordError('');
   };
-
-  const handleAgreementPress = useCallback(
-    (type: AgreementType) => {
-      router.push(`/(auth)/agreement?type=${type}` as Href);
-    },
-    [router],
-  );
 
   const handleCompleteProfile = useCallback(() => {
     if (!profileTeacher || !auth?.token) return;
@@ -503,7 +495,6 @@ export function TeacherAuthScreen() {
           <AccountAgreement
             checked={agreed}
             onChange={setAgreed}
-            onAgreementPress={handleAgreementPress}
             disabled={submitting}
           />
 

@@ -15,6 +15,8 @@ import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LEGAL_DOCS, LEGAL_DOC_TYPES } from '@/features/legal';
+
 import { useAuth } from '../AuthProvider';
 import { loginImages } from '../assets/loginAssets';
 import { showErrorToast, showSuccessToast } from '@/lib/toast';
@@ -574,6 +576,27 @@ try {
           </View>
         </View> : null}
 
+        {/* In-app entry to the published legal documents (same pages as the website). */}
+        <View style={[styles.panel, styles.legalPanel]}>
+          <Text style={styles.sectionTitle}>隐私与协议</Text>
+          {LEGAL_DOC_TYPES.map((type, index) => (
+            <Pressable
+              key={type}
+              accessibilityRole="link"
+              accessibilityLabel={`查看${LEGAL_DOCS[type].title}`}
+              onPress={() => router.push(`/legal?type=${type}` as Href)}
+              style={({ pressed }) => [
+                styles.legalRow,
+                index === LEGAL_DOC_TYPES.length - 1 && styles.legalRowLast,
+                pressed && styles.legalRowPressed,
+              ]}
+            >
+              <Text style={styles.legalRowText}>{LEGAL_DOCS[type].title}</Text>
+              <Text style={styles.legalRowChevron}>›</Text>
+            </Pressable>
+          ))}
+        </View>
+
         <View style={[styles.panel, styles.dangerPanel]}>
           <Text style={styles.sectionTitle}>删除账号</Text>
           <Text style={styles.dangerHint}>永久删除账号、个人资料和学习记录。此操作无法撤销。</Text>
@@ -677,6 +700,12 @@ const styles = StyleSheet.create({
   inlineBtn: { borderWidth: 0, backgroundColor: 'transparent', paddingVertical: 4, paddingHorizontal: 8 },
   inlineBtnText: { fontSize: LoginSizes.noteFontSize, fontWeight: LoginWeights.bold, color: LoginColors.blueSchool },
   unbindText: { color: LoginColors.errorText },
+  legalPanel: { marginTop: 24, paddingBottom: 8 },
+  legalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, borderBottomWidth: 1, borderBottomColor: LoginColors.line },
+  legalRowLast: { borderBottomWidth: 0 },
+  legalRowPressed: { opacity: 0.6 },
+  legalRowText: { fontSize: LoginSizes.inputFontSize, fontWeight: LoginWeights.bold, color: LoginColors.text },
+  legalRowChevron: { fontSize: 22, color: LoginColors.textMuted },
   dangerPanel: { marginTop: 24, borderColor: LoginColors.errorText },
   dangerHint: { fontSize: LoginSizes.captionFontSize, color: LoginColors.textMuted, lineHeight: 20, marginBottom: 16, textAlign: 'left' },
   deleteBtn: { alignSelf: 'flex-start', minHeight: 44, borderRadius: LoginSizes.btnBorderRadius, backgroundColor: LoginColors.errorText, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 12 },

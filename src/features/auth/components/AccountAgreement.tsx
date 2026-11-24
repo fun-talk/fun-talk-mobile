@@ -1,13 +1,14 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
-import type { AgreementType } from '../data/agreements';
+import { LEGAL_DOCS, type LegalDocType } from '@/features/legal';
+
 import { LoginColors, LoginSizes, LoginWeights } from './LoginConstants';
 
 type AccountAgreementProps = {
   checked: boolean;
   onChange: (checked: boolean) => void;
-  onAgreementPress?: (type: AgreementType) => void;
+  onAgreementPress?: (type: LegalDocType) => void;
   disabled?: boolean;
 };
 
@@ -19,12 +20,12 @@ export function AccountAgreement({
 }: AccountAgreementProps) {
   const router = useRouter();
 
-  const openAgreement = (type: AgreementType) => {
+  const openAgreement = (type: LegalDocType) => {
     if (onAgreementPress) {
       onAgreementPress(type);
       return;
     }
-    router.push(`/(auth)/agreement?type=${type}` as Href);
+    router.push(`/legal?type=${type}` as Href);
   };
 
   return (
@@ -45,7 +46,7 @@ export function AccountAgreement({
           onPress={() => openAgreement('user')}
           accessibilityRole="link"
         >
-          《用户协议》
+          {LEGAL_DOCS.user.linkLabel}
         </Text>
         、
         <Text
@@ -53,7 +54,7 @@ export function AccountAgreement({
           onPress={() => openAgreement('privacy')}
           accessibilityRole="link"
         >
-          《隐私协议》
+          {LEGAL_DOCS.privacy.linkLabel}
         </Text>
         和
         <Text
@@ -61,7 +62,7 @@ export function AccountAgreement({
           onPress={() => openAgreement('children')}
           accessibilityRole="link"
         >
-          《儿童隐私政策》
+          {LEGAL_DOCS.children.linkLabel}
         </Text>
       </Text>
     </View>
